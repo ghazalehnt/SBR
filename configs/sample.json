@@ -1,0 +1,25 @@
+{
+  "dataset": {
+    "name": "CGR",
+    "dataset_path": "PATH/data/GR_read_5-folds/split_1/",
+    "binary_interactions": true,
+    "relevance_level": 1,
+    "batch_size": 8,
+    "user_text": [],
+    "item_text": []
+  },
+  "trainer": {
+    "optimizer": "Adam",
+    "lr": 4e-3,
+    "wd": 0,
+    "epochs": 10,
+    "loss_fn": "BCE",
+    "valid_metric": "valid_loss"
+  },
+  "model": {
+    "name": "MF",
+    "embedding_dim": 200
+  },
+  "experiment_root": "PATH/experiment_dir/mf_implicit/",
+  "params_in_exp_dir": ["model.embedding_dim", "trainer.lr", "trainer.wd", "dataset.batch_size"]
+}
