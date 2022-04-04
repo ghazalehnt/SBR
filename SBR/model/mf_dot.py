@@ -1,6 +1,6 @@
 import torch
 
-from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 class MatrixFactorizatoinDotProduct(torch.nn.Module):

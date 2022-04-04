@@ -7,7 +7,7 @@ from datasets import load_dataset, Dataset
 from torch.utils.data import DataLoader
 import numpy as np
 
-from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 goodreads_rating_mapping = {
     None: None,  ## this means there was no rating

@@ -6,7 +6,7 @@ from torch.optim import Adam, SGD
 from tqdm import tqdm
 
 from SBR.utils.metrics import calculate_metrics
-from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 class SupervisedTrainer:
