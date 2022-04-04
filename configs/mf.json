@@ -12,13 +12,13 @@
     "optimizer": "Adam",
     "lr": 4e-3,
     "wd": 0,
-    "epochs": 10,
+    "epochs": 100,
     "loss_fn": "BCE",
     "valid_metric": "valid_loss"
   },
   "model": {
     "name": "MF",
-    "embedding_dim": 200
+    "embedding_dim": 100
   },
   "experiment_root": "<EXP_ROOT_PATH>/mf_implicit/",
   "params_in_exp_dir": ["model.embedding_dim", "trainer.lr", "trainer.wd", "dataset.batch_size"]

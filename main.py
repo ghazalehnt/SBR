@@ -24,10 +24,11 @@ def main(op, config_file=None, result_folder=None):
         config = json.load(open(config_file, 'r'))
         if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
             config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"]\
-                .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read())
+                .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read().strip())
         if "<EXP_ROOT_PATH>" in config["experiment_root"]:
             config["experiment_root"] = config["experiment_root"]\
-                .replace("<EXP_ROOT_PATH>", open("data/paths_vars/EXP_ROOT_PATH").read())
+                .replace("<EXP_ROOT_PATH>", open("data/paths_vars/EXP_ROOT_PATH").read().strip())
+        print(config)
         exp_dir_params = []
         for param in config['params_in_exp_dir']:
             p1 = param[:param.index(".")]
