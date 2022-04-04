@@ -22,6 +22,12 @@ def main(op, config_file=None, result_folder=None):
     test_only = False
     if op == "train":
         config = json.load(open(config_file, 'r'))
+        if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
+            config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"]\
+                .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read())
+        if "<EXP_ROOT_PATH>" in config["experiment_root"]:
+            config["experiment_root"] = config["experiment_root"]\
+                .replace("<EXP_ROOT_PATH>", open("data/paths_vars/EXP_ROOT_PATH").read())
         exp_dir_params = []
         for param in config['params_in_exp_dir']:
             p1 = param[:param.index(".")]

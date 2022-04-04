@@ -1,7 +1,7 @@
 {
   "dataset": {
     "name": "CGR",
-    "dataset_path": "PATH/data/GR_read_5-folds/split_1/",
+    "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/split_1/",
     "binary_interactions": true,
     "relevance_level": 1,
     "batch_size": 8,
@@ -20,6 +20,6 @@
     "name": "MF",
     "embedding_dim": 200
   },
-  "experiment_root": "PATH/experiment_dir/mf_implicit/",
+  "experiment_root": "<EXP_ROOT_PATH>/mf_implicit/",
   "params_in_exp_dir": ["model.embedding_dim", "trainer.lr", "trainer.wd", "dataset.batch_size"]
 }
