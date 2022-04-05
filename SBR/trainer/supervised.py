@@ -101,7 +101,7 @@ class SupervisedTrainer:
 
             # evaluate every epochs
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-            print(f"Valid loss: {valid_loss:.4f}")
+            print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
             results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
             results["valid_loss"] = valid_loss.item()
             self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
@@ -131,7 +131,7 @@ class SupervisedTrainer:
         results["loss"] = valid_loss.item()
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/validation_{k}', v)
-        print(f"\nValidation results: {results}")
+        print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
 
         outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
@@ -140,7 +140,7 @@ class SupervisedTrainer:
         results["loss"] = test_loss.item()
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/test_{k}', v)
-        print(f"\nTest results: {results}")
+        print(f"\nTest results - best epoch {self.best_epoch}: {results}")
 
     def predict(self, eval_dataloader):
         # bring models to evaluation mode
