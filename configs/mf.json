@@ -14,7 +14,8 @@
     "wd": 0,
     "epochs": 100,
     "loss_fn": "BCE",
-    "valid_metric": "valid_loss"
+    "valid_metric": "valid_loss",
+    "early_stopping_patience": 10
   },
   "model": {
     "name": "MF",
