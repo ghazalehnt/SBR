@@ -20,11 +20,11 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
         user_embeds = self.user_embedding(users)
         item_embeds = self.item_embedding(items)
 
-        # we want to multiply each user with its corresponding item:  # todo which is faster? time these?
+        # we want to multiply each user with its corresponding item:  # todo which is faster? time these? very similar not much different
         # 1: elementwise multiplication of user and item embeds and them sum on dim1
         output = torch.sum(torch.mul(user_embeds, item_embeds), dim=1)
         # 2: taking the diagonal of matrixmul of user and item embeds:
-        # output = torch.diag(torch.matmul(user_embeds, item_embeds.T))
+        #output = torch.diag(torch.matmul(user_embeds, item_embeds.T))
         output = output + self.item_bias[items] + self.user_bias[users]
         output = output + self.bias
         return torch.sigmoid(output)  # apply sigmoid and use BCELoss
