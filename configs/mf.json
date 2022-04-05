@@ -4,7 +4,7 @@
     "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/split_1/",
     "binary_interactions": true,
     "relevance_level": 1,
-    "batch_size": 8,
+    "batch_size": 512,
     "user_text": [],
     "item_text": []
   },
