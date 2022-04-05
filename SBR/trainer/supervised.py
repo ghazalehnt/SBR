@@ -124,6 +124,15 @@ class SupervisedTrainer:
                 early_stopping_cnt += 1
 
     def evaluate(self, test_dataloader, valid_dataloader):
+        # load the best model from file.
+        # because we may call evaluate right after fit and in this case need to reload the best model!
+        checkpoint = torch.load(self.best_model_path, map_location=self.device)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.to(self.device)
+        self.best_epoch = checkpoint['epoch']
+        self.best_saved_valid_metric = checkpoint['best_valid_metric']
+        print("best model loaded!")
+
         outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
         log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
