@@ -17,17 +17,18 @@ class SupervisedTrainer:
         self.logger = logger
         self.test_only = test_only  # todo used?
         self.relevance_level = relevance_level
-        self.valid_metric = config["valid_metric"]
-        self.best_model_path = join(exp_dir, "best_model.pth")
-        self.best_valid_output_path = join(exp_dir, "best_valid_output.json")
-        self.test_output_path = join(exp_dir, "test_output.json")
+        self.valid_metric = config['valid_metric']
+        self.patience = config['early_stopping_patience']
+        self.best_model_path = join(exp_dir, 'best_model.pth')
+        self.best_valid_output_path = join(exp_dir, 'best_valid_output.json')
+        self.test_output_path = join(exp_dir, 'test_output.json')
         self.users = users
         self.items = items
 
-        if config["loss_fn"] == "BCE":
+        if config['loss_fn'] == "BCE":
             # self.loss_fn = torch.nn.BCEWithLogitsLoss()
             self.loss_fn = torch.nn.BCELoss()  # use BCELoss and apply the sigmoid beforehand in the model
-        elif config["loss_fn"] == "MSE":
+        elif config['loss_fn'] == "MSE":
             self.loss_fn = torch.nn.MSELoss()
         # elif config["loss_fn"] == "CE":  ## todo do we need this???
             # self.loss_fn = torch.nn.CrossEntropyLoss
@@ -35,13 +36,13 @@ class SupervisedTrainer:
             raise ValueError(f"loss_fn {config['loss_fn']} is not implemented!")
 
         if config['optimizer'] == "Adam":
-            self.optimizer = Adam(self.model.parameters(), lr=config["lr"], weight_decay=config["wd"])
+            self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
         elif config['optimizer'] == "SGD":
-            self.optimizer = SGD(self.model.parameters(), lr=config["lr"], weight_decay=config["wd"])
+            self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
         else:
             raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
 
-        self.epochs = config["epochs"]
+        self.epochs = config['epochs']
         self.start_epoch = 0
         self.best_epoch = 0
         self.best_saved_valid_metric = 100 if self.valid_metric == "valid_loss" else -100
@@ -59,7 +60,12 @@ class SupervisedTrainer:
         self.model.to(device)
 
     def fit(self, train_dataloader, valid_dataloader):
+        early_stopping_cnt = 0
         for epoch in range(self.start_epoch, self.epochs):
+            if early_stopping_cnt == self.patience:
+                print(f"Early stopping after {self.patience} epochs not improving!")
+                break
+
             self.model.train()
 
             pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
@@ -93,35 +99,36 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
-            # evaluate every N=1 epochs
-            if epoch % 1 == 0:
-                outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-                print(f"Valid loss: {valid_loss:.4f}")
-                results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
-                results["valid_loss"] = valid_loss.tolist()
-                if (self.valid_metric == "valid_loss" and self.best_saved_valid_metric < valid_loss) or \
-                        (self.best_saved_valid_metric > results[self.valid_metric]):
-                    self.best_saved_valid_metric = results[self.valid_metric]
-                    self.best_epoch = epoch
-                    checkpoint = {
-                        'epoch': self.best_epoch,
-                        'best_valid_metric': self.best_saved_valid_metric,
-                        'model_state_dict': self.model.state_dict(),
-                        'optimizer_state_dict': self.optimizer.state_dict()
-                        }
-                    torch.save(checkpoint, self.best_model_path)
-
-                self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
-                self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
-                for k, v in results.items():
-                    self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
+            # evaluate every epochs
+            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+            print(f"Valid loss: {valid_loss:.4f}")
+            results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
+            results["valid_loss"] = valid_loss.item()
+            self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
+            self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
+            for k, v in results.items():
+                self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
+            if (self.valid_metric == "valid_loss" and self.best_saved_valid_metric < valid_loss) or \
+                    (self.best_saved_valid_metric > results[self.valid_metric]):
+                self.best_saved_valid_metric = results[self.valid_metric]
+                self.best_epoch = epoch
+                checkpoint = {
+                    'epoch': self.best_epoch,
+                    'best_valid_metric': self.best_saved_valid_metric,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict()
+                    }
+                torch.save(checkpoint, self.best_model_path)
+                early_stopping_cnt = 0
+            else:
+                early_stopping_cnt += 1
 
     def evaluate(self, test_dataloader, valid_dataloader):
         outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
         log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
-        results["loss"] = valid_loss.tolist()
+        results["loss"] = valid_loss.item()
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/validation_{k}', v)
         print(f"\nValidation results: {results}")
@@ -130,7 +137,7 @@ class SupervisedTrainer:
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
-        results["loss"] = test_loss.tolist()
+        results["loss"] = test_loss.item()
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/test_{k}', v)
         print(f"\nTest results: {results}")
