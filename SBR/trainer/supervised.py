@@ -43,6 +43,7 @@ class SupervisedTrainer:
         if exists(self.best_model_path):
             checkpoint = torch.load(self.best_model_path, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.model.to(device)
             self.start_epoch = checkpoint['epoch'] + 1
             self.best_epoch = checkpoint['epoch']
             self.best_saved_valid_metric = checkpoint['best_valid_metric']
