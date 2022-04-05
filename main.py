@@ -66,7 +66,8 @@ def main(op, config_file=None, result_folder=None):
     model = MatrixFactorizatoinDotProduct(config=config['model'], n_users=users.num_rows, n_items=items.num_rows)
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
-                                test_only=test_only, relevance_level=relevance_level)
+                                test_only=test_only, relevance_level=relevance_level,
+                                users=users, items=items)
 
     if op == "train":
         trainer.fit(train_dataloader, valid_dataloader)

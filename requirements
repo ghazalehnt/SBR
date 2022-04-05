@@ -10,3 +10,5 @@ pip install pandas
 pip install tqdm
 pip install pytrec_eval
 pip install tensorboard
+pip install matplotlib
+
