@@ -108,8 +108,8 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
             for k, v in results.items():
                 self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
-            if (self.valid_metric == "valid_loss" and self.best_saved_valid_metric < valid_loss) or \
-                    (self.best_saved_valid_metric > results[self.valid_metric]):
+            if (self.valid_metric == "valid_loss" and results[self.valid_metric] < self.best_saved_valid_metric) or \
+                                        (results[self.valid_metric] > self.best_saved_valid_metric):
                 self.best_saved_valid_metric = results[self.valid_metric]
                 self.best_epoch = epoch
                 checkpoint = {
