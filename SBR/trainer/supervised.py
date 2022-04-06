@@ -1,9 +1,11 @@
+import operator
 import time
 from os.path import exists, join
 
 import torch
 from torch.optim import Adam, SGD
 from tqdm import tqdm
+import numpy as np
 
 from SBR.utils.metrics import calculate_metrics, log_results
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
@@ -45,7 +47,7 @@ class SupervisedTrainer:
         self.epochs = config['epochs']
         self.start_epoch = 0
         self.best_epoch = 0
-        self.best_saved_valid_metric = 100 if self.valid_metric == "valid_loss" else -100
+        self.best_saved_valid_metric = np.inf if self.valid_metric == "valid_loss" else -np.inf
         if exists(self.best_model_path):
             checkpoint = torch.load(self.best_model_path, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -61,6 +63,7 @@ class SupervisedTrainer:
 
     def fit(self, train_dataloader, valid_dataloader):
         early_stopping_cnt = 0
+        comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
                 print(f"Early stopping after {self.patience} epochs not improving!")
@@ -70,7 +73,7 @@ class SupervisedTrainer:
 
             pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
             start_time = time.time()
-            train_loss = 0
+            train_loss, total_count = 0, 0
 
             # for loop going through dataset
             for batch_idx, batch in pbar:
@@ -86,6 +89,7 @@ class SupervisedTrainer:
                 loss.backward()
                 self.optimizer.step()
                 train_loss += loss
+                total_count += label.size(0)
 
                 # compute computation time and *compute_efficiency*
                 process_time = start_time - time.time() - prepare_time
@@ -94,6 +98,7 @@ class SupervisedTrainer:
                     f'Compute efficiency: {compute_efficiency:.4f}, '
                     f'loss: {loss.item():.4f},  epoch: {epoch}/{self.epochs}')
                 start_time = time.time()
+            train_loss /= total_count
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
@@ -108,8 +113,7 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
             for k, v in results.items():
                 self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
-            if (self.valid_metric == "valid_loss" and self.best_saved_valid_metric < valid_loss) or \
-                    (self.best_saved_valid_metric > results[self.valid_metric]):
+            if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
                 self.best_saved_valid_metric = results[self.valid_metric]
                 self.best_epoch = epoch
                 checkpoint = {
@@ -182,5 +186,5 @@ class SupervisedTrainer:
                 outputs.extend(output.tolist())
                 user_ids.extend(batch[INTERNAL_USER_ID_FIELD].tolist())  # TODO internal? or external? maybe have an external one
                 item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].tolist())
-
+            eval_loss /= total_count
         return outputs, ground_truth, eval_loss, user_ids, item_ids
