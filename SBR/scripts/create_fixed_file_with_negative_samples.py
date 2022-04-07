@@ -76,8 +76,8 @@ def main(dataset_path, strategy, num_neg_samples):
 if __name__ == "__main__":
     random.seed(42)
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_folder', '-d', type=str, help='path to dataset')
-    parser.add_argument('--ns', type=int, help='number of negative samples')
+    parser.add_argument('dataset_folder', type=str, help='path to dataset')
+    parser.add_argument('ns', type=int, help='number of negative samples')
     args, _ = parser.parse_known_args()
 
     main(args.dataset_folder, "random", args.ns)
