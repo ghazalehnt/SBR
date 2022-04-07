@@ -36,7 +36,7 @@ def neg_sampling(data, used_items, strategy, num_neg_samples):
     for user_id in user_counter.keys():
         num_pos = user_counter[user_id]
         num_user_neg_samples = num_pos * num_neg_samples
-        potential_items = all_items - used_items[user_id]
+        potential_items = list(all_items - used_items[user_id])
         if len(potential_items) < num_user_neg_samples:
             print(f"WARNING: as there were not enough potential items to sample for user {user_id} with "
                   f"{num_pos} positives needing {num_user_neg_samples} negs,"
