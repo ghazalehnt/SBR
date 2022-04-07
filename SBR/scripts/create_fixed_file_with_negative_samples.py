@@ -67,7 +67,7 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
     user_cnt = 1
     start_time = time.time()
     for user_id in user_counter.keys():
-        if user_cnt % 100000 == 0:
+        if user_cnt % 10000 == 0:
             print(f"{user_cnt} users done")
         num_pos = user_counter[user_id]
         max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)
@@ -101,7 +101,7 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
                 break
         samples.extend([[user_id, sampled_item_id, 0] for sampled_item_id in user_samples])
         user_cnt += 1
-    print(time.time()-start_time)
+    print(f"{user_cnt} users in {time.time()-start_time}")
     return samples
 
 
