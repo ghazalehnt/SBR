@@ -50,7 +50,8 @@ def calculate_ranking_metrics(gt, pd, relevance_level):
     :return: metric scores
     '''
     evaluator = pytrec_eval.RelevanceEvaluator(gt, ranking_metrics, relevance_level=int(relevance_level))
-    scores = [[metrics_dict.get(m, -1) for m in ranking_metrics] for metrics_dict in evaluator.evaluate(pd).values()]
+    per_user_scores = evaluator.evaluate(pd)
+    scores = [[metrics_dict.get(m, -1) for m in ranking_metrics] for metrics_dict in per_user_scores.values()]
     scores = np.array(scores).mean(axis=0).tolist()
     scores = dict(zip(ranking_metrics, scores))
     return scores
@@ -100,9 +101,9 @@ def calculate_cl_macro(gt_user, pd_user):
 def log_results(output_path, ground_truth, prediction_scores, internal_user_ids, internal_items_ids,
                 external_users, external_items):
     # we want to log the results corresponding to external user and item ids
-    ex_users = external_users.to_pandas().set_index("internal_user_id")
+    ex_users = external_users.set_index("internal_user_id")
     user_ids = ex_users.loc[internal_user_ids].user_id.values
-    ex_items = external_items.to_pandas().set_index("internal_item_id")
+    ex_items = external_items.set_index("internal_item_id")
     item_ids = ex_items.loc[internal_items_ids].item_id.values
 
     gt = {str(u): {} for u in set(user_ids)}

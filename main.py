@@ -63,7 +63,7 @@ def main(op, config_file=None, result_folder=None):
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level = load_data(config['dataset'])
 
     # TODO
-    model = MatrixFactorizatoinDotProduct(config=config['model'], n_users=users.num_rows, n_items=items.num_rows)
+    model = MatrixFactorizatoinDotProduct(config=config['model'], n_users=users.shape[0], n_items=items.shape[0])
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,
