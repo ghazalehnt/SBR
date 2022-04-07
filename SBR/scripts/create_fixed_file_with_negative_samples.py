@@ -34,7 +34,10 @@ def neg_sampling(data, used_items, strategy, num_neg_samples):
     all_items = set(all_items)
     samples = []
     user_counter = Counter(data['user_id'])
+    cnt = 1
     for user_id in user_counter.keys():
+        if cnt % 100000 == 0:
+            print(f"{cnt} users done")
         num_pos = user_counter[user_id]
         num_user_neg_samples = num_pos * num_neg_samples
         potential_items = list(all_items - used_items[user_id])
@@ -47,6 +50,7 @@ def neg_sampling(data, used_items, strategy, num_neg_samples):
         if strategy == 'random':
             for sampled_item in random.sample(potential_items, num_user_neg_samples):
                 samples.append([user_id, sampled_item, 0])
+        cnt += 1
     return samples
 
 
