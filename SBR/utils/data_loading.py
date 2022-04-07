@@ -35,15 +35,14 @@ def load_data(config):
         # save user_used_items.
         user_used_items = get_user_used_items(datasets)
         if config['training_neg_sampling_strategy'] == "random":
-            cur_used_items = user_used_items['train']
-            train_collate_fn = CollateNegSamples(config['training_neg_sampling_strategy'],
-                                                 config['training_neg_samples'], cur_used_items)
+            cur_used_items = user_used_items['train'].copy()
+            train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items)
 
     if config['validation_neg_sampling_strategy'] == "random":
-        cur_used_items = user_used_items['train']
-        cur_used_items.update(user_used_items['validation'])
-        valid_collate_fn = CollateNegSamples(config['validation_neg_sampling_strategy'],
-                                             config['validation_neg_samples'], cur_used_items)
+        cur_used_items = user_used_items['train'].copy()
+        for user_id, u_items in user_used_items['validation'].items():
+            cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+        valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items)
     elif config['validation_neg_sampling_strategy'].startswith("f:"):
         negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:] + ".csv"))
         negs = negs.merge(user_info, "left", on="user_id")
@@ -52,11 +51,12 @@ def load_data(config):
         valid_collate_fn = CollateNegSamplesFixed(negs)
 
     if config['test_neg_sampling_strategy'] == "random":
-        cur_used_items = user_used_items['train']
-        cur_used_items.update(user_used_items['validation'])
-        cur_used_items.update(user_used_items['test'])
-        test_collate_fn = CollateNegSamples(config['test_neg_sampling_strategy'],
-                                            config['test_neg_samples'], cur_used_items)
+        cur_used_items = user_used_items['train'].copy()
+        for user_id, u_items in user_used_items['validation'].items():
+            cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+        for user_id, u_items in user_used_items['test'].items():
+            cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+        test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items)
     elif config['test_neg_sampling_strategy'].startswith("f:"):
         negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
         negs = negs.merge(user_info, "left", on="user_id")
@@ -91,35 +91,87 @@ def load_data(config):
     return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level']
 
 
-class CollateNegSamples(object):
-    def __init__(self, strategy, num_neg_samples, used_items):
-        self.strategy = strategy
+# class CollateNegSamples(object):
+#     def __init__(self, strategy, num_neg_samples, used_items):
+#         self.strategy = strategy
+#         self.num_neg_samples = num_neg_samples
+#         self.used_items = used_items
+#         all_items = []
+#         for items in self.used_items.values():
+#             all_items.extend(items)
+#         self.all_items = set(all_items)
+#
+#     def __call__(self, batch):
+#         # TODO maybe change the sampling to like the fixed one... counter...
+#         batch_df = pd.DataFrame(batch)
+#         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
+#         samples = []
+#         for user_id in user_counter.keys():
+#             num_pos = user_counter[user_id]
+#             num_user_neg_samples = num_pos * self.num_neg_samples
+#             potential_items = self.all_items - self.used_items[user_id]
+#             if len(potential_items) < num_user_neg_samples:
+#                 print(f"WARNING: as there were not enough potential items to sample for user {user_id} with "
+#                       f"{num_pos} positives needing {num_user_neg_samples} negs,"
+#                       f"we reduced the number of user negative samples to potential items {len(potential_items)}"
+#                       f"HOWEVER, bear in mind that this is problematic, since the negatives here are the positives in valid and test!")
+#                 num_user_neg_samples = len(potential_items)
+#             if self.strategy == 'random':
+#                 for sampled_item in random.sample(potential_items, num_user_neg_samples):
+#                     samples.append({'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item})
+#         temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index() ## TODO what if there are more fields?
+#         ret = {}
+#         for col in temp.columns:
+#             ret[col] = torch.tensor(temp[col])
+#         return ret
+
+
+class CollateNegSamplesRandomOpt(object):
+    def __init__(self, num_neg_samples, used_items):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
         all_items = []
         for items in self.used_items.values():
             all_items.extend(items)
-        self.all_items = set(all_items)
+        self.all_items = list(set(all_items))
 
     def __call__(self, batch):
-        # TODO maybe change the sampling to like the fixed one... counter...
         batch_df = pd.DataFrame(batch)
         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
         samples = []
         for user_id in user_counter.keys():
             num_pos = user_counter[user_id]
-            num_user_neg_samples = num_pos * self.num_neg_samples
-            potential_items = self.all_items - self.used_items[user_id]
-            if len(potential_items) < num_user_neg_samples:
-                print(f"WARNING: as there were not enough potential items to sample for user {user_id} with "
-                      f"{num_pos} positives needing {num_user_neg_samples} negs,"
-                      f"we reduced the number of user negative samples to potential items {len(potential_items)}"
-                      f"HOWEVER, bear in mind that this is problematic, since the negatives here are the positives in valid and test!")
-                num_user_neg_samples = len(potential_items)
-            if self.strategy == 'random':
-                for sampled_item in random.sample(potential_items, num_user_neg_samples):
-                    samples.append({'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item})
-        temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index() ## TODO what if there are more fields?
+            max_num_user_neg_samples = min(len(self.all_items), num_pos * self.num_neg_samples)
+            if max_num_user_neg_samples < num_pos * self.num_neg_samples:
+                print(f"WARN: user {user_id} needed {num_pos * self.num_neg_samples} samples,"
+                      f"but all_items are {len(self.all_items)}")
+            user_samples = set()
+            try_cnt = -1
+            num_user_neg_samples = max_num_user_neg_samples
+            while True:
+                if try_cnt == 100:
+                    print(f"WARN: After {try_cnt} tries, could not find {max_num_user_neg_samples} samples for"
+                          f"{user_id}. We instead have {len(user_samples)} samples.")
+                    break
+                current_samples = set(random.sample(self.all_items, num_user_neg_samples))
+                current_samples -= user_samples
+                cur_used_samples = self.used_items[user_id].intersection(current_samples)
+                if len(user_samples) < max_num_user_neg_samples:
+                    current_samples = current_samples - cur_used_samples
+                    user_samples = user_samples.union(current_samples)
+                    num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
+                    # to make the process faster
+                    if num_user_neg_samples < len(user_samples):
+                        num_user_neg_samples = min(max_num_user_neg_samples, num_user_neg_samples * 2)
+                    try_cnt += 1
+                else:
+                    user_samples = user_samples.union(current_samples)
+                    if len(user_samples) > max_num_user_neg_samples:
+                        user_samples = set(list(user_samples)[:max_num_user_neg_samples])
+                    break
+            samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
+                            for sampled_item_id in user_samples])
+        temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index()  ## TODO what if there are more fields?
         ret = {}
         for col in temp.columns:
             ret[col] = torch.tensor(temp[col])

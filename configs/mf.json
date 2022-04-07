@@ -4,9 +4,14 @@
     "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/split_1/",
     "binary_interactions": true,
     "relevance_level": 1,
-    "batch_size": 512,
+    "train_batch_size": 1024,
+    "eval_batch_size": 32,
     "user_text": [],
-    "item_text": []
+    "item_text": [],
+    "training_neg_sampling_strategy": "random",
+    "training_neg_samples": 4,
+    "validation_neg_sampling_strategy": "f:validation_neg_random_100",
+    "test_neg_sampling_strategy": "f:test_neg_random_100"
   },
   "trainer": {
     "optimizer": "Adam",
