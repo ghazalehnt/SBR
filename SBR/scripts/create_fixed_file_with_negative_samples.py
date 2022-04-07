@@ -70,23 +70,34 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
         if user_cnt % 100000 == 0:
             print(f"{user_cnt} users done")
         num_pos = user_counter[user_id]
-        num_user_neg_samples = num_pos * num_neg_samples
+        max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)
+        if max_num_user_neg_samples < num_pos * num_neg_samples:
+            print(f"WARN: user {user_id} needed {num_pos * num_neg_samples} samples,"
+                  f"but all_items are {len(all_items)}")
+
         user_samples = set()
-        try_cnt = 0
+        try_cnt = -1
+        num_user_neg_samples = max_num_user_neg_samples
         while True:
             if try_cnt == 100:
-                print(f"WARN: After {try_cnt} tries, could not find {num_pos*num_neg_samples} samples for"
+                print(f"WARN: After {try_cnt} tries, could not find {max_num_user_neg_samples} samples for"
                       f"{user_id}. We instead have {len(user_samples)} samples.")
                 break
             current_samples = set(random.sample(all_items, num_user_neg_samples))
             current_samples -= user_samples
-            used_samples = used_items[user_id].intersection(current_samples)
-            if len(used_samples) > 0:
-                user_samples = user_samples.union(current_samples - used_samples)
-                num_user_neg_samples = len(used_samples)
+            cur_used_samples = used_items[user_id].intersection(current_samples)
+            if len(user_samples) < max_num_user_neg_samples:
+                current_samples = current_samples - cur_used_samples
+                user_samples = user_samples.union(current_samples)
+                num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
+                # to make the process faster
+                if num_user_neg_samples < len(user_samples):
+                    num_user_neg_samples = min(max_num_user_neg_samples, num_user_neg_samples * 2)
                 try_cnt += 1
             else:
                 user_samples = user_samples.union(current_samples)
+                if len(user_samples) > max_num_user_neg_samples:
+                    user_samples = set(list(user_samples)[:max_num_user_neg_samples])
                 break
         samples.extend([[user_id, sampled_item_id, 0] for sampled_item_id in user_samples])
         user_cnt += 1
@@ -98,20 +109,23 @@ def main(dataset_path, strategy, num_neg_samples):
     datasets = load_data(dataset_path)
     user_used_items = get_user_used_items(datasets)
 
-    used_items = user_used_items['train']
-    used_items.update(user_used_items['validation'])
+    used_items = user_used_items['train'].copy()
+    for user_id, cur_user_items in user_used_items['validation'].items():
+        used_items[user_id] = used_items[user_id].union(cur_user_items)
     validation_samples = neg_sampling_opt(datasets['validation'], used_items, strategy, num_neg_samples)
     with open(os.path.join(dataset_path, f'validation_neg_{strategy}_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['user_id', 'item_id', 'label'])
         writer.writerows(validation_samples)
 
-    used_items.update(user_used_items['test'])
+    for user_id, cur_user_items in user_used_items['test'].items():
+        used_items[user_id] = used_items[user_id].union(cur_user_items)
     test_samples = neg_sampling_opt(datasets['test'], used_items, strategy, num_neg_samples)
     with open(os.path.join(dataset_path, f'test_neg_{strategy}_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['user_id', 'item_id', 'label'])
         writer.writerows(test_samples)
+
 
 if __name__ == "__main__":
     random.seed(42)
