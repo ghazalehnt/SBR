@@ -75,17 +75,17 @@ def load_data(config):
     # sampling negs: for training it is only train items,  for validation: train+valid, for test: train+valid+test
 
     train_dataloader = DataLoader(datasets['train'],
-                                  batch_size=config['batch_size'],
+                                  batch_size=config['train_batch_size'],
                                   shuffle=True,
                                   collate_fn=train_collate_fn
                                   ### sampler? how negative sampling is implemented into this? or should we do it outside?
                                   ### when creating the datasets?
                                   )
     validation_dataloader = DataLoader(datasets['validation'],
-                                       batch_size=config['batch_size'],
+                                       batch_size=config['eval_batch_size'],
                                        collate_fn=valid_collate_fn)
     test_dataloader = DataLoader(datasets['test'],
-                                 batch_size=config['batch_size'],
+                                 batch_size=config['eval_batch_size'],
                                  collate_fn=test_collate_fn)
 
     return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level']
