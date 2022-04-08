@@ -28,5 +28,7 @@
   },
   "experiment_root": "<EXP_ROOT_PATH>/mf_implicit/",
   "params_in_exp_dir": ["model.embedding_dim", "trainer.lr", "trainer.wd", "dataset.train_batch_size",
-    "dataset.eval_batch_size"]
+    "dataset.eval_batch_size",
+    "dataset.training_neg_sampling_strategy", "dataset.training_neg_samples",
+    "dataset.validation_neg_sampling_strategy", "dataset.test_neg_sampling_strategy"]
 }
