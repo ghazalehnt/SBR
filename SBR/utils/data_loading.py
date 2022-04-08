@@ -208,16 +208,13 @@ class CollateNegSamplesRandomOpt(object):
 
 class CollateNegSamplesFixed(object):
     def __init__(self, samples):
-        users = set(samples[INTERNAL_USER_ID_FIELD])
-        self.samples = {}
-        for user_id in users:
-            self.samples[user_id] = samples[samples[INTERNAL_USER_ID_FIELD] == user_id].reset_index()
+        self.samples_grouped = samples.groupby(by=[INTERNAL_USER_ID_FIELD])
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
         data = [batch_df]
         for user_id in set(batch_df[INTERNAL_USER_ID_FIELD]):
-            data.append(self.samples[user_id])
+            data.append(self.samples_grouped.get_group(user_id))
         temp = pd.concat(data).reset_index() ## TODO what if there are more fields?
         ret = {}
         for col in temp.columns:
