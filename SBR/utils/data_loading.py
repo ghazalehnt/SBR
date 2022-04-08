@@ -1,5 +1,6 @@
 import csv
 import random
+import time
 from collections import Counter
 from os.path import join
 
@@ -22,47 +23,74 @@ goodreads_rating_mapping = {
 
 
 def load_data(config):
+    start = time.time()
+    print("Start: load dataset...")
     if config["name"] == "CGR":
         datasets, user_info, item_info = load_crawled_goodreads_dataset(config)
     else:
         raise ValueError(f"dataset {config['name']} not implemented!")
+    print(f"Finish: load dataset in {time.time()-start}")
 
     user_used_items = None
+    if 'random' in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
+                    config['test_neg_sampling_strategy']]:
+        start = time.time()
+        print("Start: get user used items...")
+        user_used_items = get_user_used_items(datasets)
+        print(f"Finish: get user used items in {time.time()-start}")
+
     train_collate_fn = None
     valid_collate_fn = None
     test_collate_fn = None
-    if config['training_neg_sampling_strategy'] in ['random']:
-        # save user_used_items.
-        user_used_items = get_user_used_items(datasets)
-        if config['training_neg_sampling_strategy'] == "random":
-            cur_used_items = user_used_items['train'].copy()
-            train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items)
+    if config['training_neg_sampling_strategy'] == "random":
+        start = time.time()
+        print("Start: used_item copy and train collate_fn initialize...")
+        cur_used_items = user_used_items['train'].copy()
+        print(f"Mid: used_item copy in {time.time() - start}")
+        train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items)
+        print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
 
     if config['validation_neg_sampling_strategy'] == "random":
+        start = time.time()
+        print("Start: used_item copy and validation collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
         for user_id, u_items in user_used_items['validation'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+        print(f"Mid: used_item copy in {time.time() - start}")
         valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items)
+        print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
     elif config['validation_neg_sampling_strategy'].startswith("f:"):
+        start = time.time()
+        print("Start: load negative samples and validation collate_fn initialize...")
         negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:] + ".csv"))
         negs = negs.merge(user_info, "left", on="user_id")
         negs = negs.merge(item_info, "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
+        print(f"Mid: negative samples loaded in {time.time() - start}")
         valid_collate_fn = CollateNegSamplesFixed(negs)
+        print(f"Finish: load negative samples and validation collate_fn initialize in {time.time() - start}")
 
     if config['test_neg_sampling_strategy'] == "random":
+        start = time.time()
+        print("Start: used_item copy and test collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
         for user_id, u_items in user_used_items['validation'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
         for user_id, u_items in user_used_items['test'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+        print(f"Mid: used_item copy in {time.time() - start}")
         test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items)
+        print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
     elif config['test_neg_sampling_strategy'].startswith("f:"):
+        start = time.time()
+        print("Start: load negative samples and test collate_fn initialize...")
         negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
         negs = negs.merge(user_info, "left", on="user_id")
         negs = negs.merge(item_info, "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
+        print(f"Mid: negative samples loaded in {time.time() - start}")
         test_collate_fn = CollateNegSamplesFixed(negs)
+        print(f"Finish: load negative samples and test collate_fn initialize in {time.time() - start}")
 
         # cur_used_items.update(user_used_items['test'])
         # test_collate_fn = CollateNegSamples(config['evaluation_neg_sampling_strategy'],
@@ -184,8 +212,6 @@ class CollateNegSamplesFixed(object):
         self.samples = {}
         for user_id in users:
             self.samples[user_id] = samples[samples[INTERNAL_USER_ID_FIELD] == user_id].reset_index()
-        # self.samples = {user_id -> []} todo
-        # samples.append({'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item})
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
