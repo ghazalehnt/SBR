@@ -2,6 +2,7 @@ import argparse
 import datetime
 import json
 import os
+import time
 from os.path import join
 
 import torch
@@ -11,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
+from SBR.utils.others import get_model
 
 
 def main(op, config_file=None, result_folder=None):
@@ -60,10 +62,12 @@ def main(op, config_file=None, result_folder=None):
         logger.add_text(f"model/{k}", str(v))
     logger.add_text("exp_dir", exp_dir)
 
-    train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level = load_data(config['dataset'])
+    train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level = \
+        load_data(config['dataset'],
+                  config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
 
-    # TODO
-    model = MatrixFactorizatoinDotProduct(config=config['model'], n_users=users.shape[0], n_items=items.shape[0])
+    model = get_model(config['model'], users.shape[0], items.shape[0],
+                      1 if config['dataset']['binary_interactions'] else None)  # todo else num-ratings
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,
@@ -80,7 +84,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result forler, to evaluate')
-    parser.add_argument('--op', type=str, default=None, help='operation train/test')
+    parser.add_argument('op', type=str, help='operation train/test')
     args, _ = parser.parse_known_args()
 
     if args.op == "train":

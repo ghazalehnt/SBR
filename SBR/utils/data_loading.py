@@ -7,7 +7,9 @@ from os.path import join
 import pandas
 import pandas as pd
 import torch
+import transformers
 from datasets import Dataset, DatasetDict
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 import numpy as np
 
@@ -22,7 +24,10 @@ goodreads_rating_mapping = {
 }
 
 
-def load_data(config):
+def tokenize_function(examples, tokenizer, field):
+    return tokenizer(examples[field])
+
+def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
     if config["name"] == "CGR":
@@ -30,6 +35,18 @@ def load_data(config):
     else:
         raise ValueError(f"dataset {config['name']} not implemented!")
     print(f"Finish: load dataset in {time.time()-start}")
+
+    # tokenize when needed:
+    if pretrained_model is not None:
+        tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model)
+        if 'text' in user_info.column_names:
+            user_info = user_info.map(tokenize_function, batched=True,
+                                      fn_kwargs={"tokenizer": tokenizer, "field": 'text'})
+            user_info = user_info.remove_columns(['text', 'token_type_ids'])
+        if 'text' in item_info.column_names:
+            item_info = item_info.map(tokenize_function, batched=True,
+                                      fn_kwargs={"tokenizer": tokenizer, "field": 'text'})
+            item_info = item_info.remove_columns(['text', 'token_type_ids'])
 
     user_used_items = None
     if 'random' in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
@@ -47,8 +64,10 @@ def load_data(config):
         print("Start: used_item copy and train collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
         print(f"Mid: used_item copy in {time.time() - start}")
-        train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items)
+        train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info, item_info, tokenizer.pad_token_id)
         print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
+    elif config['training_neg_sampling_strategy'] == "":
+        train_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
 
     if config['validation_neg_sampling_strategy'] == "random":
         start = time.time()
@@ -63,11 +82,11 @@ def load_data(config):
         start = time.time()
         print("Start: load negative samples and validation collate_fn initialize...")
         negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:] + ".csv"))
-        negs = negs.merge(user_info, "left", on="user_id")
-        negs = negs.merge(item_info, "left", on="item_id")
+        negs = negs.merge(user_info.to_pandas()[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+        negs = negs.merge(item_info.to_pandas()[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
         print(f"Mid: negative samples loaded in {time.time() - start}")
-        valid_collate_fn = CollateNegSamplesFixed(negs)
+        valid_collate_fn = CollateNegSamplesFixed(negs, user_info, item_info, tokenizer.pad_token_id)
         print(f"Finish: load negative samples and validation collate_fn initialize in {time.time() - start}")
 
     if config['test_neg_sampling_strategy'] == "random":
@@ -85,11 +104,11 @@ def load_data(config):
         start = time.time()
         print("Start: load negative samples and test collate_fn initialize...")
         negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
-        negs = negs.merge(user_info, "left", on="user_id")
-        negs = negs.merge(item_info, "left", on="item_id")
+        negs = negs.merge(user_info.to_pandas()[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+        negs = negs.merge(item_info.to_pandas()[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
         print(f"Mid: negative samples loaded in {time.time() - start}")
-        test_collate_fn = CollateNegSamplesFixed(negs)
+        test_collate_fn = CollateNegSamplesFixed(negs, user_info, item_info, tokenizer.pad_token_id)
         print(f"Finish: load negative samples and test collate_fn initialize in {time.time() - start}")
 
         # cur_used_items.update(user_used_items['test'])
@@ -147,21 +166,53 @@ def load_data(config):
 #             if self.strategy == 'random':
 #                 for sampled_item in random.sample(potential_items, num_user_neg_samples):
 #                     samples.append({'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item})
-#         temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index() ## TODO what if there are more fields?
+#         temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index()
 #         ret = {}
 #         for col in temp.columns:
 #             ret[col] = torch.tensor(temp[col])
 #         return ret
 
+class CollateTransferPad(object):
+    def __init__(self, user_info, item_info, padding_token):
+        self.user_info = user_info.to_pandas()
+        self.item_info = item_info.to_pandas()
+        self.padding_token = padding_token
+
+    def __call__(self, batch):
+        batch_df = pd.DataFrame(batch)
+        # user:
+        temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['input_ids', 'attention_mask']]\
+            .reset_index().drop(columns=['index'])
+        temp_user = pd.concat([batch_df, temp_user], axis=1)
+        temp_user = temp_user.rename(columns={"input_ids": "user_input_ids", "attention_mask": "user_attention_mask"})
+        # item:
+        temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['input_ids', 'attention_mask']] \
+            .reset_index().drop(columns=['index'])
+        temp_item = pd.concat([batch_df, temp_item], axis=1)
+        temp_item = temp_item.rename(columns={"input_ids": "item_input_ids", "attention_mask": "item_attention_mask"})
+        temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+        # pad ,  make sure batch_size is the first (0) dimension
+        ret = {}
+        for col in ["user_input_ids", "user_attention_mask", "item_input_ids", "item_attention_mask"]:
+            ret[col] = pad_sequence([torch.tensor(t) for t in temp[col]], padding_value=self.padding_token).type(torch.int64).T
+        for col in temp.columns:
+            if col in ret:
+                continue
+            ret[col] = torch.tensor(temp[col]).unsqueeze(1)
+        return ret
+
 
 class CollateNegSamplesRandomOpt(object):
-    def __init__(self, num_neg_samples, used_items):
+    def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
         all_items = []
         for items in self.used_items.values():
             all_items.extend(items)
         self.all_items = list(set(all_items))
+        self.user_info = user_info.to_pandas()
+        self.item_info = item_info.to_pandas()
+        self.padding_token = padding_token
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
@@ -199,26 +250,63 @@ class CollateNegSamplesRandomOpt(object):
                     break
             samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
                             for sampled_item_id in user_samples])
-        temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index()  ## TODO what if there are more fields?
+        batch_df = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index().drop(columns=['index'])
+        # user:
+        temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['input_ids', 'attention_mask']] \
+            .reset_index().drop(columns=['index'])
+        temp_user = pd.concat([batch_df, temp_user], axis=1)
+        temp_user = temp_user.rename(columns={"input_ids": "user_input_ids", "attention_mask": "user_attention_mask"})
+        # item:
+        temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['input_ids', 'attention_mask']] \
+            .reset_index().drop(columns=['index'])
+        temp_item = pd.concat([batch_df, temp_item], axis=1)
+        temp_item = temp_item.rename(columns={"input_ids": "item_input_ids", "attention_mask": "item_attention_mask"})
+        temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+        # pad ,  make sure batch_size is the first (0) dimension
         ret = {}
+        for col in ["user_input_ids", "user_attention_mask", "item_input_ids", "item_attention_mask"]:
+            ret[col] = pad_sequence([torch.tensor(t) for t in temp[col]], padding_value=self.padding_token).type(
+                torch.int64).T
         for col in temp.columns:
-            ret[col] = torch.tensor(temp[col])
+            if col in ret:
+                continue
+            ret[col] = torch.tensor(temp[col]).unsqueeze(1)
         return ret
 
 
 class CollateNegSamplesFixed(object):
-    def __init__(self, samples):
+    def __init__(self, samples, user_info=None, item_info=None, padding_token=None):
         self.samples_grouped = samples.groupby(by=[INTERNAL_USER_ID_FIELD])
+        self.user_info = user_info.to_pandas()
+        self.item_info = item_info.to_pandas()
+        self.padding_token = padding_token
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
         data = [batch_df]
         for user_id in set(batch_df[INTERNAL_USER_ID_FIELD]):
             data.append(self.samples_grouped.get_group(user_id))
-        temp = pd.concat(data).reset_index() ## TODO what if there are more fields?
+        batch_df = pd.concat(data).reset_index().drop(columns=['index'])
+        # user:
+        temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['input_ids', 'attention_mask']] \
+            .reset_index().drop(columns=['index'])
+        temp_user = pd.concat([batch_df, temp_user], axis=1)
+        temp_user = temp_user.rename(columns={"input_ids": "user_input_ids", "attention_mask": "user_attention_mask"})
+        # item:
+        temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['input_ids', 'attention_mask']] \
+            .reset_index().drop(columns=['index'])
+        temp_item = pd.concat([batch_df, temp_item], axis=1)
+        temp_item = temp_item.rename(columns={"input_ids": "item_input_ids", "attention_mask": "item_attention_mask"})
+        temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+        # pad ,  make sure batch_size is the first (0) dimension
         ret = {}
+        for col in ["user_input_ids", "user_attention_mask", "item_input_ids", "item_attention_mask"]:
+            ret[col] = pad_sequence([torch.tensor(t) for t in temp[col]], padding_value=self.padding_token).type(
+                torch.int64).T
         for col in temp.columns:
-            ret[col] = torch.tensor(temp[col])
+            if col in ret:
+                continue
+            ret[col] = torch.tensor(temp[col]).unsqueeze(1)
         return ret
 
 
@@ -240,21 +328,30 @@ def load_crawled_goodreads_dataset(config):
     remove_fields = user_info.columns
     print(f"user fields: {remove_fields}")
     keep_fields = ["user_id"]
-    keep_fields.extend(config['user_text'])
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in config['user_text'] if "user." in field])
     remove_fields = list(set(remove_fields) - set(keep_fields))
     user_info = user_info.drop(columns=remove_fields)
     user_info = user_info.sort_values("user_id")
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
+    user_info = user_info.fillna('')
+    user_info = user_info.rename(
+        columns={field[field.index("user.") + len("user."):]: field for field in config['user_text'] if
+                 "user." in field})
 
     item_info = pd.read_csv(join(config['dataset_path'], "items.csv"))
     remove_fields = item_info.columns
     print(f"item fields: {remove_fields}")
     keep_fields = ["item_id"]
-    keep_fields.extend(config['item_text'])
+    keep_fields.extend([field[field.index("item.")+len("item."):] for field in config['item_text'] if "item." in field])
     remove_fields = list(set(remove_fields) - set(keep_fields))
     item_info = item_info.drop(columns=remove_fields)
     item_info = item_info.sort_values("item_id")
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
+    item_info = item_info.fillna('')
+    item_info = item_info.rename(
+        columns={field[field.index("item.") + len("item."):]: field for field in config['item_text'] if
+                 "item." in field})
+    ### todo genres with space g1,g2 -> g1, g2
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
@@ -277,40 +374,46 @@ def load_crawled_goodreads_dataset(config):
                 df['rating'] = df['rating'].replace(k, v)
             df = df.rename(columns={"rating": "label"})
 
+        # replace user_id with internal_user_id (same for item_id)
+        df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+        df = df.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
+        df = df.drop(columns=["user_id", "item_id"])
+
+        # concat and move the user/item text fields to user and item info:
+        if sp == 'train':
+            for text_field in [field[field.index("interaction.") + len("interaction."):]
+                               for field in config['user_text'] if "interaction." in field]:
+                temp = df[[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[
+                    text_field].apply(','.join).reset_index()
+                user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
+                user_info = user_info.rename(columns={text_field: f"interaction.{text_field}"})
+            for text_field in [field[field.index("interaction.") + len("interaction."):]
+                               for field in config['item_text'] if "interaction." in field]:
+                temp = df[[INTERNAL_ITEM_ID_FIELD, text_field]].groupby(INTERNAL_ITEM_ID_FIELD)[
+                    text_field].apply(','.join).reset_index()
+                item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
+                item_info = item_info.rename(columns={text_field: f"interaction.{text_field}"})
+
+        # remove the rest
         remove_fields = df.columns
         print(f"interaction fields: {remove_fields}")
-        keep_fields = ["label", "user_id", "item_id"]
-        keep_fields.extend(config['user_text'])
-        keep_fields.extend(config['item_text'])
+        keep_fields = ["label", INTERNAL_ITEM_ID_FIELD, INTERNAL_USER_ID_FIELD]
         remove_fields = list(set(remove_fields) - set(keep_fields))
         df = df.drop(columns=remove_fields)
-        df = df.merge(user_info, "left", on="user_id")
-        df = df.merge(item_info, "left", on="item_id")
-        df = df.drop(columns=["user_id", "item_id"])
         split_datasets[sp] = df
 
-    # loading negative samples for eval sets:
-    # if config['validation_neg_sampling_strategy'].startswith("f:"):
-    #     negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:]+".csv"))
-    #     negs = negs.merge(user_info, "left", on="user_id")
-    #     negs = negs.merge(item_info, "left", on="item_id")
-    #     negs = negs.drop(columns=["user_id", "item_id"])
-    #     split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
-    #     split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD)
-    #
-    # if config['test_neg_sampling_strategy'].startswith("f:"):
-    #     negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
-    #     negs = negs.merge(user_info, "left", on="user_id")
-    #     negs = negs.merge(item_info, "left", on="item_id")
-    #     negs = negs.drop(columns=["user_id", "item_id"])
-    #     split_datasets['test'] = pd.concat([split_datasets['test'], negs])
-    #     split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD)
+    # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
+    # if len(config['user_text']) > 0:  todo
+    user_info['text'] = user_info[config['user_text']].agg(', '.join, axis=1)
+    user_info = user_info.drop(columns=config['user_text'])
+    item_info['text'] = item_info[config['item_text']].agg(', '.join, axis=1)
+    item_info = item_info.drop(columns=config['item_text'])
 
     for split in split_datasets.keys():
         split_datasets[split] = Dataset.from_pandas(split_datasets[split], preserve_index=False)
 
-    # TODO preprocessing to text? lowercaser? or not
-    return DatasetDict(split_datasets), user_info, item_info  # user item info are pandas for now
+    return DatasetDict(split_datasets), Dataset.from_pandas(user_info, preserve_index=False), \
+           Dataset.from_pandas(item_info, preserve_index=False)
 
 
 # load_data({"dataset_path": "/home/ghazaleh/workspace/SBR/data/GR_read_5-folds/toy_dataset/",
