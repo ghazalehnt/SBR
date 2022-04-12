@@ -31,13 +31,13 @@ class VanillaClassifier(torch.nn.Module):
         if True:
             batch_size = batch['user_input_ids'].shape[0]
             device = batch['user_input_ids'].device
+            CLS_token = batch['user_input_ids'][0][0].item()
             cls = torch.ones((batch_size, 1), dtype=torch.int64, device=device) * CLS_token
             ones = torch.ones((batch_size, 1), dtype=torch.int64, device=device)
             # user:
             ch_size = 512 - 1  # adding CLS token, however there is one CLS token there
             total_len = batch['user_input_ids'].shape[1]
             num_chunks = min(self.max_user_chunks, (total_len - 1 // ch_size) + 1) #todo talk to andrew, how big is ok?
-            CLS_token = batch['user_input_ids'][0][0].item()
             outputs = []
             for ch in range(num_chunks):
                 start = 1 + (ch * ch_size)   # +1-> bcs of the initial CLS token
@@ -58,7 +58,6 @@ class VanillaClassifier(torch.nn.Module):
             ch_size = 512 - 1  # adding CLS token, however there is one CLS token there
             total_len = batch['item_input_ids'].shape[1]
             num_chunks = min(self.max_user_chunks, (total_len - 1 // ch_size) + 1) #todo talk to andrew, how big is ok?
-            CLS_token = batch['item_input_ids'][0][0].item()
             outputs = []
             for ch in range(num_chunks):
                 start = 1 + (ch * ch_size)  # +1-> bcs of the initial CLS token
