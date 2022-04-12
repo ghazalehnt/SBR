@@ -5,7 +5,6 @@ import transformers
 class VanillaClassifier(torch.nn.Module):
     def __init__(self, config, n_users, n_items, num_classes):
         super(VanillaClassifier, self).__init__()
-
         self.bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
         bert_embedding_dim = self.bert.embeddings.word_embeddings.weight.shape[1]
 
@@ -31,17 +30,22 @@ class VanillaClassifier(torch.nn.Module):
         # else:
         if True:
             batch_size = batch['user_input_ids'].shape[0]
+            device = batch['user_input_ids'].device
             # user:
             ch_size = 512 - 1  # adding CLS token, however there is one CLS token there
             total_len = batch['user_input_ids'].shape[1]
             num_chunks = min(self.max_user_chunks, (total_len - 1 // ch_size) + 1) #todo talk to andrew, how big is ok?
             CLS_token = batch['user_input_ids'][0][0].item()
             outputs = []
+            cls = torch.ones((batch_size, 1), dtype=torch.int64, device=device) * CLS_token
+            ones = torch.ones((batch_size, 1), dtype=torch.int64, device=device)
             for ch in range(num_chunks):
                 start = 1 + (ch * ch_size)   # +1-> bcs of the initial CLS token
                 end = start + ch_size
-                output = self.bert.forward(input_ids=torch.concat([torch.ones((batch_size, 1), dtype=torch.int64) * CLS_token, batch['user_input_ids'][:, start:end]], dim=1),
-                                           attention_mask=torch.concat([torch.ones((batch_size, 1), dtype=torch.int64), batch['user_attention_mask'][:, start:end]], dim=1))
+                input_ids = torch.concat([cls, batch['user_input_ids'][:, start:end]], dim=1)
+                att_mast = torch.concat([ones, batch['user_attention_mask'][:, start:end]], dim=1)
+                output = self.bert.forward(input_ids=input_ids,
+                                           attention_mask=att_mask)
                 if self.agg_strategy == "CLS":
                     temp = output.pooler_output
                 elif self.agg_strategy == "mean":
