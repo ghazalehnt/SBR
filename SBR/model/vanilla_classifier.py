@@ -45,7 +45,7 @@ class VanillaClassifier(torch.nn.Module):
                 input_ids = torch.concat([cls, batch['user_input_ids'][:, start:end]], dim=1)
                 att_mast = torch.concat([ones, batch['user_attention_mask'][:, start:end]], dim=1)
                 output = self.bert.forward(input_ids=input_ids,
-                                           attention_mask=att_mask)
+                                           attention_mask=att_mast)
                 if self.agg_strategy == "CLS":
                     temp = output.pooler_output
                 elif self.agg_strategy == "mean":
