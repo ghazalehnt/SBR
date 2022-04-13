@@ -1,6 +1,8 @@
 import torch
 import transformers
 
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD
+
 
 class VanillaClassifier(torch.nn.Module):
     def __init__(self, config, n_users, n_items, num_classes):
@@ -21,31 +23,18 @@ class VanillaClassifier(torch.nn.Module):
 
         self.agg_strategy = config['agg_strategy']
         self.chunk_agg_strategy = config['chunk_agg_strategy']
-        self.max_user_chunks = config['max_num_chunks_user']
-        self.max_item_chunks = config['max_num_chunks_item']
 
     def forward(self, batch):
         # if hasattr(self, 'user_id_embedding'):
         #     pass
         # else:
         if True:
-            batch_size = batch['user_input_ids'].shape[0]
-            device = batch['user_input_ids'].device
-            CLS_token = batch['user_input_ids'][0][0].item()
-            cls = torch.ones((batch_size, 1), dtype=torch.int64, device=device) * CLS_token
-            ones = torch.ones((batch_size, 1), dtype=torch.int64, device=device)
+            # batch -> chunks * batch_size * tokens
             # user:
-            ch_size = 512 - 1  # adding CLS token, however there is one CLS token there
-            total_len = batch['user_input_ids'].shape[1]
-            num_chunks = min(self.max_user_chunks, (total_len - 1 // ch_size) + 1) #todo talk to andrew, how big is ok?
             outputs = []
-            for ch in range(num_chunks):
-                start = 1 + (ch * ch_size)   # +1-> bcs of the initial CLS token
-                end = start + ch_size
-                input_ids = torch.concat([cls, batch['user_input_ids'][:, start:end]], dim=1)
-                att_mast = torch.concat([ones, batch['user_attention_mask'][:, start:end]], dim=1)
+            for input_ids, att_mask in zip(batch['user_chunks_input_ids'], batch['user_chunks_attention_mask']):
                 output = self.bert.forward(input_ids=input_ids,
-                                           attention_mask=att_mast)
+                                           attention_mask=att_mask)
                 if self.agg_strategy == "CLS":
                     temp = output.pooler_output
                 elif self.agg_strategy == "mean":
@@ -55,17 +44,10 @@ class VanillaClassifier(torch.nn.Module):
                 outputs.append(temp)
             user_rep = torch.stack(outputs).max(dim=0).values
             # item:
-            ch_size = 512 - 1  # adding CLS token, however there is one CLS token there
-            total_len = batch['item_input_ids'].shape[1]
-            num_chunks = min(self.max_user_chunks, (total_len - 1 // ch_size) + 1) #todo talk to andrew, how big is ok?
             outputs = []
-            for ch in range(num_chunks):
-                start = 1 + (ch * ch_size)  # +1-> bcs of the initial CLS token
-                end = start + ch_size
-                input_ids = torch.concat([cls, batch['item_input_ids'][:, start:end]], dim=1)
-                att_mast = torch.concat([ones, batch['item_attention_mask'][:, start:end]], dim=1)
+            for input_ids, att_mask in zip(batch['item_chunks_input_ids'], batch['item_chunks_attention_mask']):
                 output = self.bert.forward(input_ids=input_ids,
-                                           attention_mask=att_mast)
+                                           attention_mask=att_mask)
                 if self.agg_strategy == "CLS":
                     temp = output.pooler_output
                 elif self.agg_strategy == "mean":
