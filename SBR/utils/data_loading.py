@@ -30,7 +30,7 @@ def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks):
         truncation=True,
         max_length=max_length,
         return_overflowing_tokens=True,
-        padding=True  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
+        padding="max_length"  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
     )
 
     sample_map = result.pop("overflow_to_sample_mapping")
