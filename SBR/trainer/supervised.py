@@ -82,10 +82,9 @@ class SupervisedTrainer:
                 label = batch.pop("label").float()  # setting the type to torch.float32
                 prepare_time = start_time - time.time()
 
-                # forward and backward pass
+                self.optimizer.zero_grad()
                 output = self.model(batch)
                 loss = self.loss_fn(output, label)
-                self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
                 train_loss += loss
@@ -182,9 +181,9 @@ class SupervisedTrainer:
 
                 ## TODO maybe later: having the qid names userid+itemid corresponding to the outputs and metrics
                 ## for debugging. it needs access to actual user_id and item_id
-                ground_truth.extend(label.tolist())
-                outputs.extend(output.tolist())
-                user_ids.extend(batch[INTERNAL_USER_ID_FIELD].tolist())  # TODO internal? or external? maybe have an external one
-                item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].tolist())
+                ground_truth.extend(label.squeeze().tolist())
+                outputs.extend(output.squeeze().tolist())
+                user_ids.extend(batch[INTERNAL_USER_ID_FIELD].squeeze().tolist())  # TODO internal? or external? maybe have an external one
+                item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
             eval_loss /= total_count
         return outputs, ground_truth, eval_loss, user_ids, item_ids

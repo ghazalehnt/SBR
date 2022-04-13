@@ -93,10 +93,14 @@ def load_data(config, pretrained_model):
         print("Start: used_item copy and train collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
         print(f"Mid: used_item copy in {time.time() - start}")
-        train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info, item_info, tokenizer.pad_token_id)
+        if pretrained_model is not None:
+            train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info, item_info, tokenizer.pad_token_id)
+        else:
+            train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info, item_info)
         print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
     elif config['training_neg_sampling_strategy'] == "":
-        train_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
+        if pretrained_model is not None:
+            train_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
 
     if config['validation_neg_sampling_strategy'] == "random":
         start = time.time()
@@ -108,7 +112,8 @@ def load_data(config, pretrained_model):
         valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items)
         print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
     elif config['validation_neg_sampling_strategy'].startswith("f:"):
-        valid_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
+        if pretrained_model is not None:
+            valid_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
         # start = time.time()
         # print("Start: load negative samples and validation collate_fn initialize...")
         # negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:] + ".csv"))
@@ -131,7 +136,8 @@ def load_data(config, pretrained_model):
         test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items)
         print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
     elif config['test_neg_sampling_strategy'].startswith("f:"):
-        test_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
+        if pretrained_model is not None:
+            test_collate_fn = CollateTransferPad(user_info, item_info, tokenizer.pad_token_id)
         # start = time.time()
         # print("Start: load negative samples and test collate_fn initialize...")
         # negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
@@ -458,19 +464,19 @@ def load_crawled_goodreads_dataset(config):
     # I would load them here.
     if config['validation_neg_sampling_strategy'].startswith("f:"):
         negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:]+".csv"))
-        negs = negs.merge(user_info, "left", on="user_id")
-        negs = negs.merge(item_info, "left", on="item_id")
+        negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+        negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
         split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
-        split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD)
+        split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
     if config['test_neg_sampling_strategy'].startswith("f:"):
         negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
-        negs = negs.merge(user_info, "left", on="user_id")
-        negs = negs.merge(item_info, "left", on="item_id")
+        negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+        negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
         split_datasets['test'] = pd.concat([split_datasets['test'], negs])
-        split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD)
+        split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
     for split in split_datasets.keys():
         split_datasets[split] = Dataset.from_pandas(split_datasets[split], preserve_index=False)
