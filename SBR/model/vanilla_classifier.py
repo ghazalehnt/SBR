@@ -4,10 +4,13 @@ import transformers
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD
 
 
-class VanillaClassifier(torch.nn.Module):
+class VanillaClassifierUserTextProfileItemTextProfile(torch.nn.Module):
     def __init__(self, config, n_users, n_items, num_classes):
-        super(VanillaClassifier, self).__init__()
+        super(VanillaClassifierUserTextProfileItemTextProfile, self).__init__()
         self.bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
+        if config['tune_BERT'] is False:
+            for param in self.bert.parameters():
+                param.requires_grad = False
         bert_embedding_dim = self.bert.embeddings.word_embeddings.weight.shape[1]
 
         if config["append_id"]:

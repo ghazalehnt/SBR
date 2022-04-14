@@ -28,16 +28,18 @@
   },
   "model": {
     "name": "VanillaClassifier",
-    "append_id": true,
     "pretrained_model": "bert-base-uncased",
     "k": 200,
     "agg_strategy": "CLS",
-    "chunk_agg_strategy": "max_pool"
+    "chunk_agg_strategy": "max_pool",
+    "append_id": false,
+    "tune_BERT": false
   },
   "experiment_root": "<EXP_ROOT_PATH>/vc_implicit/",
   "params_in_exp_dir": ["model.append_id", "model.k",
     "trainer.lr", "trainer.wd", "dataset.train_batch_size",
     "dataset.eval_batch_size",
     "dataset.training_neg_sampling_strategy", "dataset.training_neg_samples",
-    "dataset.validation_neg_sampling_strategy", "dataset.test_neg_sampling_strategy"]
+    "dataset.validation_neg_sampling_strategy", "dataset.test_neg_sampling_strategy",
+    "dataset.max_num_chunks_user", "dataset.max_num_chunks_item"],
 }
