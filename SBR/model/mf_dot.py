@@ -14,8 +14,8 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
         self.bias = torch.nn.Parameter(torch.zeros(1))
 
     def forward(self, batch):
-        users = batch[INTERNAL_USER_ID_FIELD]
-        items = batch[INTERNAL_ITEM_ID_FIELD]
+        users = batch[INTERNAL_USER_ID_FIELD].squeeze()
+        items = batch[INTERNAL_ITEM_ID_FIELD].squeeze()
 
         user_embeds = self.user_embedding(users)
         item_embeds = self.item_embedding(items)
@@ -27,5 +27,5 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
         #output = torch.diag(torch.matmul(user_embeds, item_embeds.T))
         output = output + self.item_bias[items] + self.user_bias[users]
         output = output + self.bias
-        return torch.sigmoid(output)  # apply sigmoid and use BCELoss
+        return torch.sigmoid(output).unsqueeze(1)  # apply sigmoid and use BCELoss
         # return output   # OR do not apply sigmoid, .. as BCELossWithLogits does that already
