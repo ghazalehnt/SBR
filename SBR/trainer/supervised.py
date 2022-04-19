@@ -64,6 +64,19 @@ class SupervisedTrainer:
     def fit(self, train_dataloader, valid_dataloader):
         early_stopping_cnt = 0
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
+
+        # eval here first mainly to test why it is very slow:
+        epoch = -1
+        outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+        print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
+        results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
+        results["valid_loss"] = valid_loss.item()
+        self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
+        self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
+        for k, v in results.items():
+            self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
+        ### until here
+
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
                 print(f"Early stopping after {self.patience} epochs not improving!")
@@ -171,19 +184,29 @@ class SupervisedTrainer:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 label = batch.pop("label").float()  # setting the type to torch.float32
-
                 prepare_time = start_time - time.time()
 
                 output = self.model(batch)
                 loss = self.loss_fn(output, label)
                 eval_loss += loss
                 total_count += label.size(0)  # TODO remove if not used
+                process_time = start_time - time.time() - prepare_time
+                proc_compute_efficiency = process_time / (process_time + prepare_time)
 
                 ## TODO maybe later: having the qid names userid+itemid corresponding to the outputs and metrics
                 ## for debugging. it needs access to actual user_id and item_id
                 ground_truth.extend(label.squeeze().tolist())
                 outputs.extend(output.squeeze().tolist())
-                user_ids.extend(batch[INTERNAL_USER_ID_FIELD].squeeze().tolist())  # TODO internal? or external? maybe have an external one
+                user_ids.extend(batch[
+                                    INTERNAL_USER_ID_FIELD].squeeze().tolist())  # TODO internal? or external? maybe have an external one
                 item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
+                postprocess_time = start_time - time.time() - prepare_time - process_time
+
+                pbar.set_description(
+                    f'Compute efficiency: {proc_compute_efficiency:.4f}, '
+                    f'loss: {loss.item():.4f},  prep: {prepare_time:.4f},'
+                    f'process: {process_time:.4f}, post: {postprocess_time:.4f}')
+                start_time = time.time()
+
             eval_loss /= total_count
         return outputs, ground_truth, eval_loss, user_ids, item_ids
