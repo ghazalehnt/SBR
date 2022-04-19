@@ -93,7 +93,7 @@ class SupervisedTrainer:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 label = batch.pop("label").float()  # setting the type to torch.float32
-                prepare_time = start_time - time.time()
+                prepare_time = time.time() - start_time
 
                 self.optimizer.zero_grad()
                 output = self.model(batch)
@@ -104,11 +104,12 @@ class SupervisedTrainer:
                 total_count += label.size(0)
 
                 # compute computation time and *compute_efficiency*
-                process_time = start_time - time.time() - prepare_time
+                process_time = time.time() - start_time - prepare_time
                 compute_efficiency = process_time / (process_time + prepare_time)
                 pbar.set_description(
                     f'Compute efficiency: {compute_efficiency:.4f}, '
-                    f'loss: {loss.item():.4f},  epoch: {epoch}/{self.epochs}')
+                    f'loss: {loss.item():.4f},  epoch: {epoch}/{self.epochs}'
+                    f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.time()
             train_loss /= total_count
 
@@ -184,13 +185,13 @@ class SupervisedTrainer:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 label = batch.pop("label").float()  # setting the type to torch.float32
-                prepare_time = start_time - time.time()
+                prepare_time = time.time() - start_time
 
                 output = self.model(batch)
                 loss = self.loss_fn(output, label)
                 eval_loss += loss
                 total_count += label.size(0)  # TODO remove if not used
-                process_time = start_time - time.time() - prepare_time
+                process_time = time.time() - start_time - prepare_time
                 proc_compute_efficiency = process_time / (process_time + prepare_time)
 
                 ## TODO maybe later: having the qid names userid+itemid corresponding to the outputs and metrics
@@ -200,7 +201,7 @@ class SupervisedTrainer:
                 user_ids.extend(batch[
                                     INTERNAL_USER_ID_FIELD].squeeze().tolist())  # TODO internal? or external? maybe have an external one
                 item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
-                postprocess_time = start_time - time.time() - prepare_time - process_time
+                postprocess_time = time.time() - start_time - prepare_time - process_time
 
                 pbar.set_description(
                     f'Compute efficiency: {proc_compute_efficiency:.4f}, '
