@@ -21,6 +21,9 @@ ranking_metrics = [
 
 
 def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_level=1, prediction_threshold=0.5):
+    ground_truth = np.array(ground_truth)
+    prediction_scores = np.array(prediction_scores)
+
     start_time = time.time()
     result = calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level)
     print(f"ranking metrics calculated in {time.time()-start_time}")
@@ -71,7 +74,7 @@ def get_p_r_f1(ground_truth, predictions):
 
 
 def calculate_cl_metrics_micro(ground_truth, prediction_scores, prediction_threshold):
-    predictions = [1 if p > prediction_threshold else 0 for p in prediction_scores]
+    predictions = (prediction_scores > prediction_threshold).astype(int)
     return calculate_cl_micro(ground_truth, predictions)
 
 
@@ -88,9 +91,11 @@ def calculate_cl_micro(ground_truth, predictions):
 def calculate_cl_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, prediction_threshold):
     gt_user = {u: [] for u in set(users)}
     pd_user = {u: [] for u in set(users)}
+    predictions = (prediction_scores > prediction_threshold).astype(int)
     for i in range(len(ground_truth)):
         gt_user[users[i]].append(ground_truth[i])
-        pd_user[users[i]].append(1 if prediction_scores[i] > prediction_threshold else 0)
+        pd_user[users[i]].append(predictions[i])
+
     return calculate_cl_macro(gt_user, pd_user)
 
 
