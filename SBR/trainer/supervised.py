@@ -44,6 +44,9 @@ class SupervisedTrainer:
         else:
             raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
 
+        self.scaler = torch.cuda.amp.GradScaler(enabled=config['use_amp'])
+        self.use_amp = config['use_amp']
+
         self.epochs = config['epochs']
         self.start_epoch = 0
         self.best_epoch = 0
@@ -57,7 +60,9 @@ class SupervisedTrainer:
             self.best_saved_valid_metric = checkpoint['best_valid_metric']
             self.model.to(device)
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
             print("last checkpoint restored")
+
 
         self.model.to(device)
 
@@ -66,15 +71,15 @@ class SupervisedTrainer:
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
 
         # eval here first mainly to test why it is very slow:
-        epoch = -1
-        outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-        print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
-        results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
-        results["valid_loss"] = valid_loss.item()
-        self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
-        self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
-        for k, v in results.items():
-            self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
+        # epoch = -1
+        # outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+        # print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
+        # results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
+        # results["valid_loss"] = valid_loss.item()
+        # self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
+        # self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
+        # for k, v in results.items():
+        #     self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
         ### until here
 
         for epoch in range(self.start_epoch, self.epochs):
@@ -96,10 +101,15 @@ class SupervisedTrainer:
                 prepare_time = time.time() - start_time
 
                 self.optimizer.zero_grad()
-                output = self.model(batch)
-                loss = self.loss_fn(output, label)
-                loss.backward()
-                self.optimizer.step()
+                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                    output = self.model(batch)
+                    loss = self.loss_fn(output, label)
+
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                # loss.backward()
+                # self.optimizer.step()
                 train_loss += loss
                 total_count += label.size(0)
 
@@ -133,7 +143,8 @@ class SupervisedTrainer:
                     'epoch': self.best_epoch,
                     'best_valid_metric': self.best_saved_valid_metric,
                     'model_state_dict': self.model.state_dict(),
-                    'optimizer_state_dict': self.optimizer.state_dict()
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    "scaler_state_dict": self.scaler.state_dict()
                     }
                 torch.save(checkpoint, self.best_model_path)
                 early_stopping_cnt = 0

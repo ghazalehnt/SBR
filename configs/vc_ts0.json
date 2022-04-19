@@ -4,7 +4,7 @@
     "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/split_1/",
     "binary_interactions": true,
     "relevance_level": 1,
-    "train_batch_size": 1024,
+    "train_batch_size": 800,
     "eval_batch_size": 4096,
     "training_neg_sampling_strategy": "",
     "training_neg_samples": 0,
@@ -25,7 +25,8 @@
     "epochs": 200,
     "loss_fn": "BCE",
     "valid_metric": "valid_loss",
-    "early_stopping_patience": 5
+    "early_stopping_patience": 5,
+    "use_amp": true
   },
   "model": {
     "name": "VanillaClassifier",
