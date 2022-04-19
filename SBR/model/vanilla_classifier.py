@@ -31,6 +31,7 @@ class VanillaClassifierUserTextProfileItemTextProfile(torch.nn.Module):
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
         if hasattr(self, 'bert_embeddings'):  # we want to append an id embedding to the tokens
+            batch_size = batch[INTERNAL_USER_ID_FIELD].shape[0]
             # user:
             user_ids = batch[INTERNAL_USER_ID_FIELD]
             id_embeddings = self.user_id_embedding(user_ids)
@@ -43,7 +44,7 @@ class VanillaClassifierUserTextProfileItemTextProfile(torch.nn.Module):
                 other_tokens = token_embeddings[:, 1:]
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, id_embeddings], dim=1), other_tokens], dim=1)
-                concat_masks = torch.concat([torch.ones((2, 1), device=att_mask.device), att_mask], dim=1)
+                concat_masks = torch.concat([torch.ones((batch_size, 1), device=att_mask.device), att_mask], dim=1)
                 output = self.bert.forward(inputs_embeds=concat_ids,
                                            attention_mask=concat_masks)
                 if self.agg_strategy == "CLS":
@@ -66,7 +67,7 @@ class VanillaClassifierUserTextProfileItemTextProfile(torch.nn.Module):
                 other_tokens = token_embeddings[:, 1:]
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, id_embeddings], dim=1), other_tokens], dim=1)
-                concat_masks = torch.concat([torch.ones((2, 1), device=att_mask.device), att_mask], dim=1)
+                concat_masks = torch.concat([torch.ones((batch_size, 1), device=att_mask.device), att_mask], dim=1)
                 output = self.bert.forward(inputs_embeds=concat_ids,
                                            attention_mask=concat_masks)
                 if self.agg_strategy == "CLS":
