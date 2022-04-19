@@ -31,7 +31,7 @@ def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_l
     temp = calculate_cl_metrics_micro(ground_truth, predictions, prediction_threshold)
     result.update(temp)
 
-    temp = calculate_cl_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, prediction_threshold)
+    temp = calculate_cl_metrics_macro_avg_over_users(ground_truth, predictions, users, prediction_threshold)
     result.update(temp)
 
     print(f"metrics calculated in {time.time() - start_time}")
