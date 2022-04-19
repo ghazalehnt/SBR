@@ -21,22 +21,20 @@ ranking_metrics = [
 
 
 def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_level=1, prediction_threshold=0.5):
-    ground_truth = np.array(ground_truth)
-    prediction_scores = np.array(prediction_scores)
-
     start_time = time.time()
     result = calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level)
-    print(f"ranking metrics calculated in {time.time()-start_time}")
 
-    start_time = time.time()
-    temp = calculate_cl_metrics_micro(ground_truth, prediction_scores, prediction_threshold)
+    ground_truth = np.array(ground_truth)
+    prediction_scores = np.array(prediction_scores)
+    predictions = (prediction_scores > prediction_threshold).astype(int)
+
+    temp = calculate_cl_metrics_micro(ground_truth, predictions, prediction_threshold)
     result.update(temp)
-    print(f"cl micro metrics calculated in {time.time() - start_time}")
 
-    start_time = time.time()
     temp = calculate_cl_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, prediction_threshold)
     result.update(temp)
-    print(f"cl macro metrics calculated in {time.time() - start_time}")
+
+    print(f"metrics calculated in {time.time() - start_time}")
 
     return result
 
@@ -73,8 +71,7 @@ def get_p_r_f1(ground_truth, predictions):
            f1_score(ground_truth, predictions)]
 
 
-def calculate_cl_metrics_micro(ground_truth, prediction_scores, prediction_threshold):
-    predictions = (prediction_scores > prediction_threshold).astype(int)
+def calculate_cl_metrics_micro(ground_truth, predictions, prediction_threshold):
     return calculate_cl_micro(ground_truth, predictions)
 
 
@@ -88,10 +85,9 @@ def calculate_cl_micro(ground_truth, predictions):
     return {"precision_micro": scores[0], "recall_micro": scores[1], "f1_micro": scores[2]}
 
 
-def calculate_cl_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, prediction_threshold):
+def calculate_cl_metrics_macro_avg_over_users(ground_truth, predictions, users, prediction_threshold):
     gt_user = {u: [] for u in set(users)}
     pd_user = {u: [] for u in set(users)}
-    predictions = (prediction_scores > prediction_threshold).astype(int)
     for i in range(len(ground_truth)):
         gt_user[users[i]].append(ground_truth[i])
         pd_user[users[i]].append(predictions[i])
