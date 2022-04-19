@@ -11,7 +11,8 @@
     "training_neg_sampling_strategy": "random",
     "training_neg_samples": 4,
     "validation_neg_sampling_strategy": "f:validation_neg_random_100",
-    "test_neg_sampling_strategy": "f:test_neg_random_100"
+    "test_neg_sampling_strategy": "f:test_neg_random_100",
+    "dataloader_num_workers": 8
   },
   "trainer": {
     "optimizer": "Adam",

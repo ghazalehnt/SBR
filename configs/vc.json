@@ -10,6 +10,7 @@
     "training_neg_samples": 4,
     "validation_neg_sampling_strategy": "f:validation_neg_random_100",
     "test_neg_sampling_strategy": "f:test_neg_random_100",
+    "dataloader_num_workers": 8,
     "user_text": ["interaction.review"],
     "item_text": ["item.title", "item.description", "item.genres"],
     "user_item_text": [],
