@@ -29,7 +29,7 @@ class SupervisedTrainer:
 
         if config['loss_fn'] == "BCE":
             # self.loss_fn = torch.nn.BCEWithLogitsLoss()
-            self.loss_fn = torch.nn.BCELoss()  # use BCELoss and apply the sigmoid beforehand in the model
+            self.loss_fn = torch.nn.BCEWithLogitsLoss()  # use BCEWithLogitsLoss and do not apply the sigmoid beforehand
         elif config['loss_fn'] == "MSE":
             self.loss_fn = torch.nn.MSELoss()
         # elif config["loss_fn"] == "CE":  ## todo do we need this???

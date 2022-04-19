@@ -27,5 +27,4 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
         #output = torch.diag(torch.matmul(user_embeds, item_embeds.T))
         output = output + self.item_bias[items] + self.user_bias[users]
         output = output + self.bias
-        return torch.sigmoid(output).unsqueeze(1)  # apply sigmoid and use BCELoss
-        # return output   # OR do not apply sigmoid, .. as BCELossWithLogits does that already
+        return output.unsqueeze(1)  # do not apply sigmoid and use BCEWithLogitsLoss

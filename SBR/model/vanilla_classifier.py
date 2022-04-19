@@ -111,4 +111,4 @@ class VanillaClassifierUserTextProfileItemTextProfile(torch.nn.Module):
             item_rep = self.transform_i(item_rep)
 
         result = self.classifier(torch.concat([user_rep, item_rep], dim=1))
-        return torch.sigmoid(result)
+        return result  # do not apply sigmoid and use BCEWithLogitsLoss
