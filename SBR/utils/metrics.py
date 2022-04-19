@@ -1,5 +1,6 @@
 # how to do when micro averaging in cross validation ask andrew (do micro for each fold and then avg? or "concat" all results and do micro for all?)
 import json
+import time
 
 import pytrec_eval
 import numpy as np
@@ -20,13 +21,19 @@ ranking_metrics = [
 
 
 def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_level=1, prediction_threshold=0.5):
+    start_time = time.time()
     result = calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level)
+    print(f"ranking metrics calculated in {time.time()-start_time}")
 
+    start_time = time.time()
     temp = calculate_cl_metrics_micro(ground_truth, prediction_scores, prediction_threshold)
     result.update(temp)
+    print(f"cl micro metrics calculated in {time.time() - start_time}")
 
+    start_time = time.time()
     temp = calculate_cl_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, prediction_threshold)
     result.update(temp)
+    print(f"cl macro metrics calculated in {time.time() - start_time}")
 
     return result
 
