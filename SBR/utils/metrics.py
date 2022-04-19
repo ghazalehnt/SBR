@@ -108,9 +108,9 @@ def calculate_cl_macro(gt_user, pd_user):
 def log_results(output_path, ground_truth, prediction_scores, internal_user_ids, internal_items_ids,
                 external_users, external_items):
     # we want to log the results corresponding to external user and item ids
-    ex_users = external_users.set_index("internal_user_id")
+    ex_users = external_users.to_pandas().set_index("internal_user_id")
     user_ids = ex_users.loc[internal_user_ids].user_id.values
-    ex_items = external_items.set_index("internal_item_id")
+    ex_items = external_items.to_pandas().set_index("internal_item_id")
     item_ids = ex_items.loc[internal_items_ids].item_id.values
 
     gt = {str(u): {} for u in set(user_ids)}
