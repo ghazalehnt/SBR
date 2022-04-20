@@ -62,12 +62,12 @@ def main(op, config_file=None, result_folder=None):
         logger.add_text(f"model/{k}", str(v))
     logger.add_text("exp_dir", exp_dir)
 
-    train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level = \
+    train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
 
     model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None)  # todo else num-ratings
+                      1 if config['dataset']['binary_interactions'] else None, padding_token)  # todo else num-ratings
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,

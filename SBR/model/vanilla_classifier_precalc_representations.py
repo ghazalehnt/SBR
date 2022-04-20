@@ -11,7 +11,7 @@ from SBR.utils.data_loading import CollateRepresentationBuilder
 
 
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Module):
-    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info):
+    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculated, self).__init__()
         self.bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
         if config['tune_BERT'] is False:
@@ -36,15 +36,14 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         self.batch_size = config['precalc_batch_size']
 
         start = time.time()
-        self.user_rep = self.create_representations(user_info)
+        self.user_rep = self.create_representations(user_info, padding_token)
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
-        self.item_rep = self.create_representations(item_info)
+        self.item_rep = self.create_representations(item_info, padding_token)
         print(f"item rep loaded in {time.time()-start}")
 
-    def create_representations(self, info):
-        # TODO tokenizer padding pass to collate fn
-        collate_fn = CollateRepresentationBuilder()
+    def create_representations(self, info, padding_token):
+        collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
         dataloader = DataLoader(info, batch_size=self.batch_size, collate_fn=collate_fn)
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []

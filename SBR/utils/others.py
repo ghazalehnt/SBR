@@ -3,7 +3,7 @@ from SBR.model.vanilla_classifier import VanillaClassifierUserTextProfileItemTex
 from SBR.model.vanilla_classifier_precalc_representations import VanillaClassifierUserTextProfileItemTextProfilePrecalculated
 
 
-def get_model(config, user_info, item_info, n_classes=None):
+def get_model(config, user_info, item_info, n_classes=None, padding_token=None):
     if config['name'] == "MF":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0])
     elif config['name'] == "VanillaClassifier":
@@ -13,7 +13,8 @@ def get_model(config, user_info, item_info, n_classes=None):
         model = VanillaClassifierUserTextProfileItemTextProfilePrecalculated(config=config, n_users=user_info.shape[0],
                                                                              n_items=item_info.shape[0],
                                                                              num_classes=n_classes,
-                                                                             user_info=user_info, item_info=item_info)
+                                                                             user_info=user_info, item_info=item_info,
+                                                                             padding_token=padding_token)
     else:
         raise ValueError(f"Model is not implemented! model.name = {config['name']}")
     return model

@@ -59,9 +59,11 @@ def load_data(config, pretrained_model):
     print(f"Finish: load dataset in {time.time()-start}")
 
     # tokenize when needed:
+    return_padding_token = None
     if pretrained_model is not None:
         tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model)
         padding_token = tokenizer.pad_token_id
+        return_padding_token = tokenizer.pad_token_id
         if 'text' in user_info.column_names:
             user_info = user_info.map(tokenize_function, batched=True,
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
@@ -176,7 +178,7 @@ def load_data(config, pretrained_model):
                                  collate_fn=test_collate_fn,
                                  num_workers=config['dataloader_num_workers'])
 
-    return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level']
+    return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level'], return_padding_token
 
 
 # class CollateNegSamples(object):
@@ -257,8 +259,8 @@ class CollateOriginalDataPad(object):
 
 
 class CollateRepresentationBuilder(object):
-    def __init__(self):
-        self.padding_token = 0 ## TODO pass this
+    def __init__(self, padding_token):
+        self.padding_token = padding_token
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
