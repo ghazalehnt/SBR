@@ -1,7 +1,10 @@
+import time
+
 import torch
 import transformers
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 from SBR.utils.data_loading import CollateRepresentationBuilder
@@ -30,16 +33,22 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
 
         self.agg_strategy = config['agg_strategy']
         self.chunk_agg_strategy = config['chunk_agg_strategy']
+        self.batch_size = config['precalc_batch_size']
 
+        start = time.time()
         self.user_rep = self.create_representations(user_info)
+        print(f"user rep loaded in {time.time()-start}")
+        start = time.time()
         self.item_rep = self.create_representations(item_info)
+        print(f"item rep loaded in {time.time()-start}")
 
     def create_representations(self, info):
         # TODO tokenizer padding pass to collate fn
         collate_fn = CollateRepresentationBuilder()
-        dataloader = DataLoader(info, batch_size=10, collate_fn=collate_fn)
+        dataloader = DataLoader(info, batch_size=self.batch_size, collate_fn=collate_fn)
+        pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []
-        for batch in dataloader:
+        for batch_idx, batch in pbar:
             # go over chunks:
             outputs = []
             for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
