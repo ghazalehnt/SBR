@@ -53,8 +53,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             # go over chunks:
             outputs = []
             for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
-                input_ids.to(device)
-                att_mask.to(device)
+                input_ids = input_ids.to(device)
+                att_mask = att_mask.to(device)
                 output = self.bert.forward(input_ids=input_ids,
                                            attention_mask=att_mask)
                 if self.agg_strategy == "CLS":
