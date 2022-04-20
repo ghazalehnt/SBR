@@ -7,16 +7,15 @@ import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score
 
 ranking_metrics = [
-    "P_1",
+    "P_1",  # min number of pos interaction for users in test is 1, so P@higher than 1 may penalty even if it shouldn't
     "P_5",
     "P_10",
     "P_20",
     "ndcg_cut_5",
     "ndcg_cut_10",
     "ndcg_cut_20",
-    "recall_5",
-    "recall_10",
-    "recall_20",
+    "recall_100",
+    "recall_1000"  ### max number of interactions for users in test is around 800... so if we do r@lower than that, it would penalty even if it shouldn't
 ]
 
 

@@ -135,50 +135,52 @@ def get_cold_users(config, cold_threshold):
     return cold_users, warm_users, only_in_train_users_cnt, cold_interactions_test_cnt, cold_interactions_validation_cnt, warm_interactions_test_cnt, warm_interactions_validation_cnt
 
 
-def main(config, valid_output, test_output, cold_threshold):
+def main(config, valid_output, test_output, cold_threshold, outf):
+    start = time.time()
     eval_cold_users, eval_warm_users, only_in_train_users_cnt, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold)
+    print(f"get cold/warm users in {time.time()-start}")
 
-    print(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
-          f"And {only_in_train_users_cnt} users only in train set -> "
-          f"{len(eval_cold_users) + len(eval_warm_users) + only_in_train_users_cnt} users in total.")
-    print(f"There are {cold_valid_inter_cnt+warm_valid_inter_cnt} interactions in validation set.")
-    print(f"There are {cold_test_inter_cnt + warm_test_inter_cnt} interactions in test set.")
-    print(f"There are {len(eval_warm_users)} warm (>{cold_threshold}) evaluation users (test+validation). "
-          f"{len(eval_warm_users.intersection(valid_output['ground_truth']))} users with "
-          f"{warm_valid_inter_cnt} pos interactions in validation and "
-          f"{len(eval_warm_users.intersection(test_output['ground_truth']))} users with "
-          f"{warm_test_inter_cnt} pos interactions in test.")
-    print(f"There are {len(eval_cold_users)} cold (<={cold_threshold}) evaluation users (test+validation). "
-          f"{len(eval_cold_users.intersection(valid_output['ground_truth']))} users with "
-          f"{cold_valid_inter_cnt} pos interactions  and "
-          f"{len(eval_cold_users.intersection(test_output['ground_truth']))} users with "
-          f"{cold_test_inter_cnt} pos interactions in test.")
+    outf.write(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
+               f"And {only_in_train_users_cnt} users only in train set -> "
+               f"{len(eval_cold_users) + len(eval_warm_users) + only_in_train_users_cnt} users in total.\n")
+    outf.write(f"There are {cold_valid_inter_cnt+warm_valid_inter_cnt} interactions in validation set.\n")
+    outf.write(f"There are {cold_test_inter_cnt + warm_test_inter_cnt} interactions in test set.\n")
+    outf.write(f"There are {len(eval_warm_users)} warm (>{cold_threshold}) evaluation users (test+validation). "
+               f"{len(eval_warm_users.intersection(valid_output['ground_truth']))} users with "
+               f"{warm_valid_inter_cnt} pos interactions in validation and "
+               f"{len(eval_warm_users.intersection(test_output['ground_truth']))} users with "
+               f"{warm_test_inter_cnt} pos interactions in test.\n")
+    outf.write(f"There are {len(eval_cold_users)} cold (<={cold_threshold}) evaluation users (test+validation). "
+               f"{len(eval_cold_users.intersection(valid_output['ground_truth']))} users with "
+               f"{cold_valid_inter_cnt} pos interactions  and "
+               f"{len(eval_cold_users.intersection(test_output['ground_truth']))} users with "
+               f"{cold_test_inter_cnt} pos interactions in test.\n\n")
 
 
     # ALL:
     valid_results = get_metrics(ground_truth=valid_output["ground_truth"], prediction_scores=valid_output["predicted"])
-    print(f"Valid results ALL: {valid_results}")
+    outf.write(f"Valid results ALL: {valid_results}\n")
 
     test_results = get_metrics(ground_truth=test_output["ground_truth"], prediction_scores=test_output["predicted"])
-    print(f"Test results ALL: {test_results}")
+    outf.write(f"Test results ALL: {test_results}\n\n")
 
     # WARM:
     valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in eval_warm_users},
                                 prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in eval_warm_users})
-    print(f"Valid results WARM (> {cold_threshold}): {valid_results}")
+    outf.write(f"Valid results WARM (> {cold_threshold}): {valid_results}\n")
 
     test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in eval_warm_users},
                                prediction_scores={k: v for k, v in test_output["predicted"].items() if k in eval_warm_users})
-    print(f"Test results WARM (> {cold_threshold}): {test_results}")
+    outf.write(f"Test results WARM (> {cold_threshold}): {test_results}\n\n")
 
     # COLD:
     valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in eval_cold_users},
                                 prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in eval_cold_users})
-    print(f"Valid results COLD (<= {cold_threshold}): {valid_results}")
+    outf.write(f"Valid results COLD (<= {cold_threshold}): {valid_results}\n")
 
     test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in eval_cold_users},
                                prediction_scores={k: v for k, v in test_output["predicted"].items() if k in eval_cold_users})
-    print(f"Test results COLD (<= {cold_threshold}): {test_results}")
+    outf.write(f"Test results COLD (<= {cold_threshold}): {test_results}\n\n")
 
 
 if __name__ == "__main__":
@@ -199,4 +201,6 @@ if __name__ == "__main__":
             raise ValueError(f"Result file test_output.json does not exist: {result_folder}")
         valid_output = json.load(open(os.path.join(result_folder, "best_valid_output.json")))
         test_output = json.load(open(os.path.join(result_folder, "test_output.json")))
-        main(config, valid_output, test_output, args.cold_th)
+        outfile = open(os.path.join(result_folder, f"results_coldth{args.cold_th}.txt"), 'w')
+        main(config, valid_output, test_output, args.cold_th, outfile)
+        outfile.close()
