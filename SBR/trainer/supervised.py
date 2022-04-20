@@ -28,7 +28,6 @@ class SupervisedTrainer:
         self.items = items
 
         if config['loss_fn'] == "BCE":
-            # self.loss_fn = torch.nn.BCEWithLogitsLoss()
             self.loss_fn = torch.nn.BCEWithLogitsLoss()  # use BCEWithLogitsLoss and do not apply the sigmoid beforehand
         elif config['loss_fn'] == "MSE":
             self.loss_fn = torch.nn.MSELoss()
@@ -128,7 +127,7 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             # evaluate every epochs
-            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
             print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
             results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
             results["valid_loss"] = valid_loss.item()
@@ -179,7 +178,7 @@ class SupervisedTrainer:
             self.logger.add_scalar(f'final_results/test_{k}', v)
         print(f"\nTest results - best epoch {self.best_epoch}: {results}")
 
-    def predict(self, eval_dataloader):
+    def predict(self, eval_dataloader, use_amp=False):
         # bring models to evaluation mode
         self.model.eval()
 
@@ -198,8 +197,9 @@ class SupervisedTrainer:
                 label = batch.pop("label").float()  # setting the type to torch.float32
                 prepare_time = time.time() - start_time
 
-                output = self.model(batch)
-                loss = self.loss_fn(output, label)
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    output = self.model(batch)
+                    loss = self.loss_fn(output, label)
                 eval_loss += loss
                 total_count += label.size(0)  # TODO remove if not used
                 process_time = time.time() - start_time - prepare_time
