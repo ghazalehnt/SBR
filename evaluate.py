@@ -5,10 +5,12 @@
 import argparse
 import json
 import os
+import time
 from collections import Counter
 
 from datasets import load_dataset
 import matplotlib.pyplot as plt
+import numpy as np
 
 from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, calculate_cl_macro
 
@@ -78,7 +80,10 @@ def visualize_train_set_interactions(config):
 
 
 def get_metrics(ground_truth, prediction_scores):
+    start = time.time()
     results = calculate_ranking_metrics(gt=ground_truth, pd=prediction_scores, relevance_level=relevance_level)
+    print(f"ranking metrics in {time.time() - start}")
+    start = time.time()
     user_gt = {}
     user_pd = {}
     all_gt = []
@@ -86,16 +91,16 @@ def get_metrics(ground_truth, prediction_scores):
     for u in ground_truth.keys():
         user_gt[u] = []
         user_pd[u] = []
-        u_items = ground_truth[u].keys()
-        for item in u_items:
-            user_gt[u].append(ground_truth[u][item])
-            all_gt.append(ground_truth[u][item])
-            user_pd[u].append(1 if prediction_scores[u][item] > prediction_threshold else 0)
-            all_pd.append(1 if prediction_scores[u][item] > prediction_threshold else 0)
+        sorted_items = sorted(ground_truth[u].keys())
+        user_gt[u] = [ground_truth[u][i] for i in sorted_items]
+        all_gt.extend(user_gt[u])
+        user_pd[u] = list((np.array([prediction_scores[u][i] for i in sorted_items]) > prediction_threshold).astype(int))
+        all_pd.extend(user_pd[u])
     temp = calculate_cl_micro(ground_truth=all_gt, predictions=all_pd)
     results.update(temp)
     temp = calculate_cl_macro(gt_user=user_gt, pd_user=user_pd)
     results.update(temp)
+    print(f"cl metrics in {time.time() - start}")
     return results
 
 
@@ -110,46 +115,70 @@ def get_cold_users(config, cold_threshold):
         split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
         split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
     train_user_count = Counter(split_datasets['train']['user_id'])
-    test_users = set(split_datasets['test']['user_id'])
-    test_users.update(set(split_datasets['validation']['user_id']))
+    valid_user_count = Counter(split_datasets['validation']['user_id'])
+    test_user_count = Counter(split_datasets['test']['user_id'])
+    eval_users = set(split_datasets['test']['user_id'])
+    eval_users.update(set(split_datasets['validation']['user_id']))
+    only_in_train_users_cnt = len(set(split_datasets['train']['user_id']) - eval_users)
 
     cold_users = set()
     warm_users = set()
-    for user in test_users:
+    for user in eval_users:
         if train_user_count[user] > cold_threshold:
             warm_users.add(str(user))
         else:
             cold_users.add(str(user))
-    return cold_users, warm_users
+    cold_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in cold_users])
+    cold_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in cold_users])
+    warm_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in warm_users])
+    warm_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in warm_users])
+    return cold_users, warm_users, only_in_train_users_cnt, cold_interactions_test_cnt, cold_interactions_validation_cnt, warm_interactions_test_cnt, warm_interactions_validation_cnt
 
 
 def main(config, valid_output, test_output, cold_threshold):
-    cold_users, warm_users = get_cold_users(config, cold_threshold)
+    eval_cold_users, eval_warm_users, only_in_train_users_cnt, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold)
+
+    print(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
+          f"And {only_in_train_users_cnt} users only in train set -> "
+          f"{len(eval_cold_users) + len(eval_warm_users) + only_in_train_users_cnt} users in total.")
+    print(f"There are {cold_valid_inter_cnt+warm_valid_inter_cnt} interactions in validation set.")
+    print(f"There are {cold_test_inter_cnt + warm_test_inter_cnt} interactions in test set.")
+    print(f"There are {len(eval_warm_users)} warm (>{cold_threshold}) evaluation users (test+validation). "
+          f"{len(eval_warm_users.intersection(valid_output['ground_truth']))} users with "
+          f"{warm_valid_inter_cnt} pos interactions in validation and "
+          f"{len(eval_warm_users.intersection(test_output['ground_truth']))} users with "
+          f"{warm_test_inter_cnt} pos interactions in test.")
+    print(f"There are {len(eval_cold_users)} cold (<={cold_threshold}) evaluation users (test+validation). "
+          f"{len(eval_cold_users.intersection(valid_output['ground_truth']))} users with "
+          f"{cold_valid_inter_cnt} pos interactions  and "
+          f"{len(eval_cold_users.intersection(test_output['ground_truth']))} users with "
+          f"{cold_test_inter_cnt} pos interactions in test.")
+
 
     # ALL:
     valid_results = get_metrics(ground_truth=valid_output["ground_truth"], prediction_scores=valid_output["predicted"])
-    print(f"Valid results (ALL): {valid_results}")
+    print(f"Valid results ALL: {valid_results}")
 
     test_results = get_metrics(ground_truth=test_output["ground_truth"], prediction_scores=test_output["predicted"])
-    print(f"Test results (ALL): {test_results}")
+    print(f"Test results ALL: {test_results}")
 
     # WARM:
-    valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in warm_users},
-                                prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in warm_users})
-    print(f"Valid results (WARM): {valid_results}")
+    valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in eval_warm_users},
+                                prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in eval_warm_users})
+    print(f"Valid results WARM (> {cold_threshold}): {valid_results}")
 
-    test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in warm_users},
-                               prediction_scores={k: v for k, v in test_output["predicted"].items() if k in warm_users})
-    print(f"Test results (WARM): {test_results}")
+    test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in eval_warm_users},
+                               prediction_scores={k: v for k, v in test_output["predicted"].items() if k in eval_warm_users})
+    print(f"Test results WARM (> {cold_threshold}): {test_results}")
 
     # COLD:
-    valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in cold_users},
-                                prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in cold_users})
-    print(f"Valid results (COLD): {valid_results}")
+    valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in eval_cold_users},
+                                prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in eval_cold_users})
+    print(f"Valid results COLD (<= {cold_threshold}): {valid_results}")
 
-    test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in cold_users},
-                               prediction_scores={k: v for k, v in test_output["predicted"].items() if k in cold_users})
-    print(f"Test results (COLD): {test_results}")
+    test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in eval_cold_users},
+                               prediction_scores={k: v for k, v in test_output["predicted"].items() if k in eval_cold_users})
+    print(f"Test results COLD (<= {cold_threshold}): {test_results}")
 
 
 if __name__ == "__main__":
