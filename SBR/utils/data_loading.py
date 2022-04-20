@@ -48,6 +48,7 @@ def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks):
             examples['chunks_attention_mask'][i].append(result['attention_mask'][i])
     return examples
 
+
 def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
@@ -58,7 +59,6 @@ def load_data(config, pretrained_model):
     print(f"Finish: load dataset in {time.time()-start}")
 
     # tokenize when needed:
-    padding_token = None
     if pretrained_model is not None:
         tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model)
         padding_token = tokenizer.pad_token_id
@@ -86,6 +86,13 @@ def load_data(config, pretrained_model):
         print("Start: get user used items...")
         user_used_items = get_user_used_items(datasets)
         print(f"Finish: get user used items in {time.time()-start}")
+
+    # previously we loaded the "textual profiles" when training into each batch...
+    # now, we are going to create representations at initialization... and won't need that anymore.
+    # todo: change1:
+    # we are doing the check inside collatefns with padding token is None or not
+    if not config['text_in_batch']:  # for now: means that we do pre calculation
+        padding_token = None  # this causes the collate functions to
 
     train_collate_fn = None
     valid_collate_fn = None
@@ -214,21 +221,19 @@ class CollateOriginalDataPad(object):
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
-        # user:
-        if 'chunks_input_ids' in self.user_info.columns:
+        if self.padding_token is not None:
+            # user:
             temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']]\
                 .reset_index().drop(columns=['index'])
             temp_user = pd.concat([batch_df, temp_user], axis=1)
             temp_user = temp_user.rename(columns={"chunks_input_ids": "user_chunks_input_ids",
                                                   "chunks_attention_mask": "user_chunks_attention_mask"})
-        # item:
-        if 'chunks_input_ids' in self.item_info.columns:
+            # item:
             temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
                 .reset_index().drop(columns=['index'])
             temp_item = pd.concat([batch_df, temp_item], axis=1)
             temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
                                                   "chunks_attention_mask": "item_chunks_attention_mask"})
-        if 'chunks_input_ids' in self.user_info.columns and 'chunks_input_ids' in self.item_info.columns:
             temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
 
             # pad ,  the resulting tensor is num-chunks * batch * tokens -> bcs later we want to do batchwise
@@ -250,6 +255,22 @@ class CollateOriginalDataPad(object):
                 ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
         return ret
 
+
+class CollateRepresentationBuilder(object):
+    def __init__(self):
+        self.padding_token = 0 ## TODO pass this
+
+    def __call__(self, batch):
+        batch_df = pd.DataFrame(batch)
+        ret = {}
+        for col in ["chunks_input_ids", "chunks_attention_mask"]:
+            instances = [torch.tensor([list(t) for t in instance]) for instance in batch_df[col]]
+            ret[col] = pad_sequence(instances, padding_value=self.padding_token).type(torch.int64)
+        for col in batch_df.columns:
+            if col in ret:
+                continue
+            ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
+        return ret
 
 class CollateNegSamplesRandomOpt(object):
     def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None):
@@ -302,21 +323,19 @@ class CollateNegSamplesRandomOpt(object):
         batch_df = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index().drop(columns=['index'])
 
         # todo make this somehow that each of them could have text and better code
-        # user:
-        if 'chunks_input_ids' in self.user_info.columns:
+        if self.padding_token is not None:
+            # user:
             temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
                 .reset_index().drop(columns=['index'])
             temp_user = pd.concat([batch_df, temp_user], axis=1)
             temp_user = temp_user.rename(columns={"chunks_input_ids": "user_chunks_input_ids",
                                                   "chunks_attention_mask": "user_chunks_attention_mask"})
-        # item:
-        if 'chunks_input_ids' in self.user_info.columns:
+            # item:
             temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
                 .reset_index().drop(columns=['index'])
             temp_item = pd.concat([batch_df, temp_item], axis=1)
             temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
                                                   "chunks_attention_mask": "item_chunks_attention_mask"})
-        if 'chunks_input_ids' in self.user_info.columns and 'chunks_input_ids' in self.item_info.columns:
             temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
 
             # pad ,  the resulting tensor is num-chunks * batch * tokens -> bcs later we want to do batchwise
@@ -340,46 +359,46 @@ class CollateNegSamplesRandomOpt(object):
         return ret
 
 
-class CollateNegSamplesFixed(object):
-    def __init__(self, samples, user_info=None, item_info=None, padding_token=None):
-        self.samples_grouped = samples.groupby(by=[INTERNAL_USER_ID_FIELD])
-        self.user_info = user_info.to_pandas()
-        self.item_info = item_info.to_pandas()
-        self.padding_token = padding_token
-
-    def __call__(self, batch):
-        batch_df = pd.DataFrame(batch)
-        data = [batch_df]
-        for user_id in set(batch_df[INTERNAL_USER_ID_FIELD]):
-            data.append(self.samples_grouped.get_group(user_id))
-        batch_df = pd.concat(data).reset_index().drop(columns=['index'])
-        # user:
-        temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
-            .reset_index().drop(columns=['index'])
-        temp_user = pd.concat([batch_df, temp_user], axis=1)
-        temp_user = temp_user.rename(columns={"chunks_input_ids": "user_chunks_input_ids",
-                                              "chunks_attention_mask": "user_chunks_attention_mask"})
-        # item:
-        temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
-            .reset_index().drop(columns=['index'])
-        temp_item = pd.concat([batch_df, temp_item], axis=1)
-        temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
-                                              "chunks_attention_mask": "item_chunks_attention_mask"})
-        temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
-
-        # pad ,  the resulting tensor is num-chunks * batch * tokens -> bcs later we want to do batchwise
-        ret = {}
-        for col in ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
-                    "item_chunks_attention_mask"]:
-            # instances = [pad_sequence([torch.tensor(t) for t in instance], padding_value=self.padding_token) for
-            #              instance in temp[col]]
-            instances = [torch.tensor([list(t) for t in instance]) for instance in temp[col]]
-            ret[col] = pad_sequence(instances, padding_value=self.padding_token).type(torch.int64)
-        for col in temp.columns:
-            if col in ret:
-                continue
-            ret[col] = torch.tensor(temp[col]).unsqueeze(1)
-        return ret
+# class CollateNegSamplesFixed(object):
+#     def __init__(self, samples, user_info=None, item_info=None, padding_token=None):
+#         self.samples_grouped = samples.groupby(by=[INTERNAL_USER_ID_FIELD])
+#         self.user_info = user_info.to_pandas()
+#         self.item_info = item_info.to_pandas()
+#         self.padding_token = padding_token
+#
+#     def __call__(self, batch):
+#         batch_df = pd.DataFrame(batch)
+#         data = [batch_df]
+#         for user_id in set(batch_df[INTERNAL_USER_ID_FIELD]):
+#             data.append(self.samples_grouped.get_group(user_id))
+#         batch_df = pd.concat(data).reset_index().drop(columns=['index'])
+#         # user:
+#         temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
+#             .reset_index().drop(columns=['index'])
+#         temp_user = pd.concat([batch_df, temp_user], axis=1)
+#         temp_user = temp_user.rename(columns={"chunks_input_ids": "user_chunks_input_ids",
+#                                               "chunks_attention_mask": "user_chunks_attention_mask"})
+#         # item:
+#         temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
+#             .reset_index().drop(columns=['index'])
+#         temp_item = pd.concat([batch_df, temp_item], axis=1)
+#         temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
+#                                               "chunks_attention_mask": "item_chunks_attention_mask"})
+#         temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+#
+#         # pad ,  the resulting tensor is num-chunks * batch * tokens -> bcs later we want to do batchwise
+#         ret = {}
+#         for col in ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
+#                     "item_chunks_attention_mask"]:
+#             # instances = [pad_sequence([torch.tensor(t) for t in instance], padding_value=self.padding_token) for
+#             #              instance in temp[col]]
+#             instances = [torch.tensor([list(t) for t in instance]) for instance in temp[col]]
+#             ret[col] = pad_sequence(instances, padding_value=self.padding_token).type(torch.int64)
+#         for col in temp.columns:
+#             if col in ret:
+#                 continue
+#             ret[col] = torch.tensor(temp[col]).unsqueeze(1)
+#         return ret
 
 
 def get_user_used_items(datasets):

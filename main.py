@@ -66,7 +66,7 @@ def main(op, config_file=None, result_folder=None):
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
 
-    model = get_model(config['model'], users.shape[0], items.shape[0],
+    model = get_model(config['model'], users, items,
                       1 if config['dataset']['binary_interactions'] else None)  # todo else num-ratings
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
