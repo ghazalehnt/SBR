@@ -11,9 +11,11 @@ from SBR.utils.data_loading import CollateRepresentationBuilder
 
 
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Module):
-    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token):
+    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculated, self).__init__()
         self.bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
+        self.bert.to(device)  # need to move to device earlier as we are precalculating.
+
         if config['tune_BERT'] is False:
             for param in self.bert.parameters():
                 param.requires_grad = False
@@ -36,13 +38,13 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         self.batch_size = config['precalc_batch_size']
 
         start = time.time()
-        self.user_rep = self.create_representations(user_info, padding_token)
+        self.user_rep = self.create_representations(user_info, padding_token, device)
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
-        self.item_rep = self.create_representations(item_info, padding_token)
+        self.item_rep = self.create_representations(item_info, padding_token, device)
         print(f"item rep loaded in {time.time()-start}")
 
-    def create_representations(self, info, padding_token):
+    def create_representations(self, info, padding_token, device):
         collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
         dataloader = DataLoader(info, batch_size=self.batch_size, collate_fn=collate_fn)
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -51,6 +53,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             # go over chunks:
             outputs = []
             for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
+                input_ids.to(device)
+                att_mask.to(device)
                 output = self.bert.forward(input_ids=input_ids,
                                            attention_mask=att_mask)
                 if self.agg_strategy == "CLS":

@@ -67,7 +67,7 @@ def main(op, config_file=None, result_folder=None):
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
 
     model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None, padding_token)  # todo else num-ratings
+                      1 if config['dataset']['binary_interactions'] else None, padding_token, device)  # todo else num-ratings
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,
