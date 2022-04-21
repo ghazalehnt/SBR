@@ -4,8 +4,8 @@
     "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/split_1/",
     "binary_interactions": true,
     "relevance_level": 1,
-    "train_batch_size": 800,
-    "eval_batch_size": 4096,
+    "train_batch_size": 128,
+    "eval_batch_size": 1024,
     "training_neg_sampling_strategy": "",
     "training_neg_samples": 0,
     "validation_neg_sampling_strategy": "f:validation_neg_random_100",
@@ -36,9 +36,9 @@
     "agg_strategy": "CLS",
     "chunk_agg_strategy": "max_pool",
     "append_id": false,
-    "tune_BERT": false
+    "tune_BERT": true
   },
-  "experiment_root": "<EXP_ROOT_PATH>/vc_implicit/",
+  "experiment_root": "<EXP_ROOT_PATH>/vc_implicit_tunebert/",
   "params_in_exp_dir": ["model.append_id", "model.k",
     "trainer.lr", "trainer.wd", "dataset.train_batch_size",
     "dataset.eval_batch_size",
