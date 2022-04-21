@@ -27,12 +27,19 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             self.item_id_embedding = torch.nn.Embedding(n_items, bert_embedding_dim)
             bert_embeddings = bert.get_input_embeddings()
 
-        if "k" in config:
-            self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
-            self.transform_i = torch.nn.Linear(bert_embedding_dim, config['k'])
-            self.classifier = torch.nn.Linear(2*config['k'], num_classes)
-        else:
-            self.classifier = torch.nn.Linear(2 * bert_embedding_dim, num_classes)
+        if config['similarity'] == "dot_product":
+            self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
+            self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
+            self.bias = torch.nn.Parameter(torch.zeros(1))
+        elif config['similarity'] == "classifier":
+            if "k" in config:
+                self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
+                self.transform_i = torch.nn.Linear(bert_embedding_dim, config['k'])
+                self.classifier = torch.nn.Linear(2*config['k'], num_classes)
+            else:
+                self.classifier = torch.nn.Linear(2 * bert_embedding_dim, num_classes)
+        elif config['similarity'] == "MPL":
+            raise ValueError("Not implemented!")
 
         self.agg_strategy = config['agg_strategy']
         self.chunk_agg_strategy = config['chunk_agg_strategy']
@@ -89,9 +96,14 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze()
         user_rep = self.user_rep(user_ids)
         item_rep = self.item_rep(item_ids)
-        if hasattr(self, 'transform_u'):
-            user_rep = self.transform_u(user_rep)
-            item_rep = self.transform_i(item_rep)
-        result = self.classifier(torch.concat([user_rep, item_rep], dim=1))
+        if hasattr(self, 'classifier'):
+            if hasattr(self, 'transform_u'):
+                user_rep = self.transform_u(user_rep)
+                item_rep = self.transform_i(item_rep)
+            result = self.classifier(torch.concat([user_rep, item_rep], dim=1))
+        elif hasattr(self, 'bias'):
+            result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
+            result = result + self.item_bias[item_ids] + self.user_bias[user_ids]
+            result = result + self.bias
         return result  # do not apply sigmoid and use BCEWithLogitsLoss
 
