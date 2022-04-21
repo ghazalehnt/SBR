@@ -60,6 +60,7 @@ def load_data(config, pretrained_model):
 
     # tokenize when needed:
     return_padding_token = None
+    padding_token = None
     if pretrained_model is not None:
         tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model)
         padding_token = tokenizer.pad_token_id
@@ -93,7 +94,7 @@ def load_data(config, pretrained_model):
     # now, we are going to create representations at initialization... and won't need that anymore.
     # todo: change1:
     # we are doing the check inside collatefns with padding token is None or not
-    if not config['text_in_batch']:  # for now: means that we do pre calculation
+    if padding_token and not config['text_in_batch']:  # for now: means that we do pre calculation
         padding_token = None  # this causes the collate functions to
 
     train_collate_fn = None

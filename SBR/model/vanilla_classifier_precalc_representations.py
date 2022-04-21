@@ -13,18 +13,19 @@ from SBR.utils.data_loading import CollateRepresentationBuilder
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Module):
     def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculated, self).__init__()
-        self.bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
-        self.bert.to(device)  # need to move to device earlier as we are precalculating.
+        bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
+        bert.to(device)  # need to move to device earlier as we are precalculating.
 
         if config['tune_BERT'] is False:
-            for param in self.bert.parameters():
+            for param in bert.parameters():
                 param.requires_grad = False
-        bert_embedding_dim = self.bert.embeddings.word_embeddings.weight.shape[1]
+        bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
 
+        bert_embeddings = None
         if config["append_id"]:
             self.user_id_embedding = torch.nn.Embedding(n_users, bert_embedding_dim)
             self.item_id_embedding = torch.nn.Embedding(n_items, bert_embedding_dim)
-            self.bert_embeddings = self.bert.get_input_embeddings()
+            bert_embeddings = bert.get_input_embeddings()
 
         if "k" in config:
             self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
@@ -38,13 +39,15 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         self.batch_size = config['precalc_batch_size']
 
         start = time.time()
-        self.user_rep = self.create_representations(user_info, padding_token, device)
+        self.user_rep = self.create_representations(bert, bert_embeddings, user_info, padding_token, device, config['append_id'],
+                                                    INTERNAL_USER_ID_FIELD, self.user_id_embedding)
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
-        self.item_rep = self.create_representations(item_info, padding_token, device)
+        self.item_rep = self.create_representations(bert, bert_embeddings, item_info, padding_token, device, config['append_id'],
+                                                    INTERNAL_ITEM_ID_FIELD, self.item_id_embedding)
         print(f"item rep loaded in {time.time()-start}")
 
-    def create_representations(self, info, padding_token, device):
+    def create_representations(self, bert, bert_embeddings, info, padding_token, device, append_id, id_field, id_embedding=None):
         collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
         dataloader = DataLoader(info, batch_size=self.batch_size, collate_fn=collate_fn)
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -52,11 +55,23 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         for batch_idx, batch in pbar:
             # go over chunks:
             outputs = []
+            ids = batch[id_field]
             for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
                 input_ids = input_ids.to(device)
                 att_mask = att_mask.to(device)
-                output = self.bert.forward(input_ids=input_ids,
-                                           attention_mask=att_mask)
+                if append_id:
+                    id_embeds = id_embedding(ids)
+                    token_embeddings = bert_embeddings.forward(input_ids)
+                    cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                    other_tokens = token_embeddings[:, 1:]
+                    # insert user_id embedding after the especial CLS token:
+                    concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds], dim=1), other_tokens], dim=1)
+                    concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+                    output = bert.forward(inputs_embeds=concat_ids,
+                                          attention_mask=concat_masks)
+                else:
+                    output = bert.forward(input_ids=input_ids,
+                                          attention_mask=att_mask)
                 if self.agg_strategy == "CLS":
                     temp = output.pooler_output
                 elif self.agg_strategy == "mean":
