@@ -21,11 +21,18 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                 param.requires_grad = False
         bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
 
+        self.freeze_prec_rep = config['freeze_prec_reps']
+
         bert_embeddings = None
         if config["append_id"]:
-            self.user_id_embedding = torch.nn.Embedding(n_users, bert_embedding_dim)
-            self.item_id_embedding = torch.nn.Embedding(n_items, bert_embedding_dim)
+            self.user_id_embedding = torch.nn.Embedding(n_users, bert_embedding_dim, device=device)
+            if self.freeze_prec_rep:
+                self.user_id_embedding.requires_grad_(False)
+            self.item_id_embedding = torch.nn.Embedding(n_items, bert_embedding_dim, device=device)
+            if self.freeze_prec_rep:
+                self.item_id_embedding.requires_grad_(False)
             bert_embeddings = bert.get_input_embeddings()
+
 
         if "k" in config:
             self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
@@ -40,11 +47,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
 
         start = time.time()
         self.user_rep = self.create_representations(bert, bert_embeddings, user_info, padding_token, device, config['append_id'],
-                                                    INTERNAL_USER_ID_FIELD, self.user_id_embedding)
+                                                    INTERNAL_USER_ID_FIELD, self.user_id_embedding if config["append_id"] else None )
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
         self.item_rep = self.create_representations(bert, bert_embeddings, item_info, padding_token, device, config['append_id'],
-                                                    INTERNAL_ITEM_ID_FIELD, self.item_id_embedding)
+                                                    INTERNAL_ITEM_ID_FIELD, self.item_id_embedding if config["append_id"] else None)
         print(f"item rep loaded in {time.time()-start}")
 
     def create_representations(self, bert, bert_embeddings, info, padding_token, device, append_id, id_field, id_embedding=None):
@@ -55,7 +62,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         for batch_idx, batch in pbar:
             # go over chunks:
             outputs = []
-            ids = batch[id_field]
+            ids = batch[id_field].to(device)
             for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
                 input_ids = input_ids.to(device)
                 att_mask = att_mask.to(device)
@@ -81,7 +88,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                 outputs.append(temp)
             rep = torch.stack(outputs).max(dim=0).values
             reps.append(rep)
-        return torch.nn.Embedding.from_pretrained(torch.concat(reps), freeze=True)  # todo freeze? or unfreeze?
+        return torch.nn.Embedding.from_pretrained(torch.concat(reps), freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
