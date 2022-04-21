@@ -131,8 +131,6 @@ class SupervisedTrainer:
             print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
             results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
             results["valid_loss"] = valid_loss.item()
-            self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
-            self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
             for k, v in results.items():
                 self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
             if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
@@ -149,6 +147,8 @@ class SupervisedTrainer:
                 early_stopping_cnt = 0
             else:
                 early_stopping_cnt += 1
+            self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
+            self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
 
     def evaluate(self, test_dataloader, valid_dataloader):
         # load the best model from file.
