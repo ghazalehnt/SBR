@@ -13,6 +13,7 @@
     "dataloader_num_workers": 8,
     "user_text": ["interaction.review"],
     "item_text": ["item.title", "item.description", "item.genres"],
+    "text_in_batch": true,
     "user_item_text": [],
     "max_num_chunks_user": 1,
     "max_num_chunks_item": 1,
