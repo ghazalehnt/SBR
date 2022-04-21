@@ -21,7 +21,8 @@
     "epochs": 100,
     "loss_fn": "BCE",
     "valid_metric": "valid_loss",
-    "early_stopping_patience": 10
+    "early_stopping_patience": 10,
+    "use_amp": false
   },
   "model": {
     "name": "MF",
