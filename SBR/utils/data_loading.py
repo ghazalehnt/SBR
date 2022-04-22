@@ -490,24 +490,26 @@ def load_crawled_goodreads_dataset(config):
                 if text_field == "review":
                     if sort_reviews == "rating_sorted":
                         temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].sort_values(
-                            'rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(','.join)
+                            'rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(','.join).reset_index()
                     elif sort_reviews == "nothing":
                         temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[text_field].\
                             apply(','.join).reset_index()
                     elif sort_reviews.startswith("pos_rating_sorted_"):
                         pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
                         temp = df[(df[text_field] != '') & (df['rating'] >= pos_threshold)][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].\
-                        sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(list)
+                        sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(','.join).reset_index()
                     else:
                         raise ValueError("Not implemented!")
 
                 user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
+                user_info[text_field] = user_info[text_field].fillna('')
                 user_info = user_info.rename(columns={text_field: f"interaction.{text_field}"})
             for text_field in [field[field.index("interaction.") + len("interaction."):]
                                for field in config['item_text'] if "interaction." in field]:
                 temp = df[[INTERNAL_ITEM_ID_FIELD, text_field]].groupby(INTERNAL_ITEM_ID_FIELD)[
                     text_field].apply(','.join).reset_index()
                 item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
+                item_info[text_field] = item_info[text_field].fillna('')
                 item_info = item_info.rename(columns={text_field: f"interaction.{text_field}"})
 
         # remove the rest

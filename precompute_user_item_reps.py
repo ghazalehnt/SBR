@@ -32,7 +32,7 @@ def main(config_file):
                              f"size{config['dataset']['chunk_size']}_u{config['dataset']['max_num_chunks_user']}-"
                              f"{'-'.join(config['dataset']['user_text'])}_{config['dataset']['user_review_choice']}_"
                              f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
-
+    print(prec_path)
     os.makedirs(prec_path, exist_ok=True)
 
 
@@ -57,26 +57,26 @@ def main(config_file):
 
     start = time.time()
     user_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['append_id']}_tb{config['tune_BERT']}_user_representation.pkl"
+                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_user_representation.pkl"
     if os.path.exists(os.path.join(prec_path, user_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size, agg_strategy,
                                          chunk_agg_strategy, config['dataset']['dataloader_num_workers'], config['model']['append_id'], INTERNAL_USER_ID_FIELD,
                                          user_id_embedding if config['model']['append_id'] else None)
-        torch.save(weights, open(os.path.join(prec_path, user_rep_file)))
+        torch.save(weights, os.path.join(prec_path, user_rep_file))
     print(f"user rep created  {time.time() - start}")
 
     start = time.time()
     item_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['append_id']}_tb{config['tune_BERT']}_item_representation.pkl"
+                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_item_representation.pkl"
     if os.path.exists(os.path.join(prec_path, item_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size, agg_strategy,
                                          chunk_agg_strategy, config['dataset']['dataloader_num_workers'], config['model']['append_id'], INTERNAL_ITEM_ID_FIELD,
                                          item_id_embedding if config['model']['append_id'] else None)
-        torch.save(weights, open(os.path.join(prec_path, item_rep_file)))
+        torch.save(weights, os.path.join(prec_path, item_rep_file))
         print(f"item rep created in {time.time() - start}")
 
 
