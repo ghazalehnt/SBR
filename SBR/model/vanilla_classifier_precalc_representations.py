@@ -13,7 +13,7 @@ from SBR.utils.data_loading import CollateRepresentationBuilder
 
 
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Module):
-    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device, exp_dir):
+    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device, prec_dir):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculated, self).__init__()
         bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
         bert.to(device)  # need to move to device earlier as we are precalculating.
@@ -48,31 +48,55 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                 self.classifier = torch.nn.Linear(2 * config['k'], num_classes)
             else:
                 self.classifier = torch.nn.Linear(2 * bert_embedding_dim, num_classes)
-        elif config['similarity'] == "MPL":
-            raise ValueError("Not implemented!")
+        elif config['similarity'] == "MLP":
+            #  $[p_u, q_i, p_u - q_i]$ where $a-b$ is the element-wise difference between the vectors.
+            if "k" in config and config["k"] not in ['', 0]:
+                in_size = 3 * config['k']
+            else:
+                in_size = 3 * bert_embedding_dim
+            mlp_layers = []
+            for out_size in config['MLP_layers']:
+                mlp_layers.append(torch.nn.Linear(in_size, out_size))
+                mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
+                if config['MLP_activation'] == "ReLU":
+                    mlp_layers.append(torch.nn.ReLU())
+                else:
+                    raise ValueError("Not implemented!")
+                in_size = out_size
+            mlp_layers.append(torch.nn.Linear(in_size, num_classes))
+            mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
+            if config['MLP_activation'] == "ReLU":
+                mlp_layers.append(torch.nn.ReLU())
+            else:
+                raise ValueError("Not implemented!")
+            self.mlp = torch.nn.Sequential(*mlp_layers)
 
         self.agg_strategy = config['agg_strategy']
         self.chunk_agg_strategy = config['chunk_agg_strategy']
         self.batch_size = config['precalc_batch_size']
 
         start = time.time()
-        if os.path.exists(os.path.join(exp_dir, "user_representation.pkl")):
-            weights = pickle.load(open(os.path.join(exp_dir, "user_representation.pkl"), 'rb'))
+        user_rep_file = f"{self.agg_strategy}_{self.chunk_agg_strategy}_" \
+                        f"id{config['append_id']}_tb{config['tune_BERT']}_user_representation.pkl"
+        if os.path.exists(os.path.join(prec_dir, user_rep_file)):
+            weights = pickle.load(open(os.path.join(prec_dir, user_rep_file), 'rb'))
         else:
             weights = self.create_representations(bert, bert_embeddings, user_info, padding_token, device,
                                                   config['append_id'], INTERNAL_USER_ID_FIELD,
                                                   self.user_id_embedding if config["append_id"] else None)
-            pickle.dump(weights, open(os.path.join(exp_dir, "user_representation.pkl"), 'wb'))
+            pickle.dump(weights, open(os.path.join(prec_dir, user_rep_file), 'wb'))
         self.user_rep = torch.nn.Embedding.from_pretrained(torch.concat(weights), freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
-        if os.path.exists(os.path.join(exp_dir, "item_representation.pkl")):
-            weights = pickle.load(open(os.path.join(exp_dir, "item_representation.pkl"), 'rb'))
+        item_rep_file = f"{self.agg_strategy}_{self.chunk_agg_strategy}_" \
+                        f"id{config['append_id']}_tb{config['tune_BERT']}_item_representation.pkl"
+        if os.path.exists(os.path.join(prec_dir, item_rep_file)):
+            weights = pickle.load(open(os.path.join(prec_dir, item_rep_file), 'rb'))
         else:
             weights = self.create_representations(bert, bert_embeddings, item_info, padding_token, device,
                                                   config['append_id'], INTERNAL_ITEM_ID_FIELD,
                                                   self.item_id_embedding if config["append_id"] else None)
-            pickle.dump(weights, open(os.path.join(exp_dir, "item_representation.pkl"), 'wb'))
+            pickle.dump(weights, open(os.path.join(prec_dir, item_rep_file), 'wb'))
         self.item_rep = torch.nn.Embedding.from_pretrained(torch.concat(weights), freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
         print(f"item rep loaded in {time.time()-start}")
 
@@ -129,5 +153,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             result = result + self.item_bias[item_ids] + self.user_bias[user_ids]
             result = result + self.bias
             result = result.unsqueeze(1)
+        elif hasattr(self, 'mlp'):
+            result = self.mlp(torch.concat([user_rep, item_rep, user_rep-item_rep], dim=1))
         return result  # do not apply sigmoid and use BCEWithLogitsLoss
 
