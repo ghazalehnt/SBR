@@ -72,7 +72,7 @@ def load_data(config, pretrained_model):
                                                  "max_length": config["chunk_size"],
                                                  "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None
                                                  })
-            user_info = user_info.remove_columns(['text']) #, 'token_type_ids'])
+            user_info = user_info.remove_columns(['text'])
         if 'text' in item_info.column_names:
             item_info = item_info.map(tokenize_function, batched=True,
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
@@ -80,7 +80,7 @@ def load_data(config, pretrained_model):
                                                  "max_length": config["chunk_size"],
                                                  "max_num_chunks": config['max_num_chunks_item'] if "max_num_chunks_item" in config else None
                                                  })
-            item_info = item_info.remove_columns(['text']) #, 'token_type_ids'])
+            item_info = item_info.remove_columns(['text'])
 
     user_used_items = None
     if 'random' in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
@@ -94,7 +94,7 @@ def load_data(config, pretrained_model):
     # now, we are going to create representations at initialization... and won't need that anymore.
     # todo: change1:
     # we are doing the check inside collatefns with padding token is None or not
-    if padding_token and not config['text_in_batch']:  # for now: means that we do pre calculation
+    if config['text_in_batch'] is False:  # for now: means that we do pre calculation
         padding_token = None  # this causes the collate functions to
 
     train_collate_fn = None
@@ -118,7 +118,8 @@ def load_data(config, pretrained_model):
         for user_id, u_items in user_used_items['validation'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
         print(f"Mid: used_item copy in {time.time() - start}")
-        valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items)
+        valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
+                                                      padding_token=padding_token)
         print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
     elif config['validation_neg_sampling_strategy'].startswith("f:"):
         valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
@@ -141,7 +142,8 @@ def load_data(config, pretrained_model):
         for user_id, u_items in user_used_items['test'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
         print(f"Mid: used_item copy in {time.time() - start}")
-        test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items)
+        test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items,
+                                                     padding_token=padding_token)
         print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
     elif config['test_neg_sampling_strategy'].startswith("f:"):
         test_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
@@ -460,13 +462,17 @@ def load_crawled_goodreads_dataset(config):
             # if binary prediction (interaction): set label for all rated/unrated/highrated/lowrated to 1.
             # TODO alternatively you can only consider interactions which have high ratings... filter out the rest...
             df['label'] = np.ones(df.shape[0])
-            df = df.drop(columns=['rating'])
+            # df = df.drop(columns=['rating']) # todo we are not removing this now, bcs maybe we need it next when choosing the reviews
+            df['rating'] = df['rating'].fillna(-1)
+            for k, v in goodreads_rating_mapping.items():
+                df['rating'] = df['rating'].replace(k, v)
         else:
             # if predicting rating: remove the not-rated entries and map rating text to int
             df = df[df['rating'].notna()].reset_index()
             for k, v in goodreads_rating_mapping.items():
                 df['rating'] = df['rating'].replace(k, v)
-            df = df.rename(columns={"rating": "label"})
+            df['label'] = df['rating']
+            # df = df.rename(columns={"rating": "label"})  # todo we are not removing this now, bcs maybe we need it next
 
         # replace user_id with internal_user_id (same for item_id)
         df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
@@ -474,11 +480,27 @@ def load_crawled_goodreads_dataset(config):
         df = df.drop(columns=["user_id", "item_id"])
 
         # concat and move the user/item text fields to user and item info:
+        if "user_review_choice" not in config:
+            sort_reviews = "rating_sorted"
+        else:
+            sort_reviews = config['user_review_choice']
         if sp == 'train':
             for text_field in [field[field.index("interaction.") + len("interaction."):]
                                for field in config['user_text'] if "interaction." in field]:
-                temp = df[[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[
-                    text_field].apply(','.join).reset_index()
+                if text_field == "review":
+                    if sort_reviews == "rating_sorted":
+                        temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].sort_values(
+                            'rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(','.join)
+                    elif sort_reviews == "nothing":
+                        temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[text_field].\
+                            apply(','.join).reset_index()
+                    elif sort_reviews.startswith("pos_rating_sorted_"):
+                        pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
+                        df[(df['review'] != '') & (df['rating'] >= 3)][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].\
+                        sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(list)
+                    else:
+                        raise ValueError("Not implemented!")
+
                 user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
                 user_info = user_info.rename(columns={text_field: f"interaction.{text_field}"})
             for text_field in [field[field.index("interaction.") + len("interaction."):]
