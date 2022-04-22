@@ -79,25 +79,25 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         user_rep_file = f"{self.agg_strategy}_{self.chunk_agg_strategy}_" \
                         f"id{config['append_id']}_tb{config['tune_BERT']}_user_representation.pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
-            weights = pickle.load(open(os.path.join(prec_dir, user_rep_file), 'rb'))
+            weights = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
         else:
             weights = self.create_representations(bert, bert_embeddings, user_info, padding_token, device,
                                                   config['append_id'], INTERNAL_USER_ID_FIELD,
                                                   self.user_id_embedding if config["append_id"] else None)
-            pickle.dump(weights, open(os.path.join(prec_dir, user_rep_file), 'wb'))
-        self.user_rep = torch.nn.Embedding.from_pretrained(torch.concat(weights), freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
+            torch.save(weights, open(os.path.join(prec_dir, user_rep_file)))
+        self.user_rep = torch.nn.Embedding.from_pretrained(weights, freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
         item_rep_file = f"{self.agg_strategy}_{self.chunk_agg_strategy}_" \
                         f"id{config['append_id']}_tb{config['tune_BERT']}_item_representation.pkl"
         if os.path.exists(os.path.join(prec_dir, item_rep_file)):
-            weights = pickle.load(open(os.path.join(prec_dir, item_rep_file), 'rb'))
+            weights = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
         else:
             weights = self.create_representations(bert, bert_embeddings, item_info, padding_token, device,
                                                   config['append_id'], INTERNAL_ITEM_ID_FIELD,
                                                   self.item_id_embedding if config["append_id"] else None)
-            pickle.dump(weights, open(os.path.join(prec_dir, item_rep_file), 'wb'))
-        self.item_rep = torch.nn.Embedding.from_pretrained(torch.concat(weights), freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
+            torch.save(weights, open(os.path.join(prec_dir, item_rep_file)))
+        self.item_rep = torch.nn.Embedding.from_pretrained(weights, freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
         print(f"item rep loaded in {time.time()-start}")
 
     def create_representations(self, bert, bert_embeddings, info, padding_token, device,
@@ -135,7 +135,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                 outputs.append(temp)
             rep = torch.stack(outputs).max(dim=0).values
             reps.append(rep)
-        return reps
+        return torch.concat(reps)
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
