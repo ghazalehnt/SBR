@@ -9,8 +9,8 @@ import transformers
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from data_loading import load_data, CollateRepresentationBuilder
-from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 def main(config_file):
@@ -20,6 +20,9 @@ def main(config_file):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = json.load(open(config_file, 'r'))
+    if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
+        config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"] \
+            .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read().strip())
 
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
