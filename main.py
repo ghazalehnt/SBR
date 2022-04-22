@@ -61,6 +61,8 @@ def main(op, config_file=None, result_folder=None):
     for k, v in config["model"].items():
         logger.add_text(f"model/{k}", str(v))
     logger.add_text("exp_dir", exp_dir)
+    print("experiment_dir:")
+    print(exp_dir)
 
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
