@@ -59,7 +59,7 @@ def main(config_file):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size, agg_strategy,
-                                         chunk_agg_strategy, config['model']['append_id'], INTERNAL_USER_ID_FIELD,
+                                         chunk_agg_strategy, config['dataset']['dataloader_num_workers'], config['model']['append_id'], INTERNAL_USER_ID_FIELD,
                                          user_id_embedding if config['model']['append_id'] else None)
         torch.save(weights, open(os.path.join(prec_path, user_rep_file)))
     print(f"user rep created  {time.time() - start}")
@@ -71,16 +71,16 @@ def main(config_file):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size, agg_strategy,
-                                         chunk_agg_strategy, config['model']['append_id'], INTERNAL_ITEM_ID_FIELD,
+                                         chunk_agg_strategy, config['dataset']['dataloader_num_workers'], config['model']['append_id'], INTERNAL_ITEM_ID_FIELD,
                                          item_id_embedding if config['model']['append_id'] else None)
         torch.save(weights, open(os.path.join(prec_path, item_rep_file)))
         print(f"item rep created in {time.time() - start}")
 
 
 def create_representations(bert, bert_embeddings, info, padding_token, device, batch_size, agg_strategy,
-                           chunk_agg_strategy, append_id, id_field, id_embedding=None):
+                           chunk_agg_strategy, num_workers, append_id, id_field, id_embedding=None):
     collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
-    dataloader = DataLoader(info, batch_size=batch_size, collate_fn=collate_fn)
+    dataloader = DataLoader(info, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers)
     pbar = tqdm(enumerate(dataloader), total=len(dataloader))
     reps = []
     for batch_idx, batch in pbar:
