@@ -496,7 +496,7 @@ def load_crawled_goodreads_dataset(config):
                             apply(','.join).reset_index()
                     elif sort_reviews.startswith("pos_rating_sorted_"):
                         pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
-                        df[(df['review'] != '') & (df['rating'] >= 3)][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].\
+                        temp = df[(df[text_field] != '') & (df['rating'] >= pos_threshold)][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].\
                         sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(list)
                     else:
                         raise ValueError("Not implemented!")
