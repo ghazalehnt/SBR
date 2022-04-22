@@ -68,8 +68,12 @@ def main(op, config_file=None, result_folder=None):
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
 
+    prec_path = join(config['dataset']['dataset_path'], 'precomputed_reps',
+                     f"size{config['dataset']['chunk_size']}_u{config['dataset']['max_num_chunks_user']}-{'-'.join(config['dataset']['user_text'])}_"
+                     f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
+    os.makedirs(prec_path, exist_ok=True)
     model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, exp_dir)  # todo else num-ratings
+                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, prec_path) # todo else num-ratings
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,
