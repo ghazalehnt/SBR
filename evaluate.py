@@ -26,23 +26,8 @@ goodreads_rating_mapping = {
 }
 
 
-def visualize_train_set_interactions(config):
-    # here we have some users who only exist in training set
-    sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
-                "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
-                "test": os.path.join(config['dataset']['dataset_path'], "test.csv")}
-    split_datasets = load_dataset("csv", data_files=sp_files)
-    if not config['dataset']['binary_interactions']:
-        # if predicting rating: remove the not-rated entries and map rating text to int
-        split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
-        split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
-    train_user_count = Counter(split_datasets['train']['user_id'])
-    test_users = set(split_datasets['test']['user_id'])
-    test_users.update(set(split_datasets['validation']['user_id']))
-
-    # we want to show which users are only in train set (named lt)
-    train_user_count_longtail = {k: v for k, v in train_user_count.items() if k not in test_users}
-    # train_user_count_eval = {k: v for k, v in train_user_count.items() if k in test_users}
+def visualize_train_set_interactions(config, cold_threshold):
+    eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold)
 
     user_count_reverse_longtail = {i: [] for i in range(1, max(train_user_count.values()) + 1)}
     user_count_reverse = {i: [] for i in range(1, max(train_user_count.values()) + 1)}
@@ -77,29 +62,39 @@ def visualize_train_set_interactions(config):
         if y2[i] > 0:
             plt.text(i, y2[i], y2[i])
     plt.show()
-    
-    test_user_count = Counter(split_datasets['test']['user_id'])
+
+    cold_user_cound = {k:v for k, v in test_user_count.items() if str(k) in eval_cold_users}
     user_count_reverse = {i: [] for i in range(1, max(test_user_count.values()) + 1)}
+    cold_user_count_reverse = {i: [] for i in range(1, max(test_user_count.values()) + 1)}
     for u, v in test_user_count.items():
         user_count_reverse[v].append(u)
+    for u, v in cold_user_cound.items():
+        cold_user_count_reverse[v].append(u)
     x = []
-    y_all = {}
+    y_all, y_cold = {}, {}
     bins = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 50, 100, 200, 300, 400, 500, 1000, 2185]
     for bi in range(1, len(bins)):
         y_all[bi] = 0
+        y_cold[bi] = 0
         x.append(str(bins[bi]))
         for c in user_count_reverse.keys():
             if bins[bi - 1] < c <= bins[bi]:
                 y_all[bi] += len(user_count_reverse[c])
+                y_cold[bi] += len(cold_user_count_reverse[c])
 
     fig, ax = plt.subplots()
-    ax.bar(x, y_all.values(), label='all')
+    ax.bar(x, y_all.values(), label='warm', color='red')
+    ax.bar(x, y_cold.values(), label='cold', color='blue')
     plt.ylabel("number of users")
     plt.xlabel("interactions")
     plt.legend()
     y = list(y_all.values())
+    y2 = list(y_cold.values())
     for i in range(len(x)):
         plt.text(i, y[i], y[i])
+    for i in range(len(x)):
+        if y2[i] > 0:
+            plt.text(i, y2[i], y2[i])
     plt.show()
 
 def get_metrics(ground_truth, prediction_scores):
@@ -142,7 +137,8 @@ def get_cold_users(config, cold_threshold):
     test_user_count = Counter(split_datasets['test']['user_id'])
     eval_users = set(split_datasets['test']['user_id'])
     eval_users.update(set(split_datasets['validation']['user_id']))
-    only_in_train_users_cnt = len(set(split_datasets['train']['user_id']) - eval_users)
+
+    train_user_count_longtail = {k: v for k, v in train_user_count.items() if k not in eval_users}
 
     cold_users = set()
     warm_users = set()
@@ -155,17 +151,17 @@ def get_cold_users(config, cold_threshold):
     cold_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in cold_users])
     warm_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in warm_users])
     warm_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in warm_users])
-    return cold_users, warm_users, only_in_train_users_cnt, cold_interactions_test_cnt, cold_interactions_validation_cnt, warm_interactions_test_cnt, warm_interactions_validation_cnt
+    return cold_users, warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_interactions_test_cnt, cold_interactions_validation_cnt, warm_interactions_test_cnt, warm_interactions_validation_cnt
 
 
 def main(config, valid_output, test_output, cold_threshold, outf):
     start = time.time()
-    eval_cold_users, eval_warm_users, only_in_train_users_cnt, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold)
+    eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold)
     print(f"get cold/warm users in {time.time()-start}")
 
     outf.write(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
-               f"And {only_in_train_users_cnt} users only in train set -> "
-               f"{len(eval_cold_users) + len(eval_warm_users) + only_in_train_users_cnt} users in total.\n")
+               f"And {len(train_user_count_longtail)} users only in train set -> "
+               f"{len(eval_cold_users) + len(eval_warm_users) + len(train_user_count_longtail)} users in total.\n")
     outf.write(f"There are {cold_valid_inter_cnt+warm_valid_inter_cnt} interactions in validation set.\n")
     outf.write(f"There are {cold_test_inter_cnt + warm_test_inter_cnt} interactions in test set.\n")
     outf.write(f"There are {len(eval_warm_users)} warm (>{cold_threshold}) evaluation users (test+validation). "
@@ -218,7 +214,7 @@ if __name__ == "__main__":
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
     config = json.load(open(os.path.join(result_folder, "config.json")))
     if args.vis:
-        visualize_train_set_interactions(config)
+        visualize_train_set_interactions(config, args.cold_th)
     else:
         if not os.path.exists(os.path.join(result_folder, "test_output.json")):
             raise ValueError(f"Result file test_output.json does not exist: {result_folder}")
