@@ -77,7 +77,30 @@ def visualize_train_set_interactions(config):
         if y2[i] > 0:
             plt.text(i, y2[i], y2[i])
     plt.show()
+    
+    test_user_count = Counter(split_datasets['test']['user_id'])
+    user_count_reverse = {i: [] for i in range(1, max(test_user_count.values()) + 1)}
+    for u, v in test_user_count.items():
+        user_count_reverse[v].append(u)
+    x = []
+    y_all = {}
+    bins = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 50, 100, 200, 300, 400, 500, 1000, 2185]
+    for bi in range(1, len(bins)):
+        y_all[bi] = 0
+        x.append(str(bins[bi]))
+        for c in user_count_reverse.keys():
+            if bins[bi - 1] < c <= bins[bi]:
+                y_all[bi] += len(user_count_reverse[c])
 
+    fig, ax = plt.subplots()
+    ax.bar(x, y_all.values(), label='all')
+    plt.ylabel("number of users")
+    plt.xlabel("interactions")
+    plt.legend()
+    y = list(y_all.values())
+    for i in range(len(x)):
+        plt.text(i, y[i], y[i])
+    plt.show()
 
 def get_metrics(ground_truth, prediction_scores):
     start = time.time()
