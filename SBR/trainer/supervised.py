@@ -6,6 +6,7 @@ import torch
 from torch.optim import Adam, SGD
 from tqdm import tqdm
 import numpy as np
+from transformers import get_scheduler
 
 from SBR.utils.metrics import calculate_metrics, log_results
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
@@ -45,6 +46,9 @@ class SupervisedTrainer:
 
         self.scaler = torch.cuda.amp.GradScaler(enabled=config['use_amp'])
         self.use_amp = config['use_amp']
+        self.scheduler_type = config['scheduler_type']
+        self.scheduler_num_warmup_steps = config['scheduler_num_warmup_steps']
+        self.validation_warmup = config['validation_warmup']
 
         self.epochs = config['epochs']
         self.start_epoch = 0
@@ -69,17 +73,14 @@ class SupervisedTrainer:
         early_stopping_cnt = 0
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
 
-        # eval here first mainly to test why it is very slow:
-        # epoch = -1
-        # outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-        # print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
-        # results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
-        # results["valid_loss"] = valid_loss.item()
-        # self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
-        # self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
-        # for k, v in results.items():
-        #     self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)
-        ### until here
+        remaining_epochs = self.epochs - self.start_epoch
+        num_training_steps = remaining_epochs * len(train_dataloader)
+        lr_scheduler = get_scheduler(
+            self.scheduler_type,
+            optimizer=self.optimizer,
+            num_warmup_steps=self.scheduler_num_warmup_steps,
+            num_training_steps=num_training_steps
+        )
 
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
@@ -104,11 +105,13 @@ class SupervisedTrainer:
                     output = self.model(batch)
                     loss = self.loss_fn(output, label)
 
+                # loss.backward()
+                # self.optimizer.step()
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
-                # loss.backward()
-                # self.optimizer.step()
+                lr_scheduler.step()
+
                 train_loss += loss
                 total_count += label.size(0)
 
@@ -121,13 +124,14 @@ class SupervisedTrainer:
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.time()
             train_loss /= total_count
+            print(f"Train loss epoch {epoch}: {train_loss:.5f}")
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
-            # evaluate every epochs
-            if True:
+            # evaluate every epochs after warmup
+            if epoch <= self.validation_warmup:
                 outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
                 print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
                 results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
