@@ -48,40 +48,51 @@ def main(config_file):
     else:
         raise ValueError("You cannot precompute if you want to tune BERT!")
     bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
+    bert_embeddings = bert.get_input_embeddings()
 
-    bert_embeddings, user_id_embedding, item_id_embedding = None, None, None
+    user_id_embedding, item_id_embedding = None, None
     if config['model']["append_id"]:
         user_id_embedding = torch.nn.Embedding(users.shape[0], bert_embedding_dim, device=device)
         item_id_embedding = torch.nn.Embedding(items.shape[0], bert_embedding_dim, device=device)
-        bert_embeddings = bert.get_input_embeddings()
+
+    user_embedding_CF, item_embedding_CF = None, None
+    if config['model']['use_CF']:
+        # loading the pretrained CF embeddings for users and items
+        CF_model_weights = torch.load(config['model']['CF_model_path'], map_location=device)['model_state_dict']
+        user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
+        item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
     start = time.time()
     user_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_user_representation.pkl"
+                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_" \
+                    f"cf{config['model']['use_CF']}_user_representation.pkl"
     if os.path.exists(os.path.join(prec_path, user_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size, agg_strategy,
-                                         chunk_agg_strategy, config['dataset']['dataloader_num_workers'], config['model']['append_id'], INTERNAL_USER_ID_FIELD,
-                                         user_id_embedding if config['model']['append_id'] else None)
+                                         chunk_agg_strategy, config['dataset']['dataloader_num_workers'], INTERNAL_USER_ID_FIELD,
+                                         user_id_embedding if config['model']['append_id'] else None,
+                                         user_embedding_CF if config['model']['use_CF'] else None)
         torch.save(weights, os.path.join(prec_path, user_rep_file))
     print(f"user rep created  {time.time() - start}")
 
     start = time.time()
     item_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_item_representation.pkl"
+                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_" \
+                    f"cf{config['model']['use_CF']}_item_representation.pkl"
     if os.path.exists(os.path.join(prec_path, item_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size, agg_strategy,
-                                         chunk_agg_strategy, config['dataset']['dataloader_num_workers'], config['model']['append_id'], INTERNAL_ITEM_ID_FIELD,
-                                         item_id_embedding if config['model']['append_id'] else None)
+                                         chunk_agg_strategy, config['dataset']['dataloader_num_workers'], INTERNAL_ITEM_ID_FIELD,
+                                         item_id_embedding if config['model']['append_id'] else None,
+                                         item_embedding_CF if config['model']['use_CF'] else None)
         torch.save(weights, os.path.join(prec_path, item_rep_file))
         print(f"item rep created in {time.time() - start}")
 
 
 def create_representations(bert, bert_embeddings, info, padding_token, device, batch_size, agg_strategy,
-                           chunk_agg_strategy, num_workers, append_id, id_field, id_embedding=None):
+                           chunk_agg_strategy, num_workers, id_field, id_embedding=None, embedding_CF=None):
     collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
     dataloader = DataLoader(info, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers)
     pbar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -93,13 +104,37 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
         for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
             input_ids = input_ids.to(device)
             att_mask = att_mask.to(device)
-            if append_id:
+            if id_embedding is not None and embedding_CF is not None:
+                id_embeds = id_embedding(ids)
+                cf_embeds = embedding_CF(ids)
+                token_embeddings = bert_embeddings.forward(input_ids)
+                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                other_tokens = token_embeddings[:, 1:]
+                # insert user_id embedding after the especial CLS token:
+                concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds, cf_embeds], dim=1), other_tokens],
+                                          dim=1)
+                concat_masks = torch.concat([torch.ones((input_ids.shape[0], 2), device=att_mask.device), att_mask],
+                                            dim=1)
+                output = bert.forward(inputs_embeds=concat_ids,
+                                      attention_mask=concat_masks)
+            elif id_embedding is not None:
                 id_embeds = id_embedding(ids)
                 token_embeddings = bert_embeddings.forward(input_ids)
                 cls_tokens = token_embeddings[:, 0].unsqueeze(1)
                 other_tokens = token_embeddings[:, 1:]
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds], dim=1), other_tokens], dim=1)
+                concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
+                                            dim=1)
+                output = bert.forward(inputs_embeds=concat_ids,
+                                      attention_mask=concat_masks)
+            elif embedding_CF is not None:
+                cf_embeds = embedding_CF(ids)
+                token_embeddings = bert_embeddings.forward(input_ids)
+                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                other_tokens = token_embeddings[:, 1:]
+                # insert user_id embedding after the especial CLS token:
+                concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
                 concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
                                             dim=1)
                 output = bert.forward(inputs_embeds=concat_ids,
@@ -131,3 +166,4 @@ if __name__ == '__main__':
         raise ValueError(f"Config file does not exist: {args.config_file}")
     main(config_file=args.config_file)
     
+
