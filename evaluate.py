@@ -168,6 +168,7 @@ def get_cold_users(config, cold_threshold, with_review=False, pos_th_r=None):
 def main(config, valid_output, test_output, cold_threshold, with_review, pos_th_r, outf):
     start = time.time()
     eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold, with_review, pos_th_r)
+    all_eval_users = eval_warm_users.union(eval_cold_users)
     print(f"get cold/warm users in {time.time()-start}")
 
     outf.write(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
@@ -188,10 +189,12 @@ def main(config, valid_output, test_output, cold_threshold, with_review, pos_th_
 
 
     # ALL:
-    valid_results = get_metrics(ground_truth=valid_output["ground_truth"], prediction_scores=valid_output["predicted"])
+    valid_results = get_metrics(ground_truth={k: v for k, v in valid_output["ground_truth"].items() if k in all_eval_users},
+                                prediction_scores={k: v for k, v in valid_output["predicted"].items() if k in all_eval_users})
     outf.write(f"Valid results ALL: {valid_results}\n")
 
-    test_results = get_metrics(ground_truth=test_output["ground_truth"], prediction_scores=test_output["predicted"])
+    test_results = get_metrics(ground_truth={k: v for k, v in test_output["ground_truth"].items() if k in all_eval_users},
+                               prediction_scores={k: v for k, v in test_output["predicted"].items() if k in all_eval_users})
     outf.write(f"Test results ALL: {test_results}\n\n")
 
     # WARM:
