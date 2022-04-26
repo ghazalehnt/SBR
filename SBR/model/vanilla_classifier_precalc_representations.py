@@ -35,6 +35,12 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                 self.item_id_embedding.requires_grad_(False)
             bert_embeddings = bert.get_input_embeddings()
 
+        if config['use_CF']:
+            # loading the pretrained CF embeddings for users and items
+            CF_model_weights = torch.load(config['CF_model_path'], map_location=device)['model_state_dict']
+            self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
+            self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+
         if "k" in config and config["k"] not in ['', 0]:
             self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
             self.transform_i = torch.nn.Linear(bert_embedding_dim, config['k'])
@@ -74,31 +80,33 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
 
         start = time.time()
         user_rep_file = f"{self.agg_strategy}_{self.chunk_agg_strategy}_" \
-                        f"id{config['append_id']}_tb{config['tune_BERT']}_user_representation.pkl"
+                        f"id{config['append_id']}_tb{config['tune_BERT']}_cf{config['use_CF']}_user_representation.pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
             weights = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
         else:
             weights = self.create_representations(bert, bert_embeddings, user_info, padding_token, device,
-                                                  config['append_id'], INTERNAL_USER_ID_FIELD,
-                                                  self.user_id_embedding if config["append_id"] else None)
-            torch.save(weights, open(os.path.join(prec_dir, user_rep_file)))
+                                                  INTERNAL_USER_ID_FIELD,
+                                                  self.user_id_embedding if config["append_id"] else None,
+                                                  self.user_embedding_CF if config['use_CF'] else None)
+            torch.save(weights, os.path.join(prec_dir, user_rep_file))
         self.user_rep = torch.nn.Embedding.from_pretrained(weights, freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
         print(f"user rep loaded in {time.time()-start}")
         start = time.time()
         item_rep_file = f"{self.agg_strategy}_{self.chunk_agg_strategy}_" \
-                        f"id{config['append_id']}_tb{config['tune_BERT']}_item_representation.pkl"
+                        f"id{config['append_id']}_tb{config['tune_BERT']}_cf{config['use_CF']}_item_representation.pkl"
         if os.path.exists(os.path.join(prec_dir, item_rep_file)):
             weights = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
         else:
             weights = self.create_representations(bert, bert_embeddings, item_info, padding_token, device,
-                                                  config['append_id'], INTERNAL_ITEM_ID_FIELD,
-                                                  self.item_id_embedding if config["append_id"] else None)
-            torch.save(weights, open(os.path.join(prec_dir, item_rep_file)))
+                                                  INTERNAL_ITEM_ID_FIELD,
+                                                  self.item_id_embedding if config["append_id"] else None,
+                                                  self.item_embedding_CF if config['use_CF'] else None)
+            torch.save(weights, os.path.join(prec_dir, item_rep_file))
         self.item_rep = torch.nn.Embedding.from_pretrained(weights, freeze=self.freeze_prec_rep)  # todo freeze? or unfreeze?
         print(f"item rep loaded in {time.time()-start}")
 
     def create_representations(self, bert, bert_embeddings, info, padding_token, device,
-                               append_id, id_field, id_embedding=None):
+                               id_field, id_embedding=None, embedding_CF=None):
         collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
         dataloader = DataLoader(info, batch_size=self.batch_size, collate_fn=collate_fn)
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -110,7 +118,19 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
                 input_ids = input_ids.to(device)
                 att_mask = att_mask.to(device)
-                if append_id:
+                if id_embedding is not None and embedding_CF is not None:
+                    id_embeds = id_embedding(ids)
+                    cf_embeds = embedding_CF(ids)
+                    token_embeddings = bert_embeddings.forward(input_ids)
+                    cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                    other_tokens = token_embeddings[:, 1:]
+                    # insert user_id embedding after the especial CLS token:
+                    concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds, cf_embeds], dim=1), other_tokens], dim=1)
+                    concat_masks = torch.concat([torch.ones((input_ids.shape[0], 2), device=att_mask.device), att_mask],
+                                                dim=1)
+                    output = bert.forward(inputs_embeds=concat_ids,
+                                          attention_mask=concat_masks)
+                if id_embedding is not None:
                     id_embeds = id_embedding(ids)
                     token_embeddings = bert_embeddings.forward(input_ids)
                     cls_tokens = token_embeddings[:, 0].unsqueeze(1)
@@ -118,6 +138,17 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                     # insert user_id embedding after the especial CLS token:
                     concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds], dim=1), other_tokens], dim=1)
                     concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+                    output = bert.forward(inputs_embeds=concat_ids,
+                                          attention_mask=concat_masks)
+                elif embedding_CF is not None:
+                    cf_embeds = embedding_CF(ids)
+                    token_embeddings = bert_embeddings.forward(input_ids)
+                    cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                    other_tokens = token_embeddings[:, 1:]
+                    # insert user_id embedding after the especial CLS token:
+                    concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
+                    concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
+                                                dim=1)
                     output = bert.forward(inputs_embeds=concat_ids,
                                           attention_mask=concat_masks)
                 else:
