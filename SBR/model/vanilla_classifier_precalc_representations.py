@@ -22,24 +22,26 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             for param in bert.parameters():
                 param.requires_grad = False
         bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
+        bert_embeddings = bert_embeddings = bert.get_input_embeddings()
 
         # it is better to always freeze the reps, and not append a random ID... so freeze_prec_reps:True, append_id:False
         self.freeze_prec_rep = config['freeze_prec_reps']
-        bert_embeddings = None
         if config["append_id"]:
             self.user_id_embedding = torch.nn.Embedding(n_users, bert_embedding_dim, device=device)
-            if self.freeze_prec_rep:
-                self.user_id_embedding.requires_grad_(False)
             self.item_id_embedding = torch.nn.Embedding(n_items, bert_embedding_dim, device=device)
             if self.freeze_prec_rep:
+                self.user_id_embedding.requires_grad_(False)
                 self.item_id_embedding.requires_grad_(False)
-            bert_embeddings = bert.get_input_embeddings()
+
 
         if config['use_CF']:
             # loading the pretrained CF embeddings for users and items
             CF_model_weights = torch.load(config['CF_model_path'], map_location=device)['model_state_dict']
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+            if not self.freeze_prec_rep:
+                self.user_embedding_CF.requires_grad_(True)
+                self.item_embedding_CF.requires_grad_(True)
 
         if "k" in config and config["k"] not in ['', 0]:
             self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
@@ -63,18 +65,13 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             mlp_layers = []
             for out_size in config['MLP_layers']:
                 mlp_layers.append(torch.nn.Linear(in_size, out_size))
-                mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
                 if config['MLP_activation'] == "ReLU":
                     mlp_layers.append(torch.nn.ReLU())
                 else:
                     raise ValueError("Not implemented!")
+                mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
                 in_size = out_size
             mlp_layers.append(torch.nn.Linear(in_size, num_classes))
-            mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
-            if config['MLP_activation'] == "ReLU":
-                mlp_layers.append(torch.nn.ReLU())
-            else:
-                raise ValueError("Not implemented!")
             self.mlp = torch.nn.Sequential(*mlp_layers)
         else:
             raise ValueError("Not implemented")
@@ -135,7 +132,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                                                 dim=1)
                     output = bert.forward(inputs_embeds=concat_ids,
                                           attention_mask=concat_masks)
-                if id_embedding is not None:
+                elif id_embedding is not None:
                     id_embeds = id_embedding(ids)
                     token_embeddings = bert_embeddings.forward(input_ids)
                     cls_tokens = token_embeddings[:, 0].unsqueeze(1)
