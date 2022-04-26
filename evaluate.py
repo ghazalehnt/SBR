@@ -122,21 +122,29 @@ def get_metrics(ground_truth, prediction_scores):
     return results
 
 
-def get_cold_users(config, cold_threshold):
+def get_cold_users(config, cold_threshold, with_review=False, pos_th_r=None):
     # here we have some users who only exist in training set
     sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
                 "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
                 "test": os.path.join(config['dataset']['dataset_path'], "test.csv")}
     split_datasets = load_dataset("csv", data_files=sp_files)
+    split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
     if not config['dataset']['binary_interactions']:
         # if predicting rating: remove the not-rated entries and map rating text to int
-        split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
         split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
     train_user_count = Counter(split_datasets['train']['user_id'])
     valid_user_count = Counter(split_datasets['validation']['user_id'])
     test_user_count = Counter(split_datasets['test']['user_id'])
     eval_users = set(split_datasets['test']['user_id'])
     eval_users.update(set(split_datasets['validation']['user_id']))
+
+    if with_review:
+        train_dataset = split_datasets['train'].to_pandas()
+        if pos_th_r is not None:
+            train_dataset['review'] = train_dataset['review'].fillna('')
+            train_dataset['rating'] = train_dataset['rating'].fillna(0)
+            train_dataset = train_dataset[(train_dataset['review'] != '') & (train_dataset['rating'] >= pos_th_r)]
+            review_users = set([str(u) for u in set(train_dataset['user_id'])])
 
     train_user_count_longtail = {k: v for k, v in train_user_count.items() if k not in eval_users}
 
@@ -147,6 +155,9 @@ def get_cold_users(config, cold_threshold):
             warm_users.add(str(user))
         else:
             cold_users.add(str(user))
+    if with_review:
+        cold_users = cold_users.intersection(review_users)
+        warm_users = warm_users.intersection(review_users)
     cold_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in cold_users])
     cold_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in cold_users])
     warm_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in warm_users])
@@ -154,9 +165,9 @@ def get_cold_users(config, cold_threshold):
     return cold_users, warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_interactions_test_cnt, cold_interactions_validation_cnt, warm_interactions_test_cnt, warm_interactions_validation_cnt
 
 
-def main(config, valid_output, test_output, cold_threshold, outf):
+def main(config, valid_output, test_output, cold_threshold, with_review, pos_th_r, outf):
     start = time.time()
-    eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold)
+    eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold, with_review, pos_th_r)
     print(f"get cold/warm users in {time.time()-start}")
 
     outf.write(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
@@ -207,7 +218,9 @@ if __name__ == "__main__":
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result folder, to evaluate')
     parser.add_argument('--vis', type=bool, default=False, help='want to see the train interactions')
     parser.add_argument('--cold_th', type=int, default=None, help='cold user threshold')
+    parser.add_argument('--r', type=bool, default=False, help='evaluate only the users who have reviews')
     args, _ = parser.parse_known_args()
+    pos_thrshold_for_reviews = 3
 
     result_folder = args.result_folder
     if not os.path.exists(os.path.join(result_folder, "config.json")):
@@ -220,6 +233,7 @@ if __name__ == "__main__":
             raise ValueError(f"Result file test_output.json does not exist: {result_folder}")
         valid_output = json.load(open(os.path.join(result_folder, "best_valid_output.json")))
         test_output = json.load(open(os.path.join(result_folder, "test_output.json")))
-        outfile = open(os.path.join(result_folder, f"results_coldth{args.cold_th}.txt"), 'w')
-        main(config, valid_output, test_output, args.cold_th, outfile)
+        print(os.path.join(result_folder, f"results_coldth{args.cold_th}_withr{args.r}.txt"))
+        outfile = open(os.path.join(result_folder, f"results_coldth{args.cold_th}_withr{args.r}.txt"), 'w')
+        main(config, valid_output, test_output, args.cold_th, args.r, pos_thrshold_for_reviews, outfile)
         outfile.close()
