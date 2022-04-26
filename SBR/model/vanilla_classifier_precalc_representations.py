@@ -57,19 +57,16 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             mlp_layers = []
             for out_size in config['MLP_layers']:
                 mlp_layers.append(torch.nn.Linear(in_size, out_size))
-                mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
                 if config['MLP_activation'] == "ReLU":
                     mlp_layers.append(torch.nn.ReLU())
                 else:
                     raise ValueError("Not implemented!")
+                mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
                 in_size = out_size
             mlp_layers.append(torch.nn.Linear(in_size, num_classes))
-            mlp_layers.append(torch.nn.Dropout(config['MLP_dropout']))
-            if config['MLP_activation'] == "ReLU":
-                mlp_layers.append(torch.nn.ReLU())
-            else:
-                raise ValueError("Not implemented!")
             self.mlp = torch.nn.Sequential(*mlp_layers)
+        else:
+            raise ValueError("Not implemented")
 
         self.agg_strategy = config['agg_strategy']
         self.chunk_agg_strategy = config['chunk_agg_strategy']
