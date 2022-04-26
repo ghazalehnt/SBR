@@ -131,7 +131,7 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             # evaluate every epochs after warmup
-            if epoch <= self.validation_warmup:
+            if epoch >= self.validation_warmup:
                 outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
                 print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
                 results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
