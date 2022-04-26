@@ -58,13 +58,14 @@ def main(config_file):
     user_embedding_CF, item_embedding_CF = None, None
     if config['model']['use_CF']:
         # loading the pretrained CF embeddings for users and items
-        CF_model_weights = torch.load(config['CF_model_path'], map_location=device)['model_state_dict']
+        CF_model_weights = torch.load(config['model']['CF_model_path'], map_location=device)['model_state_dict']
         user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
         item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
     start = time.time()
     user_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_user_representation.pkl"
+                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_" \
+                    f"cf{config['model']['use_CF']}_user_representation.pkl"
     if os.path.exists(os.path.join(prec_path, user_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
     else:
@@ -77,7 +78,8 @@ def main(config_file):
 
     start = time.time()
     item_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_item_representation.pkl"
+                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_" \
+                    f"cf{config['model']['use_CF']}_item_representation.pkl"
     if os.path.exists(os.path.join(prec_path, item_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
     else:
@@ -115,7 +117,7 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                                             dim=1)
                 output = bert.forward(inputs_embeds=concat_ids,
                                       attention_mask=concat_masks)
-            if id_embedding is not None:
+            elif id_embedding is not None:
                 id_embeds = id_embedding(ids)
                 token_embeddings = bert_embeddings.forward(input_ids)
                 cls_tokens = token_embeddings[:, 0].unsqueeze(1)
