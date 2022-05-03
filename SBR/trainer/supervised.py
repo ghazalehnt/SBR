@@ -91,7 +91,7 @@ class SupervisedTrainer:
 
             self.model.train()
 
-            pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
+            pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader))  # todo  disable=True if self.tuning else False
             start_time = time.time()
             train_loss, total_count = 0, 0
 
@@ -113,7 +113,6 @@ class SupervisedTrainer:
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 lr_scheduler.step()
-
                 train_loss += loss
                 total_count += label.size(0)
 
@@ -137,7 +136,8 @@ class SupervisedTrainer:
                 outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
                 print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
                 outputs = torch.sigmoid(outputs)
-                results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
+                results = calculate_metrics(ground_truth, outputs, users, items,
+                                            self.relevance_level, 0.5, ranking_only=True)
                 results["valid_loss"] = valid_loss.item()
                 for k, v in results.items():
                     self.logger.add_scalar(f'epoch_metrics/valid_{k}', v, epoch)

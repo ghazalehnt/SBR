@@ -15,15 +15,20 @@ ranking_metrics = [
     "ndcg_cut_10",
     "ndcg_cut_20",
     "recall_100",
-    "recall_1000"  ### max number of interactions for users in test is around 800... so if we do r@lower than that, it would penalty even if it shouldn't
+    "recall_1000",
+    "Rprec"
 ]
 
 
-def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_level=1, prediction_threshold=0.5):
+def calculate_metrics(ground_truth, prediction_scores, users, items,
+                      relevance_level=1, prediction_threshold=0.5, ranking_only=False):
     # prediction_scores is sigmoid applied already.
 
     start_time = time.time()
     result = calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level)
+    if ranking_only:
+        print(f"metrics calculated in {time.time() - start_time}")
+        return result
 
     predictions = (prediction_scores > prediction_threshold).float()
 
@@ -34,7 +39,6 @@ def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_l
     result.update(temp)
 
     print(f"metrics calculated in {time.time() - start_time}")
-
     return result
 
 
