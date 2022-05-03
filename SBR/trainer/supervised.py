@@ -23,8 +23,10 @@ class SupervisedTrainer:
         self.valid_metric = config['valid_metric']
         self.patience = config['early_stopping_patience']
         self.best_model_path = join(exp_dir, 'best_model.pth')
-        self.best_valid_output_path = join(exp_dir, 'best_valid_output.json')
-        self.test_output_path = join(exp_dir, 'test_output.json')
+        self.best_valid_output_path = {"ground_truth": join(exp_dir, 'best_valid_ground_truth.json'),
+                                       "predicted": join(exp_dir, 'best_valid_predicted.json')}
+        self.test_output_path = {"ground_truth": join(exp_dir, 'test_ground_truth.json'),
+                                 "predicted": join(exp_dir, 'test_predicted.json')}
         self.users = users
         self.items = items
 
@@ -134,6 +136,7 @@ class SupervisedTrainer:
             if epoch >= self.validation_warmup:
                 outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
                 print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
+                outputs = torch.sigmoid(outputs)
                 results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level, 0.5)
                 results["valid_loss"] = valid_loss.item()
                 for k, v in results.items():
@@ -166,6 +169,7 @@ class SupervisedTrainer:
         print("best model loaded!")
 
         outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
+        outputs = torch.sigmoid(outputs)
         log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
@@ -175,6 +179,7 @@ class SupervisedTrainer:
         print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
 
         outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
+        outputs = torch.sigmoid(outputs)
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
@@ -226,4 +231,6 @@ class SupervisedTrainer:
                 start_time = time.time()
 
             eval_loss /= total_count
+        ground_truth = torch.tensor(ground_truth)
+        outputs = torch.tensor(outputs)
         return outputs, ground_truth, eval_loss, user_ids, item_ids

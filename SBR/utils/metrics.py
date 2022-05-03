@@ -20,12 +20,12 @@ ranking_metrics = [
 
 
 def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_level=1, prediction_threshold=0.5):
+    # prediction_scores is sigmoid applied already.
+
     start_time = time.time()
     result = calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level)
 
-    ground_truth = np.array(ground_truth)
-    prediction_scores = np.array(prediction_scores)
-    predictions = (prediction_scores > prediction_threshold).astype(int)
+    predictions = (prediction_scores > prediction_threshold).float()
 
     temp = calculate_cl_metrics_micro(ground_truth, predictions, prediction_threshold)
     result.update(temp)
@@ -64,10 +64,10 @@ def calculate_ranking_metrics(gt, pd, relevance_level):
     return scores
 
 
-def get_p_r_f1(ground_truth, predictions):
-    return [precision_score(ground_truth, predictions, zero_division=0), \
-           recall_score(ground_truth, predictions), \
-           f1_score(ground_truth, predictions)]
+def get_p_r_f1(ground_truth, predictions, avg="binary"):
+    return [precision_score(ground_truth, predictions, zero_division=0, average=avg), \
+           recall_score(ground_truth, predictions, average=avg), \
+           f1_score(ground_truth, predictions, average=avg)]
 
 
 def calculate_cl_metrics_micro(ground_truth, predictions, prediction_threshold):
@@ -88,8 +88,8 @@ def calculate_cl_metrics_macro_avg_over_users(ground_truth, predictions, users, 
     gt_user = {u: [] for u in set(users)}
     pd_user = {u: [] for u in set(users)}
     for i in range(len(ground_truth)):
-        gt_user[users[i]].append(ground_truth[i])
-        pd_user[users[i]].append(predictions[i])
+        gt_user[users[i]].append(int(ground_truth[i]))
+        pd_user[users[i]].append(int(predictions[i]))
 
     return calculate_cl_macro(gt_user, pd_user)
 
@@ -118,4 +118,5 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
     for i in range(len(ground_truth)):
         gt[str(user_ids[i])][str(item_ids[i])] = int(ground_truth[i])
         pd[str(user_ids[i])][str(item_ids[i])] = float(prediction_scores[i])
-    json.dump({"ground_truth": gt, "predicted": pd}, open(output_path, 'w'))
+    json.dump({"predicted": pd}, open(output_path['predicted'], 'w'))
+    json.dump({"ground_truth": pd}, open(output_path['ground_truth'], 'w'))
