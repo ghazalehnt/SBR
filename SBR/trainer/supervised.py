@@ -95,7 +95,6 @@ class SupervisedTrainer:
                 break
 
             self.model.train()
-
             pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), disable=True if self.tuning else False)
             start_time = time.perf_counter()
             train_loss, total_count = 0, 0
@@ -110,6 +109,8 @@ class SupervisedTrainer:
                 self.optimizer.zero_grad()
                 with torch.cuda.amp.autocast(enabled=self.use_amp):
                     output = self.model(batch)
+                    if self.loss_fn._get_name() == "MSELoss":
+                        output = torch.sigmoid(output)
                     loss = self.loss_fn(output, label)
 
                 # loss.backward()

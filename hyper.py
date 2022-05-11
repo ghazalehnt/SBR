@@ -161,6 +161,8 @@ if __name__ == '__main__':
             hyper_config[k] = tune.grid_search(v['grid_search'])
         elif 'quniform' in v:
             hyper_config[k] = tune.quniform(v['quniform'][0], v['quniform'][1], v['quniform'][2])
+        elif 'loguniform' in v:
+            hyper_config[k] = tune.loguniform(v['loguniform'][0], v['loguniform'][1])
         elif 'choice' in v:
             hyper_config[k] = tune.choice(v['choice'])
         else:
