@@ -23,11 +23,8 @@ ranking_metrics = [
 def calculate_metrics(ground_truth, prediction_scores, users, items,
                       relevance_level=1, prediction_threshold=0.5, ranking_only=False):
     # prediction_scores is sigmoid applied already.
-
-    start_time = time.time()
     result = calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level)
     if ranking_only:
-        print(f"metrics calculated in {time.time() - start_time}")
         return result
 
     predictions = (prediction_scores > prediction_threshold).float()
@@ -38,7 +35,6 @@ def calculate_metrics(ground_truth, prediction_scores, users, items,
     temp = calculate_cl_metrics_macro_avg_over_users(ground_truth, predictions, users, prediction_threshold)
     result.update(temp)
 
-    print(f"metrics calculated in {time.time() - start_time}")
     return result
 
 

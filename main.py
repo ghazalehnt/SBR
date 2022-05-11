@@ -2,7 +2,7 @@ import argparse
 import datetime
 import json
 import os
-import time
+import random
 from os.path import join
 
 import torch
@@ -16,9 +16,11 @@ from SBR.utils.others import get_model
 
 
 def main(op, config_file=None, result_folder=None):
+    random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
     torch.cuda.manual_seed(42)
+    os.environ['PYTHONHASHSEED'] = str(42)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     test_only = False
@@ -44,7 +46,7 @@ def main(op, config_file=None, result_folder=None):
             if config != config2:
                 raise ValueError(f"{exp_dir} exists with different config != {config_file}")
         os.makedirs(exp_dir, exist_ok=True)
-        json.dump(config, open(join(exp_dir, "config.json"), 'w'))
+        json.dump(config, open(join(exp_dir, "config.json"), 'w'), indent=4)
     elif op == "test":
         config = json.load(open(join(result_folder, "config.json"), 'r'))
         test_only = True
