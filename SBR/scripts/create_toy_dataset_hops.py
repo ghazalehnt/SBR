@@ -31,11 +31,10 @@ def get_per_user_interaction_cnt(inters):
 if __name__ == "__main__":
     random.seed(42)
 
-    starting_num_users = 10000
-    num_lt_users = 0  # almost 10% of long tail users 1476821. we would add these anyways regardless of
-    # num_lt_users = 140000  # almost 10% of long tail users 1476821. we would add these anyways regardless of
-    num_h1_items = 2000  # randomly choose N items from hop1 and all their users
-    num_h1_users = 0
+    starting_num_users = 200
+    num_lt_users = 200
+    num_h1_items = 3000
+    total_num_users = 160000
 
     SPLIT_DATASET = "data/GR_read_5-folds/split_1/"
 
@@ -49,24 +48,29 @@ if __name__ == "__main__":
     long_tail_users = list(train_users - test_users)
     shared_users = list(test_users)
 
-    chosen_long_tail_users = random.choices(long_tail_users, k=num_lt_users)
-    chosen_users = random.choices(shared_users, k=starting_num_users)
+    chosen_long_tail_users = random.sample(long_tail_users, k=num_lt_users)
+    chosen_users = random.sample(shared_users, k=starting_num_users)
     all_users = set(chosen_users).union(chosen_long_tail_users)
 
     # grow chosen users by 2 hops
     h1_items = set([l[ITEM_ID_IDX] for l in train if l[USER_ID_IDX] in all_users])
-    chosen_h1_items = random.choices(list(h1_items), k=num_h1_items)
-    if num_h1_users > 0:
-        h1_users = set([l[USER_ID_IDX] for l in train if l[ITEM_ID_IDX] in h1_items])
-        h1_users -= all_users
-        chosen_h1_users = random.choices(list(h1_users), k=num_h1_users)
-        all_users = all_users.union(chosen_h1_users)
+    if num_h1_items < len(h1_items):
+        chosen_h1_items = random.sample(list(h1_items), k=num_h1_items)
+    else:
+        chosen_h1_items = h1_items
+    h1_users = set([l[USER_ID_IDX] for l in train if l[ITEM_ID_IDX] in chosen_h1_items])
+    h1_users -= all_users
+    if total_num_users-len(all_users) < len(h1_users):
+        chosen_h1_users = random.sample(list(h1_users), k=total_num_users-len(all_users))
+    else:
+        chosen_h1_users = h1_users
+    all_users = all_users.union(chosen_h1_users)
 
-    OUTPUT_DATASET = f"data/GR_read_5-folds/example_dataset_su{starting_num_users}_sltu{num_lt_users}_" \
-                     f"h1u{num_h1_users}_h1i{num_h1_items}/"
+    OUTPUT_DATASET = f"data/GR_read_5-folds/example_dataset_totalu{total_num_users}_su{starting_num_users}" \
+                     f"_sltu{num_lt_users}_h1i{num_h1_items}/"
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
-    total_items = set(chosen_h1_items)
+    total_items = set()
     total_users = set(all_users)
     with open(join(OUTPUT_DATASET, "train.csv"), 'w') as f:
         writer = csv.writer(f)
@@ -78,10 +82,6 @@ if __name__ == "__main__":
             if user_id in all_users:
                 total_items.add(item_id)
                 temp.append(line)
-            elif item_id in chosen_h1_items:
-                total_users.add(user_id)
-                temp.append(line)
-
         writer.writerows(temp)
 
     with open(join(OUTPUT_DATASET, "validation.csv"), 'w') as f:
@@ -94,9 +94,6 @@ if __name__ == "__main__":
             if user_id in all_users:
                 total_items.add(item_id)
                 temp.append(line)
-            elif item_id in chosen_h1_items:
-                total_users.add(user_id)
-                temp.append(line)
         writer.writerows(temp)
 
     with open(join(OUTPUT_DATASET, "test.csv"), 'w') as f:
@@ -108,9 +105,6 @@ if __name__ == "__main__":
             item_id = line[ITEM_ID_IDX]
             if user_id in all_users:
                 total_items.add(item_id)
-                temp.append(line)
-            elif item_id in chosen_h1_items:
-                total_users.add(user_id)
                 temp.append(line)
         writer.writerows(temp)
 

@@ -1,7 +1,7 @@
 {
   "dataset": {
     "name": "CGR",
-    "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/example_dataset_su50000_sltu0_h1u0_h1i10000/",
+    "dataset_path": "<DATA_ROOT_PATH>/GR_read_5-folds/example_dataset_totalu160000_su200_sltu200_h1i3000/",
     "binary_interactions": true,
     "relevance_level": 1,
     "train_batch_size": 512,
