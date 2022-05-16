@@ -144,8 +144,13 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                                       attention_mask=att_mask)
             if agg_strategy == "CLS":
                 temp = output.pooler_output
-            elif agg_strategy == "mean":
-                raise ValueError("not implemented yet")
+            elif agg_strategy == "mean_last":
+                tokens_embeddings = output.last_hidden_state
+                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+                tokens_embeddings = tokens_embeddings * mask
+                sum_tokons = torch.sum(tokens_embeddings, dim=1)
+                # TODO summed_mask = torch.clamp(mask.sum(1), min=1e-9) -> if something has no text!!!?
+                temp = sum_tokons / mask.sum(1)
             else:
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
             outputs.append(temp)
