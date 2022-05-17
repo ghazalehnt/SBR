@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import random
+from functools import partial
 from os.path import exists, join
 
 import ray
@@ -12,9 +13,9 @@ import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 
-from data_loading import load_data
-from others import get_model
-from supervised import SupervisedTrainer
+from SBR.utils.data_loading import load_data
+from SBR.utils.others import get_model
+from SBR.trainer.supervised import SupervisedTrainer
 
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
@@ -122,7 +123,7 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
         metric_columns=["epoch", "best_valid_metric", "best_epoch"], max_report_frequency=3600
     )
     result = tune.run(
-        tune.with_parameters(training_function, stationary_config_file=config_file,
+        partial(training_function, stationary_config_file=config_file,
                              valid_metric=valid_metric, early_stopping_patience=early_stopping_patience,
                              exp_root_dir=exp_root_dir, data_root_dir=data_root_dir),
         name=name,
@@ -157,14 +158,22 @@ if __name__ == '__main__':
 
     hyper_config = {}
     for k, v in config["space"].items():
+        if k == "dataset.max_num_chunks":
+            k = ['dataset.max_num_chunks_user', 'dataset.max_num_chunks_item']
+        else:
+            k = [k]
         if 'grid_search' in v:
-            hyper_config[k] = tune.grid_search(v['grid_search'])
+            for k1 in k:
+                hyper_config[k1] = tune.grid_search(v['grid_search'])
         elif 'quniform' in v:
-            hyper_config[k] = tune.quniform(v['quniform'][0], v['quniform'][1], v['quniform'][2])
+            for k1 in k:
+                hyper_config[k1] = tune.quniform(v['quniform'][0], v['quniform'][1], v['quniform'][2])
         elif 'loguniform' in v:
-            hyper_config[k] = tune.loguniform(v['loguniform'][0], v['loguniform'][1])
+            for k1 in k:
+                hyper_config[k1] = tune.loguniform(v['loguniform'][0], v['loguniform'][1])
         elif 'choice' in v:
-            hyper_config[k] = tune.choice(v['choice'])
+            for k1 in k:
+                hyper_config[k1] = tune.choice(v['choice'])
         else:
             raise NotImplemented("implement different space types")
 
