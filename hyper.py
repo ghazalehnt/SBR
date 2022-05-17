@@ -4,6 +4,7 @@ import os
 import random
 from functools import partial
 from os.path import exists, join
+from functools import partial
 
 import ray
 from ray import tune
@@ -107,7 +108,7 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
 
 
 def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric, max_epochs=50, grace_period=5, num_gpus_per_trial=0,
-         num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, early_stopping_patience=None):
+         num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, early_stopping_patience=None, num_concurrent=1):
     exp_root_dir = open("data/paths_vars/EXP_ROOT_PATH").read().strip()
     data_root_dir = open("data/paths_vars/DATA_ROOT_PATH").read().strip()
     if "<EXP_ROOT_PATH>" in ray_result_dir:
@@ -134,7 +135,7 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
         progress_reporter=reporter,
         local_dir=ray_result_dir,
         resume=resume,
-        # max_concurrent_trials=1  # todo remove - set 1 for debug
+        max_concurrent_trials=num_concurrent  # todo remove - set 1 for debug
     )
     best_trial = result.get_best_trial("best_valid_metric", "min" if "loss" in valid_metric else "max", "last")
     print(f"Best trial config: {best_trial.config}")
@@ -147,6 +148,10 @@ if __name__ == '__main__':
     parser.add_argument('--config_file', type=str, help='path to configuration file.')
     parser.add_argument('--hyperparam_config_file', type=str, help='path to hyperparam configuration file.')
     parser.add_argument('--num_gpu', type=int, help='number of gpus.')
+#    parser.add_argument('--num_cpu', type=int, help='number of cpus.')
+    parser.add_argument('--num_con', type=int, help='number of concurrent.')
+
+
 
     args = parser.parse_args()
     if not exists(args.config_file):
@@ -177,10 +182,11 @@ if __name__ == '__main__':
         else:
             raise NotImplemented("implement different space types")
 
-    ray.init(num_gpus=args.num_gpu)
+    ray.init(num_gpus=args.num_gpu)  #, num_cpus=args.num_cpu)
     main(hyper_config, os.path.abspath(args.config_file), config["ray_result_dir"],
          config["name"], config["valid_metric"],
          max_epochs=config["max_epochs"], grace_period=config["grace_period"],
          num_gpus_per_trial=config["num_gpus_per_trial"], num_cpus_per_trial=config["num_cpus_per_trial"],
          num_samples=config["num_samples"], resume=config["resume"],
-         early_stopping_patience=config["early_stopping_patience"] if "early_stopping_patience" in config else None)
+         early_stopping_patience=config["early_stopping_patience"] if "early_stopping_patience" in config else None,
+         num_concurrent=args.num_con)
