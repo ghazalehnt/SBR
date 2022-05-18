@@ -419,33 +419,39 @@ def get_user_used_items(datasets):
 
 
 def load_crawled_goodreads_dataset(config):
+    user_text_fields = config['user_text']
+    item_text_fields = config['item_text']
+    if config['text_in_batch'] is False:
+        user_text_fields = []
+        item_text_fields = []
+
     # read users and items, create internal ids for them to be used
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"))
     remove_fields = user_info.columns
     print(f"user fields: {remove_fields}")
     keep_fields = ["user_id"]
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in config['user_text'] if "user." in field])
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if "user." in field])
     remove_fields = list(set(remove_fields) - set(keep_fields))
     user_info = user_info.drop(columns=remove_fields)
     user_info = user_info.sort_values("user_id")
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
     user_info = user_info.fillna('')
     user_info = user_info.rename(
-        columns={field[field.index("user.") + len("user."):]: field for field in config['user_text'] if
+        columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
                  "user." in field})
 
     item_info = pd.read_csv(join(config['dataset_path'], "items.csv"))
     remove_fields = item_info.columns
     print(f"item fields: {remove_fields}")
     keep_fields = ["item_id"]
-    keep_fields.extend([field[field.index("item.")+len("item."):] for field in config['item_text'] if "item." in field])
+    keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
     remove_fields = list(set(remove_fields) - set(keep_fields))
     item_info = item_info.drop(columns=remove_fields)
     item_info = item_info.sort_values("item_id")
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
     item_info = item_info.fillna('')
     item_info = item_info.rename(
-        columns={field[field.index("item.") + len("item."):]: field for field in config['item_text'] if
+        columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
                  "item." in field})
     ### todo genres with space g1,g2 -> g1, g2
 
@@ -486,7 +492,7 @@ def load_crawled_goodreads_dataset(config):
             sort_reviews = config['user_review_choice']
         if sp == 'train':
             for text_field in [field[field.index("interaction.") + len("interaction."):]
-                               for field in config['user_text'] if "interaction." in field]:
+                               for field in user_text_fields if "interaction." in field]:
                 if text_field == "review":
                     if sort_reviews == "rating_sorted":
                         temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].sort_values(
@@ -505,7 +511,7 @@ def load_crawled_goodreads_dataset(config):
                 user_info[text_field] = user_info[text_field].fillna('')
                 user_info = user_info.rename(columns={text_field: f"interaction.{text_field}"})
             for text_field in [field[field.index("interaction.") + len("interaction."):]
-                               for field in config['item_text'] if "interaction." in field]:
+                               for field in item_text_fields if "interaction." in field]:
                 temp = df[[INTERNAL_ITEM_ID_FIELD, text_field]].groupby(INTERNAL_ITEM_ID_FIELD)[
                     text_field].apply(','.join).reset_index()
                 item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
@@ -521,12 +527,12 @@ def load_crawled_goodreads_dataset(config):
         split_datasets[sp] = df
 
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
-    if len(config['user_text']) > 0:
-        user_info['text'] = user_info[config['user_text']].agg(', '.join, axis=1)
-        user_info = user_info.drop(columns=config['user_text'])
-    if len(config['item_text']) > 0:
-        item_info['text'] = item_info[config['item_text']].agg(', '.join, axis=1)
-        item_info = item_info.drop(columns=config['item_text'])
+    if len(user_text_fields) > 0:
+        user_info['text'] = user_info[user_text_fields].agg(', '.join, axis=1)
+        user_info = user_info.drop(columns=user_text_fields)
+    if len(item_text_fields) > 0:
+        item_info['text'] = item_info[item_text_fields].agg(', '.join, axis=1)
+        item_info = item_info.drop(columns=item_text_fields)
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     # I would load them here.
