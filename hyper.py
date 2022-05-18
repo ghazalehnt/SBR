@@ -2,9 +2,7 @@ import argparse
 import json
 import os
 import random
-from functools import partial
 from os.path import exists, join
-from functools import partial
 
 import ray
 from ray import tune
@@ -124,7 +122,7 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
         metric_columns=["epoch", "best_valid_metric", "best_epoch"], max_report_frequency=3600
     )
     result = tune.run(
-        partial(training_function, stationary_config_file=config_file,
+        tune.with_parameters(training_function, stationary_config_file=config_file,
                              valid_metric=valid_metric, early_stopping_patience=early_stopping_patience,
                              exp_root_dir=exp_root_dir, data_root_dir=data_root_dir),
         name=name,
