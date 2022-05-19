@@ -14,13 +14,14 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 class SupervisedTrainer:
-    def __init__(self, config, model, device, logger, exp_dir, test_only=False, tuning=False, relevance_level=1,
-                 users=None, items=None):
+    def __init__(self, config, model, device, logger, exp_dir, test_only=False, tuning=False, save_checkpoint=True,
+                 relevance_level=1, users=None, items=None):
         self.model = model
         self.device = device
         self.logger = logger
         self.test_only = test_only  # todo used?
         self.tuning = tuning
+        self.save_checkpoint = save_checkpoint
         self.relevance_level = relevance_level
         self.valid_metric = config['valid_metric']
         self.patience = config['early_stopping_patience']
@@ -131,8 +132,7 @@ class SupervisedTrainer:
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.perf_counter()
             train_loss /= total_count
-            if not self.tuning:
-                print(f"Train loss epoch {epoch}: {train_loss:.5f}")
+            print(f"Train loss epoch {epoch}: {train_loss:.5f}")
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
@@ -140,8 +140,7 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/lr', lr_scheduler.get_last_lr()[0], epoch)
 
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
-            if not self.tuning:
-                print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
+            print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
             outputs = torch.sigmoid(outputs)
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
@@ -153,7 +152,7 @@ class SupervisedTrainer:
             if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
                 self.best_saved_valid_metric = results[self.valid_metric]
                 self.best_epoch = epoch
-                if not self.tuning:
+                if self.save_checkpoint:
                     checkpoint = {
                         'epoch': self.best_epoch,
                         'best_valid_metric': self.best_saved_valid_metric,

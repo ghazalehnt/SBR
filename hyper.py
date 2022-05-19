@@ -18,7 +18,7 @@ from SBR.trainer.supervised import SupervisedTrainer
 
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
-                      valid_metric, early_stopping_patience=None):
+                      valid_metric, early_stopping_patience=None, save_checkpoint=False):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -28,16 +28,15 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"DEVICE: {device}")
 
-    # TODO
-    metrics = ["ndcg_cut_5", "P_5", 'precision_micro', 'recall_micro', 'f1_micro', 'precision_weighted',
-               'recall_weighted', 'f1_weighted', 'precision_macro', 'recall_macro', 'f1_macro']
-
     config = json.load(open(stationary_config_file, 'r'))
     for k in tuning_config:
         if '.' in k:
             l1 = k[:k.index(".")]
             l2 = k[k.index(".")+1:]
             config[l1][l2] = tuning_config[k]
+            if l2 == "max_num_chunks":
+                config[l1]['max_num_chunks_user'] = tuning_config[k]
+                config[l1]['max_num_chunks_item'] = tuning_config[k]
         else:
             config[k] = tuning_config[k]
     if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
@@ -101,12 +100,14 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger,
                                 exp_dir=exp_dir, test_only=False, tuning=True,
-                                relevance_level=relevance_level, users=users, items=items)
+                                relevance_level=relevance_level, users=users, items=items,
+                                save_checkpoint=save_checkpoint)
     trainer.fit(train_dataloader, valid_dataloader)
 
 
 def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric, max_epochs=50, grace_period=5, num_gpus_per_trial=0,
-         num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, early_stopping_patience=None, num_concurrent=1):
+         num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, save_checkpoint=False,
+         early_stopping_patience=None, num_concurrent=1):
     exp_root_dir = open("data/paths_vars/EXP_ROOT_PATH").read().strip()
     data_root_dir = open("data/paths_vars/DATA_ROOT_PATH").read().strip()
     if "<EXP_ROOT_PATH>" in ray_result_dir:
@@ -124,7 +125,8 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
     result = tune.run(
         tune.with_parameters(training_function, stationary_config_file=config_file,
                              valid_metric=valid_metric, early_stopping_patience=early_stopping_patience,
-                             exp_root_dir=exp_root_dir, data_root_dir=data_root_dir),
+                             exp_root_dir=exp_root_dir, data_root_dir=data_root_dir,
+                             save_checkpoint=save_checkpoint),
         name=name,
         resources_per_trial={"cpu": num_cpus_per_trial, "gpu": num_gpus_per_trial, "extra_gpu": extra_gpus},
         config=hyperparameter_config,
@@ -161,30 +163,22 @@ if __name__ == '__main__':
 
     hyper_config = {}
     for k, v in config["space"].items():
-        if k == "dataset.max_num_chunks":
-            k = ['dataset.max_num_chunks_user', 'dataset.max_num_chunks_item']
-        else:
-            k = [k]
         if 'grid_search' in v:
-            for k1 in k:
-                hyper_config[k1] = tune.grid_search(v['grid_search'])
+            hyper_config[k] = tune.grid_search(v['grid_search'])
         elif 'quniform' in v:
-            for k1 in k:
-                hyper_config[k1] = tune.quniform(v['quniform'][0], v['quniform'][1], v['quniform'][2])
+            hyper_config[k] = tune.quniform(v['quniform'][0], v['quniform'][1], v['quniform'][2])
         elif 'loguniform' in v:
-            for k1 in k:
-                hyper_config[k1] = tune.loguniform(v['loguniform'][0], v['loguniform'][1])
+            hyper_config[k] = tune.loguniform(v['loguniform'][0], v['loguniform'][1])
         elif 'choice' in v:
-            for k1 in k:
-                hyper_config[k1] = tune.choice(v['choice'])
+            hyper_config[k] = tune.choice(v['choice'])
         else:
             raise NotImplemented("implement different space types")
 
     ray.init(num_gpus=args.num_gpu)  #, num_cpus=args.num_cpu)
-    main(hyper_config, os.path.abspath(args.config_file), config["ray_result_dir"],
-         config["name"], config["valid_metric"],
-         max_epochs=config["max_epochs"], grace_period=config["grace_period"],
-         num_gpus_per_trial=config["num_gpus_per_trial"], num_cpus_per_trial=config["num_cpus_per_trial"],
-         num_samples=config["num_samples"], resume=config["resume"],
-         early_stopping_patience=config["early_stopping_patience"] if "early_stopping_patience" in config else None,
+    main(hyper_config, os.path.abspath(args.config_file), config['ray_result_dir'],
+         config['name'], config['valid_metric'],
+         max_epochs=config['max_epochs'], grace_period=config['grace_period'],
+         num_gpus_per_trial=config['num_gpus_per_trial'], num_cpus_per_trial=config["num_cpus_per_trial"],
+         num_samples=config['num_samples'], resume=config['resume'], save_checkpoint=config['save_checkpoint'],
+         early_stopping_patience=config['early_stopping_patience'] if "early_stopping_patience" in config else None,
          num_concurrent=args.num_con)
