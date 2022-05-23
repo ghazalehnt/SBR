@@ -113,10 +113,10 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds, cf_embeds], dim=1), other_tokens],
                                           dim=1)
-                concat_masks = torch.concat([torch.ones((input_ids.shape[0], 2), device=att_mask.device), att_mask],
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 2), device=att_mask.device), att_mask],
                                             dim=1)
                 output = bert.forward(inputs_embeds=concat_ids,
-                                      attention_mask=concat_masks)
+                                      attention_mask=att_mask)
             elif id_embedding is not None:
                 id_embeds = id_embedding(ids)
                 token_embeddings = bert_embeddings.forward(input_ids)
@@ -124,10 +124,10 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 other_tokens = token_embeddings[:, 1:]
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds], dim=1), other_tokens], dim=1)
-                concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
                                             dim=1)
                 output = bert.forward(inputs_embeds=concat_ids,
-                                      attention_mask=concat_masks)
+                                      attention_mask=att_mask)
             elif embedding_CF is not None:
                 cf_embeds = embedding_CF(ids)
                 token_embeddings = bert_embeddings.forward(input_ids)
@@ -135,10 +135,10 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 other_tokens = token_embeddings[:, 1:]
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
-                concat_masks = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
                                             dim=1)
                 output = bert.forward(inputs_embeds=concat_ids,
-                                      attention_mask=concat_masks)
+                                      attention_mask=att_mask)
             else:
                 output = bert.forward(input_ids=input_ids,
                                       attention_mask=att_mask)
