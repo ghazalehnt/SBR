@@ -119,4 +119,4 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
         gt[str(user_ids[i])][str(item_ids[i])] = int(ground_truth[i])
         pd[str(user_ids[i])][str(item_ids[i])] = float(prediction_scores[i])
     json.dump({"predicted": pd}, open(output_path['predicted'], 'w'))
-    json.dump({"ground_truth": pd}, open(output_path['ground_truth'], 'w'))
+    json.dump({"ground_truth": gt}, open(output_path['ground_truth'], 'w'))
