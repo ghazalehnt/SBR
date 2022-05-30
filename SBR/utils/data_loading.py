@@ -42,10 +42,10 @@ def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks):
     # Instead we could have a field having all chunks:
     examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
     examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
-    for i in sample_map:
+    for i, j in zip(sample_map, range(len(result['input_ids']))):
         if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
-            examples['chunks_input_ids'][i].append(result['input_ids'][i])
-            examples['chunks_attention_mask'][i].append(result['attention_mask'][i])
+            examples['chunks_input_ids'][i].append(result['input_ids'][j])
+            examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
     return examples
 
 
