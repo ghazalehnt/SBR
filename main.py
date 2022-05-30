@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import json
 import os
 import random
@@ -9,7 +8,6 @@ import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model

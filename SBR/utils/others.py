@@ -1,7 +1,7 @@
 from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.model.vanilla_classifier import VanillaClassifierUserTextProfileItemTextProfile
 from SBR.model.vanilla_classifier_precalc_representations import VanillaClassifierUserTextProfileItemTextProfilePrecalculated
-from mf_dot_text import MatrixFactorizatoinTextDotProduct
+from SBR.model.mf_dot_text import MatrixFactorizatoinTextDotProduct
 
 
 def get_model(config, user_info, item_info, n_classes=None, padding_token=None, device=None, prec_dir=None):

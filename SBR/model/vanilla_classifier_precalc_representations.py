@@ -15,14 +15,7 @@ from SBR.utils.data_loading import CollateRepresentationBuilder
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Module):
     def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device, prec_dir):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculated, self).__init__()
-        bert = transformers.AutoModel.from_pretrained(config['pretrained_model'])
-        bert.to(device)  # need to move to device earlier as we are precalculating.
-
-        if config['tune_BERT'] is False:
-            for param in bert.parameters():
-                param.requires_grad = False
-        bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
-        bert_embeddings = bert_embeddings = bert.get_input_embeddings()
+        bert_embedding_dim = 768
 
         if "k" in config and config["k"] not in ['', 0]:
             self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])

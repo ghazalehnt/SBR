@@ -174,7 +174,6 @@ class SupervisedTrainer:
                             best_epoch=self.best_epoch,
                             epoch=epoch)
 
-
     def evaluate(self, test_dataloader, valid_dataloader):
         # load the best model from file.
         # because we may call evaluate right after fit and in this case need to reload the best model!

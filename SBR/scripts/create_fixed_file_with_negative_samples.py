@@ -67,8 +67,6 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
     user_cnt = 1
     start_time = time.time()
     for user_id in user_counter.keys():
-        if user_cnt % 10000 == 0:
-            print(f"{user_cnt} users done")
         num_pos = user_counter[user_id]
         max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)
         if max_num_user_neg_samples < num_pos * num_neg_samples:
@@ -117,6 +115,7 @@ def main(dataset_path, strategy, num_neg_samples):
         writer = csv.writer(f)
         writer.writerow(['user_id', 'item_id', 'label'])
         writer.writerows(validation_samples)
+    print("validation done")
 
     for user_id, cur_user_items in user_used_items['test'].items():
         used_items[user_id] = used_items[user_id].union(cur_user_items)
