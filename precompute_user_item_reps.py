@@ -20,6 +20,10 @@ def main(config_file):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = json.load(open(config_file, 'r'))
+    if config['model']['precalc_batch_size'] > 1:
+        raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
+                         "are producing wrong reps.")
+
     if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
         config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"] \
             .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read().strip())
@@ -149,7 +153,7 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
                 tokens_embeddings = tokens_embeddings * mask
                 sum_tokons = torch.sum(tokens_embeddings, dim=1)
-                # TODO summed_mask = torch.clamp(mask.sum(1), min=1e-9) -> if something has no text!!!?
+                # summed_mask = torch.clamp(mask.sum(1), min=1e-9)  -> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
                 temp = sum_tokons / mask.sum(1)
             else:
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
