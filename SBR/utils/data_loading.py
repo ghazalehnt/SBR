@@ -495,15 +495,15 @@ def load_crawled_goodreads_dataset(config):
                                for field in user_text_fields if "interaction." in field]:
                 if text_field == "review":
                     if sort_reviews == "rating_sorted":
-                        temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].sort_values(
-                            'rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(','.join).reset_index()
+                        temp = df[df[text_field] != ''][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].sort_values(
+                            'rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(', '.join).reset_index()
                     elif sort_reviews == "nothing":
-                        temp = df[df['review'] != ''][[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[text_field].\
-                            apply(','.join).reset_index()
+                        temp = df[df[text_field] != ''][[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[text_field].\
+                            apply(', '.join).reset_index()
                     elif sort_reviews.startswith("pos_rating_sorted_"):
                         pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
                         temp = df[(df[text_field] != '') & (df['rating'] >= pos_threshold)][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].\
-                        sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(','.join).reset_index()
+                        sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(', '.join).reset_index()
                     else:
                         raise ValueError("Not implemented!")
 
@@ -513,7 +513,7 @@ def load_crawled_goodreads_dataset(config):
             for text_field in [field[field.index("interaction.") + len("interaction."):]
                                for field in item_text_fields if "interaction." in field]:
                 temp = df[[INTERNAL_ITEM_ID_FIELD, text_field]].groupby(INTERNAL_ITEM_ID_FIELD)[
-                    text_field].apply(','.join).reset_index()
+                    text_field].apply(', '.join).reset_index()
                 item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
                 item_info[text_field] = item_info[text_field].fillna('')
                 item_info = item_info.rename(columns={text_field: f"interaction.{text_field}"})
@@ -529,9 +529,11 @@ def load_crawled_goodreads_dataset(config):
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
     if len(user_text_fields) > 0:
         user_info['text'] = user_info[user_text_fields].agg(', '.join, axis=1)
+        user_info['text'] = user_info['text'].replace(', ', '')
         user_info = user_info.drop(columns=user_text_fields)
     if len(item_text_fields) > 0:
         item_info['text'] = item_info[item_text_fields].agg(', '.join, axis=1)
+        item_info['text'] = item_info['text'].replace(', ', '')
         item_info = item_info.drop(columns=item_text_fields)
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
