@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, calculate_cl_macro
+from data_loading import load_crawled_goodreads_dataset
 
 relevance_level = 1
 prediction_threshold = 0.5
@@ -123,7 +124,7 @@ def get_metrics(ground_truth, prediction_scores):
     return results
 
 
-def get_cold_users(config, cold_threshold, with_review=False, pos_th_r=None):
+def get_cold_users(config, cold_threshold, with_text=False):
     # here we have some users who only exist in training set
     sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
                 "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
@@ -133,20 +134,28 @@ def get_cold_users(config, cold_threshold, with_review=False, pos_th_r=None):
     if not config['dataset']['binary_interactions']:
         # if predicting rating: remove the not-rated entries and map rating text to int
         split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
+
+    # we did the training on the entire dataset, regardless of having text or not!
+    # but we want to evaluate only for user and items with text...
+    # in user case, with training-reviews, with item case description and genre.
+    items_with_text = None
+    if with_text:
+        # load user and item info as well, and here we have hard coded user_text and item_text fields
+        config['dataset']['user_text'] = user_text_fields
+        config['dataset']['item_text'] = item_text_fields
+        config['dataset']['user_review_choice'] = user_review_choice
+        config['dataset']['text_in_batch'] = True
+        _, user_info, item_info = load_crawled_goodreads_dataset(config['dataset'])
+        user_info = user_info.to_pandas()
+        users_with_text = set([str(i) for i in user_info[(user_info['text']) != '']['user_id']])
+        item_info = item_info.to_pandas()
+        dataset_item_cnt = len(set(item_info['item_id']))
+        items_with_text = set([str(i) for i in item_info[(item_info['text']) != '']['item_id']])
+        # filter eval users and items that don't have text:
+
     train_user_count = Counter(split_datasets['train']['user_id'])
-    valid_user_count = Counter(split_datasets['validation']['user_id'])
-    test_user_count = Counter(split_datasets['test']['user_id'])
     eval_users = set(split_datasets['test']['user_id'])
     eval_users.update(set(split_datasets['validation']['user_id']))
-
-    if with_review:
-        train_dataset = split_datasets['train'].to_pandas()
-        if pos_th_r is not None:
-            train_dataset['review'] = train_dataset['review'].fillna('')
-            train_dataset['rating'] = train_dataset['rating'].fillna(0)
-            train_dataset = train_dataset[(train_dataset['review'] != '') & (train_dataset['rating'] >= pos_th_r)]
-            review_users = set([str(u) for u in set(train_dataset['user_id'])])
-
     train_user_count_longtail = {k: v for k, v in train_user_count.items() if k not in eval_users}
 
     cold_users = set()
@@ -156,75 +165,162 @@ def get_cold_users(config, cold_threshold, with_review=False, pos_th_r=None):
             warm_users.add(str(user))
         else:
             cold_users.add(str(user))
-    if with_review:
-        cold_users = cold_users.intersection(review_users)
-        warm_users = warm_users.intersection(review_users)
-    cold_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in cold_users])
-    cold_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in cold_users])
-    warm_interactions_validation_cnt = sum([v for k, v in valid_user_count.items() if str(k) in warm_users])
-    warm_interactions_test_cnt = sum([v for k, v in test_user_count.items() if str(k) in warm_users])
-    return cold_users, warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_interactions_test_cnt, cold_interactions_validation_cnt, warm_interactions_test_cnt, warm_interactions_validation_cnt
+
+    return cold_users, warm_users, train_user_count, train_user_count_longtail, users_with_text, items_with_text, dataset_item_cnt
 
 
-def main(config, valid_gt, valid_pd, test_gt, test_pd, cold_threshold, with_review, pos_th_r, outf):
+def main(config, valid_gt, valid_pd, test_gt, test_pd, cold_threshold, with_text, outf):
     start = time.time()
-    eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, test_user_count, cold_test_inter_cnt, cold_valid_inter_cnt, warm_test_inter_cnt, warm_valid_inter_cnt = get_cold_users(config, cold_threshold, with_review, pos_th_r)
-    all_eval_users = eval_warm_users.union(eval_cold_users)
+    eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, users_with_text, items_with_text, dataset_item_cnt = \
+        get_cold_users(config, cold_threshold, with_text)
     print(f"get cold/warm users in {time.time()-start}")
 
-    outf.write(f"Total of {len(eval_cold_users) + len(eval_warm_users)} users being evaluation. "
-               f"And {len(train_user_count_longtail)} users only in train set -> "
-               f"{len(eval_cold_users) + len(eval_warm_users) + len(train_user_count_longtail)} users in total.\n")
-    outf.write(f"There are {cold_valid_inter_cnt+warm_valid_inter_cnt} interactions in validation set.\n")
-    outf.write(f"There are {cold_test_inter_cnt + warm_test_inter_cnt} interactions in test set.\n")
-    outf.write(f"There are {len(eval_warm_users)} warm (>{cold_threshold}) evaluation users (test+validation). "
-               f"{len(eval_warm_users.intersection(valid_gt['ground_truth']))} users with "
-               f"{warm_valid_inter_cnt} pos interactions in validation and "
-               f"{len(eval_warm_users.intersection(test_gt['ground_truth']))} users with "
-               f"{warm_test_inter_cnt} pos interactions in test.\n")
-    outf.write(f"There are {len(eval_cold_users)} cold (<={cold_threshold}) evaluation users (test+validation). "
-               f"{len(eval_cold_users.intersection(valid_gt['ground_truth']))} users with "
-               f"{cold_valid_inter_cnt} pos interactions  and "
-               f"{len(eval_cold_users.intersection(test_gt['ground_truth']))} users with "
-               f"{cold_test_inter_cnt} pos interactions in test.\n\n")
+    # let's count how many interactions were there before with text
+    before_valid_pos_inter_cnt_warm = 0
+    before_valid_neg_inter_cnt_warm = 0
+    before_valid_pos_inter_cnt_cold = 0
+    before_valid_neg_inter_cnt_cold = 0
+    for u in valid_gt:
+        if u in eval_warm_users:
+            before_valid_pos_inter_cnt_warm += len([k for k, v in valid_gt[u].items() if v == 1])
+            before_valid_neg_inter_cnt_warm += len([k for k, v in valid_gt[u].items() if v == 0])
+        elif u in eval_cold_users:
+            before_valid_pos_inter_cnt_cold += len([k for k, v in valid_gt[u].items() if v == 1])
+            before_valid_neg_inter_cnt_cold += len([k for k, v in valid_gt[u].items() if v == 0])
+    before_test_pos_inter_cnt_warm = 0
+    before_test_neg_inter_cnt_warm = 0
+    before_test_pos_inter_cnt_cold = 0
+    before_test_neg_inter_cnt_cold = 0
+    for u in test_gt:
+        if u in eval_warm_users:
+            before_test_pos_inter_cnt_warm += len([k for k, v in test_gt[u].items() if v == 1])
+            before_test_neg_inter_cnt_warm += len([k for k, v in test_gt[u].items() if v == 0])
+        if u in eval_cold_users:
+            before_test_pos_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 1])
+            before_test_neg_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 0])
 
+    # first filter users with text:
+    valid_gt = {u: v for u, v in valid_gt.items() if u in users_with_text}
+    valid_pd = {u: v for u, v in valid_pd.items() if u in users_with_text}
+    test_gt = {u: v for u, v in test_gt.items() if u in users_with_text}
+    test_pd = {u: v for u, v in test_pd.items() if u in users_with_text}
+
+    # then we want to filter items with text now here:
+    if with_text:
+        for u in valid_gt:
+            valid_gt[u] = {k: v for k, v in valid_gt[u].items() if k in items_with_text}
+        for u in valid_pd:
+            valid_pd[u] = {k: v for k, v in valid_pd[u].items() if k in items_with_text}
+        for u in test_gt:
+            test_gt[u] = {k: v for k, v in test_gt[u].items() if k in items_with_text}
+        for u in test_pd:
+            test_pd[u] = {k: v for k, v in test_pd[u].items() if k in items_with_text}
+        # lets count how many are there now
+        after_valid_pos_inter_cnt_warm = 0
+        after_valid_neg_inter_cnt_warm = 0
+        after_valid_pos_inter_cnt_cold = 0
+        after_valid_neg_inter_cnt_cold = 0
+        for u in valid_gt:
+            if u in eval_warm_users:
+                after_valid_pos_inter_cnt_warm += len([k for k, v in valid_gt[u].items() if v == 1])
+                after_valid_neg_inter_cnt_warm += len([k for k, v in valid_gt[u].items() if v == 0])
+            elif u in eval_cold_users:
+                after_valid_pos_inter_cnt_cold += len([k for k, v in valid_gt[u].items() if v == 1])
+                after_valid_neg_inter_cnt_cold += len([k for k, v in valid_gt[u].items() if v == 0])
+        after_test_pos_inter_cnt_warm = 0
+        after_test_neg_inter_cnt_warm = 0
+        after_test_pos_inter_cnt_cold = 0
+        after_test_neg_inter_cnt_cold = 0
+        for u in test_gt:
+            if u in eval_warm_users:
+                after_test_pos_inter_cnt_warm += len([k for k, v in test_gt[u].items() if v == 1])
+                after_test_neg_inter_cnt_warm += len([k for k, v in test_gt[u].items() if v == 0])
+            if u in eval_cold_users:
+                after_test_pos_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 1])
+                after_test_neg_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 0])
+
+    outf.write(f"BEFORE-TEXT-FILTER #total_evaluation_users = {len(eval_cold_users) + len(eval_warm_users)} \n"
+               f"BEFORE-TEXT-FILTER #total_training_users = {len(eval_cold_users) + len(eval_warm_users) + len(train_user_count_longtail)} \n"
+               f"BEFORE-TEXT-FILTER #total_longtail_trainonly_users = {len(train_user_count_longtail)} \n")
+    outf.write(f"BEFORE-TEXT-FILTER #eval_users_warm = {len(eval_warm_users)}\n"
+               f"BEFORE-TEXT-FILTER #eval_users_cold = {len(eval_cold_users)} (interactions <= {cold_threshold})\n\n")
+
+    outf.write(f"BEFORE-TEXT-FILTER #total_positive_inters_validation = "
+               f"{before_valid_pos_inter_cnt_warm+before_valid_pos_inter_cnt_cold} "
+               f"(WARM = {before_valid_pos_inter_cnt_warm}, COLD = {before_valid_pos_inter_cnt_cold})\n"
+               f"BEFORE-TEXT-FILTER #total_negative_inters_validation = "
+               f"{before_valid_neg_inter_cnt_warm+before_valid_neg_inter_cnt_cold} "
+               f"(WARM = {before_valid_neg_inter_cnt_warm}, COLD = {before_valid_neg_inter_cnt_cold})\n"
+               f"BEFORE-TEXT-FILTER #total_positive_inters_test = "
+               f"{before_test_pos_inter_cnt_warm+before_test_pos_inter_cnt_cold} "
+               f"(WARM = {before_test_pos_inter_cnt_warm}, COLD = {before_test_pos_inter_cnt_cold})\n"
+               f"BEFORE-TEXT-FILTER #total_negative_inters_test = "
+               f"{before_test_neg_inter_cnt_warm + before_test_neg_inter_cnt_cold} "
+               f"(WARM = {before_test_neg_inter_cnt_warm}, COLD = {before_test_neg_inter_cnt_cold})\n\n")
+
+    if with_text:
+        outf.write(f"AFTER-TEXT-FILTER #total_evaluation_users = {len(eval_cold_users.intersection(users_with_text)) + len(eval_warm_users.intersection(users_with_text))} \n")
+        outf.write(f"AFTER-TEXT-FILTER #eval_users_warm = {len(eval_warm_users.intersection(users_with_text))}\n"
+                   f"AFTER-TEXT-FILTER #eval_users_cold = {len(eval_cold_users.intersection(users_with_text))} (interactions <= {cold_threshold})\n\n")
+
+        outf.write(f"total dataset items with text = {len(items_with_text)}/{dataset_item_cnt}\n")
+        outf.write(f"AFTER-TEXT-FILTER #total_positive_inters_validation = "
+                   f"{after_valid_pos_inter_cnt_warm + after_valid_pos_inter_cnt_cold} "
+                   f"(WARM = {after_valid_pos_inter_cnt_warm}, COLD = {after_valid_pos_inter_cnt_cold})\n"
+                   f"AFTER-TEXT-FILTER #total_negative_inters_validation = "
+                   f"{after_valid_neg_inter_cnt_warm + after_valid_neg_inter_cnt_cold} "
+                   f"(WARM = {after_valid_neg_inter_cnt_warm}, COLD = {after_valid_neg_inter_cnt_cold})\n"
+                   f"AFTER-TEXT-FILTER #total_positive_inters_test = "
+                   f"{after_test_pos_inter_cnt_warm + after_test_pos_inter_cnt_cold} "
+                   f"(WARM = {after_test_pos_inter_cnt_warm}, COLD = {after_test_pos_inter_cnt_cold})\n"
+                   f"AFTER-TEXT-FILTER #total_negative_inters_test = "
+                   f"{after_test_neg_inter_cnt_warm + after_test_neg_inter_cnt_cold} "
+                   f"(WARM = {after_test_neg_inter_cnt_warm}, COLD = {after_test_neg_inter_cnt_cold})\n\n")
+
+    outf.write(f"#validation_users_warm = {len(eval_warm_users.intersection(valid_gt.keys()))}\n"
+               f"#validation_users_cold = {len(eval_cold_users.intersection(valid_gt.keys()))} (interactions <= {cold_threshold})\n\n")
+    outf.write(f"#test_users_warm = {len(eval_warm_users.intersection(test_gt.keys()))}\n"
+               f"#test_users_cold = {len(eval_cold_users.intersection(test_gt.keys()))} (interactions <= {cold_threshold})\n\n")
 
     # ALL:
-    valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt["ground_truth"].items() if k in all_eval_users},
-                                prediction_scores={k: v for k, v in valid_pd["predicted"].items() if k in all_eval_users})
+    valid_results = get_metrics(ground_truth=valid_gt,
+                                prediction_scores=valid_pd)
     outf.write(f"Valid results ALL: {valid_results}\n")
 
-    test_results = get_metrics(ground_truth={k: v for k, v in test_gt["ground_truth"].items() if k in all_eval_users},
-                               prediction_scores={k: v for k, v in test_pd["predicted"].items() if k in all_eval_users})
+    test_results = get_metrics(ground_truth=test_gt,
+                               prediction_scores=test_pd)
     outf.write(f"Test results ALL: {test_results}\n\n")
 
     # WARM:
-    valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt["ground_truth"].items() if k in eval_warm_users},
-                                prediction_scores={k: v for k, v in valid_pd["predicted"].items() if k in eval_warm_users})
+    valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt.items() if k in eval_warm_users},
+                                prediction_scores={k: v for k, v in valid_pd.items() if k in eval_warm_users})
     outf.write(f"Valid results WARM (> {cold_threshold}): {valid_results}\n")
 
-    test_results = get_metrics(ground_truth={k: v for k, v in test_gt["ground_truth"].items() if k in eval_warm_users},
-                               prediction_scores={k: v for k, v in test_pd["predicted"].items() if k in eval_warm_users})
+    test_results = get_metrics(ground_truth={k: v for k, v in test_gt.items() if k in eval_warm_users},
+                               prediction_scores={k: v for k, v in test_pd.items() if k in eval_warm_users})
     outf.write(f"Test results WARM (> {cold_threshold}): {test_results}\n\n")
 
     # COLD:
-    valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt["ground_truth"].items() if k in eval_cold_users},
-                                prediction_scores={k: v for k, v in valid_pd["predicted"].items() if k in eval_cold_users})
+    valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt.items() if k in eval_cold_users},
+                                prediction_scores={k: v for k, v in valid_pd.items() if k in eval_cold_users})
     outf.write(f"Valid results COLD (<= {cold_threshold}): {valid_results}\n")
 
-    test_results = get_metrics(ground_truth={k: v for k, v in test_gt["ground_truth"].items() if k in eval_cold_users},
-                               prediction_scores={k: v for k, v in test_pd["predicted"].items() if k in eval_cold_users})
+    test_results = get_metrics(ground_truth={k: v for k, v in test_gt.items() if k in eval_cold_users},
+                               prediction_scores={k: v for k, v in test_pd.items() if k in eval_cold_users})
     outf.write(f"Test results COLD (<= {cold_threshold}): {test_results}\n\n")
 
 
 if __name__ == "__main__":
+    user_text_fields = ['interaction.review']
+    user_review_choice = "pos_rating_sorted_3"
+    item_text_fields = ['item.genres', 'item.description']  # here 'item.title' is removed, becasue we want to see which items have description or genre and title does not matter
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result folder, to evaluate')
     parser.add_argument('--vis', type=bool, default=False, help='want to see the train interactions')
     parser.add_argument('--cold_th', type=int, default=None, help='cold user threshold')
-    parser.add_argument('--r', type=bool, default=False, help='evaluate only the users who have reviews')
+    parser.add_argument('--t', type=bool, default=False, help='evaluate only the users and items that have text')
     args, _ = parser.parse_known_args()
-    pos_thrshold_for_reviews = 3
 
     result_folder = args.result_folder
     if not os.path.exists(os.path.join(result_folder, "config.json")):
@@ -239,8 +335,9 @@ if __name__ == "__main__":
         valid_prediction = json.load(open(os.path.join(result_folder, "best_valid_predicted.json")))
         test_ground_truth = json.load(open(os.path.join(result_folder, "test_ground_truth.json")))
         test_prediction = json.load(open(os.path.join(result_folder, "test_predicted.json")))
-        print(os.path.join(result_folder, f"results_coldth{args.cold_th}_withr{args.r}.txt"))
-        outfile = open(os.path.join(result_folder, f"results_coldth{args.cold_th}_withr{args.r}.txt"), 'w')
-        main(config, valid_ground_truth, valid_prediction, test_ground_truth, test_prediction,
-             args.cold_th, args.r, pos_thrshold_for_reviews, outfile)
+        print(os.path.join(result_folder, f"results_coldth{args.cold_th}_withtext{args.t}.txt"))
+        outfile = open(os.path.join(result_folder, f"results_coldth{args.cold_th}_withtext{args.t}.txt"), 'w')
+        main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
+             test_ground_truth['ground_truth'], test_prediction['predicted'],
+             args.cold_th, args.t, outfile)
         outfile.close()
