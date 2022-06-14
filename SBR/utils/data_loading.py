@@ -441,10 +441,19 @@ def load_crawled_goodreads_dataset(config):
                  "user." in field})
 
     item_info = pd.read_csv(join(config['dataset_path'], "items.csv"))
-    remove_fields = item_info.columns
-    print(f"item fields: {remove_fields}")
+    print(f"item fields: {item_info.columns}")
     keep_fields = ["item_id"]
     keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
+    tie_breaker = None
+    if 'additional_fileds' in config:
+        if 'review_tie_breaker' in config['additional_fileds']:
+            if config['additional_fileds']['review_tie_breaker'].startswith("item."):
+                tie_breaker = config['additional_fileds']['review_tie_breaker']
+                tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
+                keep_fields.extend([tie_breaker])
+                item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
+            item_info = item_info
+    remove_fields = item_info.columns
     remove_fields = list(set(remove_fields) - set(keep_fields))
     item_info = item_info.drop(columns=remove_fields)
     item_info = item_info.sort_values("item_id")
@@ -494,18 +503,30 @@ def load_crawled_goodreads_dataset(config):
             for text_field in [field[field.index("interaction.") + len("interaction."):]
                                for field in user_text_fields if "interaction." in field]:
                 if text_field == "review":
-                    if sort_reviews == "rating_sorted":
-                        temp = df[df[text_field] != ''][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].sort_values(
-                            'rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(', '.join).reset_index()
-                    elif sort_reviews == "nothing":
-                        temp = df[df[text_field] != ''][[INTERNAL_USER_ID_FIELD, text_field]].groupby(INTERNAL_USER_ID_FIELD)[text_field].\
-                            apply(', '.join).reset_index()
-                    elif sort_reviews.startswith("pos_rating_sorted_"):
-                        pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
-                        temp = df[(df[text_field] != '') & (df['rating'] >= pos_threshold)][[INTERNAL_USER_ID_FIELD, text_field, 'rating']].\
-                        sort_values('rating', ascending=False).groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(', '.join).reset_index()
+                    if sort_reviews == "nothing":
+                        temp = df[df[text_field] != ''][[INTERNAL_USER_ID_FIELD, text_field]]. \
+                        groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(', '.join).reset_index()
                     else:
-                        raise ValueError("Not implemented!")
+                        if sort_reviews == "rating_sorted":
+                            temp = df[df[text_field] != ''][
+                                [INTERNAL_USER_ID_FIELD, text_field, 'rating', INTERNAL_ITEM_ID_FIELD]]
+                        elif sort_reviews.startswith("pos_rating_sorted_"):
+                            pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
+                            temp = df[(df[text_field] != '') & (temp['rating'] >= pos_threshold)][
+                                [INTERNAL_USER_ID_FIELD, text_field, 'rating', INTERNAL_ITEM_ID_FIELD]]
+                        else:
+                            raise ValueError("Not implemented!")
+                        if tie_breaker is None:
+                            temp = temp.sort_values('rating', ascending=False).groupby(
+                                INTERNAL_USER_ID_FIELD)[text_field].apply(
+                                ', '.join).reset_index()
+                        elif tie_breaker == "avg_rating":
+                            temp = temp.merge(item_info[[INTERNAL_ITEM_ID_FIELD, tie_breaker]], on=INTERNAL_ITEM_ID_FIELD)
+                            temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
+                                INTERNAL_USER_ID_FIELD)[text_field].apply(
+                                ', '.join).reset_index()
+                        else:
+                            raise ValueError("Not implemented!")
 
                 user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
                 user_info[text_field] = user_info[text_field].fillna('')
