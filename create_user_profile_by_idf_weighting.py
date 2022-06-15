@@ -73,4 +73,4 @@ def main(config_file):
     user_info = user_info.map(choose_topk, fn_kwargs={'k': k}, batched=True)
     user_info.to_csv(join(config['dataset']['dataset_path'], f"filtered_user_info_idf_top{k}.csv"))
 
-# main("configs/example_dataset/precalc_toy.json")
+main("configs/example_dataset/filter_user_profile_idf.json")
