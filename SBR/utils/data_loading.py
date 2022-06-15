@@ -512,7 +512,7 @@ def load_crawled_goodreads_dataset(config):
                                 [INTERNAL_USER_ID_FIELD, text_field, 'rating', INTERNAL_ITEM_ID_FIELD]]
                         elif sort_reviews.startswith("pos_rating_sorted_"):
                             pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
-                            temp = df[(df[text_field] != '') & (temp['rating'] >= pos_threshold)][
+                            temp = df[(df[text_field] != '') & (df['rating'] >= pos_threshold)][
                                 [INTERNAL_USER_ID_FIELD, text_field, 'rating', INTERNAL_ITEM_ID_FIELD]]
                         else:
                             raise ValueError("Not implemented!")
@@ -556,6 +556,11 @@ def load_crawled_goodreads_dataset(config):
         item_info['text'] = item_info[item_text_fields].agg(', '.join, axis=1)
         item_info['text'] = item_info['text'].replace(', ', '')
         item_info = item_info.drop(columns=item_text_fields)
+
+    # # todo maybe here do the filtering by idf
+    # if 'user_text_filter' in config:
+    #     if config['user_text_filter'] == "idf":
+
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     # I would load them here.
