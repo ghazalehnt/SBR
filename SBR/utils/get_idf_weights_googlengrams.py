@@ -62,8 +62,6 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob, case_sensitive=Tru
                 k = sp[0]
                 if case_sensitive is False:
                     k = k.lower()
-                    if k.startswith('pancaky'):
-                        print(sp)
                 if k not in acc_df:
                     acc_df[k] = 0
                 if keys is None or k in keys:
