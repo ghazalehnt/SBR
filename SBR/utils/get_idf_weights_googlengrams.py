@@ -40,9 +40,13 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob):
             total_num_docs += acc_num_docs(sp)
 
     files = listdir(join(ngram_dir, f'{n}-grams'))
+    counter = 0
     for f in files:
         if f.startswith('totalcounts') or f == 'download.sh':
             continue
+        if counter % 100 == 0:
+            print(f"{counter} files parsed.")
+        counter += 1
         with gzip.open(join(ngram_dir, f'{n}-grams', f), 'rt') as f:
             for line in f:
                 sp = line.strip().split("\t")
@@ -50,6 +54,7 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob):
                 if keys is None or k in keys:
                     df = acc_df_weights(sp[1:])
                     idf_weights[k] = idf(total_num_docs, df, idf_smooth, idf_prob)
+    print(f"{counter} files parsed.")
     return idf_weights
 
 
