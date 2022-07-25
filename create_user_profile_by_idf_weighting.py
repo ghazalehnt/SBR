@@ -18,10 +18,19 @@ from SBR.utils.data_loading import load_crawled_goodreads_dataset
 from SBR.utils.get_idf_weights_googlengrams import get_idf_weights
 
 
-def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text", n=1):
-    tokenized_batch = {}
-    tokenized_batch[f"tokenized_{doc_desc_field}"] = [list(ngrams_iterator(tokenizer(text), n)) for text in samples[doc_desc_field]]
-    return tokenized_batch
+def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text", n=1,
+                                case_insensitive=True, normalize_negation=True):
+    tokenized_batch = []
+    for text in samples[doc_desc_field]:
+        tokens = tokenizer(text)
+        if case_insensitive:
+            tokens = [t.lower() for t in tokens]
+        if normalize_negation:
+            while "n't" in tokens:
+                tokens[tokens.index("n't")] = "not"
+        tokenized_batch.append(list(ngrams_iterator(tokens, n)))
+    # tokenized_batch[f"tokenized_{doc_desc_field}"] = [list(ngrams_iterator(tokenizer(text), n)) for text in samples[doc_desc_field]]
+    return {f"tokenized_{doc_desc_field}": tokenized_batch}
 
 
 def tokens_idf_weights(samples, idf_weights=None):
@@ -60,7 +69,12 @@ def main(config_file):
 
     # tokenizer = get_tokenizer("basic_english")
     tokenizer = get_tokenizer("spacy")
-    user_info = user_info.map(tokenize_function_torchtext, fn_kwargs={'tokenizer': tokenizer, 'n': config['dataset']['user_text_filter_granularity']}, batched=True)
+    user_info = user_info.map(tokenize_function_torchtext, fn_kwargs={
+        'tokenizer': tokenizer,
+        'n': config['dataset']['user_text_filter_granularity'],
+        'case_insensitive': config['dataset']['case_insensitive'],
+        'normalize_negation': config['dataset']['normalize_negation']},
+                              batched=True)
 
     # we need the vocab to get only the correspinding ngrams
     vocab = []
