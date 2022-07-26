@@ -92,7 +92,7 @@ _case_sensitive = False
 _year_const = 'from_1980'
 _alpha = True
 outpath = "PATH/GoogleNgrams/extracted_IDFs/"
-outfile = f"{1}_gram_cs-{_case_sensitive}_y-{_year_const}_alphabetic-{_alpha}.json"
+outfile = f"{1}_gram_casesensitive-{_case_sensitive}_y-{_year_const}_alphabetic-{_alpha}.json"
 makedirs(outpath)
 idfs = get_idf_weights("PATH/GoogleNgrams/", _n, None, _idf_smooth, _idf_prob,
                        year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
