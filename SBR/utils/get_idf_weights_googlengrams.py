@@ -92,10 +92,10 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
             idf_weights[k] = idf(total_num_docs, df, idf_smooth, idf_prob)
     return idf_weights
 
-_n = 1
+_n = 2
 _idf_smooth = False
 _idf_prob = False
-_case_sensitive = True
+_case_sensitive = False
 _year_const = 'from_1980'
 #_year_const = 'all'
 _alpha = True
