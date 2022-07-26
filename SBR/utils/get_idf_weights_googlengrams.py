@@ -71,7 +71,13 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
                         if k.isalpha() is False:
                             continue
                     else:
-                        raise NotImplementedError("not implemented yet")
+                        isalpha = True
+                        for t in k.split():
+                            if t.isalpha() is False:
+                                isalpha = False
+                                break
+                        if isalpha is False:
+                            continue
                 if case_sensitive is False:
                     k = k.lower()
                 if k not in acc_df:
