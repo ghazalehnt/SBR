@@ -39,7 +39,8 @@ def acc_df_weights(per_year_stat, year_const, field=2):
     return df
 
 
-def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob, case_sensitive=True, year_const='all'):
+def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
+                    case_sensitive=True, year_const='all', alphabetic_only=False):
     if year_const != 'all' and not year_const.startswith('from_'):
         raise ValueError(f"year_const = {year_const} not implemented")
 
@@ -65,6 +66,12 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob, case_sensitive=Tru
             for line in f:
                 sp = line.strip().split("\t")  ### TODO maybe space is better than specifying \t? but gor 2,3 grams should concat them again...
                 k = sp[0]
+                if alphabetic_only:
+                    if n == 1:
+                        if k.isalpha() is False:
+                            continue
+                    else:
+                        raise NotImplementedError("not implemented yet")
                 if case_sensitive is False:
                     k = k.lower()
                 if k not in acc_df:
@@ -72,8 +79,6 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob, case_sensitive=Tru
                 if keys is None or k in keys:
                     df = acc_df_weights(sp[1:], year_const)
                     acc_df[k] += df
-                if len(acc_df) > 100:
-                    break
     print(f"{counter} files parsed.")
     for k, df in acc_df.items():
         if df > 0:
@@ -85,11 +90,12 @@ _idf_smooth = False
 _idf_prob = False
 _case_sensitive = False
 _year_const = 'from_1980'
+_alpha = True
 outpath = "PATH/GoogleNgrams/extracted_IDFs/"
-outfile = f"{1}_gram_cs-{_case_sensitive}_y-{_year_const}.json"
+outfile = f"{1}_gram_cs-{_case_sensitive}_y-{_year_const}_alphabetic-{_alpha}.json"
 makedirs(outpath)
 idfs = get_idf_weights("PATH/GoogleNgrams/", _n, None, _idf_smooth, _idf_prob,
-                       year_const=_year_const, case_sensitive=_case_sensitive)
+                       year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
 # idfs = {k: v for k, v in sorted(idfs.items())}  # TODO sort?
 json.dump(idfs, open(join(outpath, outfile), 'w'))
 # print(idfs)
