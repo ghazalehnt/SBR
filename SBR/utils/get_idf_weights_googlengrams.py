@@ -88,12 +88,12 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
 _n = 1
 _idf_smooth = False
 _idf_prob = False
-_case_sensitive = False
+_case_sensitive = True
 _year_const = 'from_1980'
 #_year_const = 'all'
 _alpha = True
 outpath = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
-outfile = f"{1}_gram_casesensitive-{_case_sensitive}_y-{_year_const}_alphabetic-{_alpha}.json"
+outfile = f"{1}_gram_casesensitive-{_case_sensitive}_year-{_year_const}_alphabetic-{_alpha}.json"
 makedirs(outpath, exist_ok=True)
 idfs = get_idf_weights(open('data/paths_vars/GoogleNgram', 'r').read().strip(), _n, None, _idf_smooth, _idf_prob,
                        year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
