@@ -1,4 +1,5 @@
 import json
+import time
 from os import listdir, makedirs
 from os.path import join
 import gzip
@@ -101,10 +102,12 @@ _alpha = True
 outpath = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
 outfile = f"{1}_gram_casesensitive-{_case_sensitive}_year-{_year_const}_alphabetic-{_alpha}.json"
 makedirs(outpath, exist_ok=True)
+start_time = time.time()
 idfs = get_idf_weights(open('data/paths_vars/GoogleNgram', 'r').read().strip(), _n, None, _idf_smooth, _idf_prob,
                        year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
 # idfs = {k: v for k, v in sorted(idfs.items())}  # TODO sort?
 json.dump(idfs, open(join(outpath, outfile), 'w'))
+print(time.time() - start_time)
 # print(idfs)
 
 # implemented all, from_year
