@@ -1,6 +1,7 @@
 {
   "name": "VC_implicit_BCE",
   "ray_result_dir": "<EXP_ROOT_PATH>/raytune/",
+  "save_checkpoint": true,
   "resume": false,
   "num_gpus_per_trial": 1,
   "num_cpus_per_trial": 8,
