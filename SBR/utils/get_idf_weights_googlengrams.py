@@ -1,4 +1,5 @@
-from os import listdir
+import json
+from os import listdir, makedirs
 from os.path import join
 import gzip
 
@@ -53,9 +54,13 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob, case_sensitive=Tru
             total_num_docs += acc_num_docs(sp, year_const)
 
     files = listdir(join(ngram_dir, f'{n}-grams'))
+    counter = 0
     for f in files:
         if f.startswith('totalcounts') or f == 'download.sh':
             continue
+        if counter % 100 == 0:
+            print(f"{counter} files parsed.")
+        counter += 1
         with gzip.open(join(ngram_dir, f'{n}-grams', f), 'rt') as f:
             for line in f:
                 sp = line.strip().split("\t")  ### TODO maybe space is better than specifying \t? but gor 2,3 grams should concat them again...
@@ -67,14 +72,26 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob, case_sensitive=Tru
                 if keys is None or k in keys:
                     df = acc_df_weights(sp[1:], year_const)
                     acc_df[k] += df
+                if len(acc_df) > 100:
+                    break
+    print(f"{counter} files parsed.")
     for k, df in acc_df.items():
         if df > 0:
             idf_weights[k] = idf(total_num_docs, df, idf_smooth, idf_prob)
     return idf_weights
 
-
-idfs = get_idf_weights("PATH/GoogleNgrams/", 1, None, False, False, year_const='from_1980',
-                       case_sensitive=False)
+_n = 1
+_idf_smooth = False
+_idf_prob = False
+_case_sensitive = False
+_year_const = 'from_1980'
+outpath = "PATH/GoogleNgrams/extracted_IDFs/"
+outfile = f"{1}_gram_cs-{_case_sensitive}_y-{_year_const}.json"
+makedirs(outpath)
+idfs = get_idf_weights("PATH/GoogleNgrams/", _n, None, _idf_smooth, _idf_prob,
+                       year_const=_year_const, case_sensitive=_case_sensitive)
+# idfs = {k: v for k, v in sorted(idfs.items())}  # TODO sort?
+json.dump(idfs, open(join(outpath, outfile), 'w'))
 # print(idfs)
 
 # implemented all, from_year

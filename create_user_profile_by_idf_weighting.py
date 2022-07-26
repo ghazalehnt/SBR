@@ -88,8 +88,9 @@ def main(config_file):
     user_info = user_info.map(tokens_idf_weights, fn_kwargs={'idf_weights': idf_weights}, batched=True)
     # now filter ... top k highest idf weighted terms?
     # as other tokenizers may act differently, this number is just an approximation of how many terms... better to take it bigger as it is sorted
-    k = (config['dataset']['max_num_chunks_user']+1) * config['dataset']['chunk_size']
+#    k = (config['dataset']['max_num_chunks_user']+1) * config['dataset']['chunk_size']
+    k = 100
     user_info = user_info.map(choose_topk, fn_kwargs={'k': k}, batched=True)
     user_info.to_csv(join(config['dataset']['dataset_path'], f"filtered_user_info_idf_top{k}.csv"))
 
-main("configs/example_dataset/precalc_toy.json")
+main("configs/example_dataset/filter_user_profile_idf.json")
