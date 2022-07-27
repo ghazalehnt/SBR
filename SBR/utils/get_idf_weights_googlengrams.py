@@ -1,3 +1,4 @@
+import argparse
 import json
 import time
 from os import listdir, makedirs
@@ -92,26 +93,33 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
             idf_weights[k] = idf(total_num_docs, df, idf_smooth, idf_prob)
     return idf_weights
 
-_n = 1
-_idf_smooth = False
-_idf_prob = False
-_case_sensitive = False
-_year_const = 'from_1980'
-#_year_const = 'all'
-_alpha = True
-outpath = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
-outfile = f"{_n}_gram_casesensitive-{_case_sensitive}_year-{_year_const}_alphabetic-{_alpha}.json"
-if exists(join(outpath, outfile)):
-    print(f"File Exists: {join(outpath, outfile)}")
-    exit()
-makedirs(outpath, exist_ok=True)
-start_time = time.time()
-idfs = get_idf_weights(open('data/paths_vars/GoogleNgram', 'r').read().strip(), _n, None, _idf_smooth, _idf_prob,
-                       year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
-# idfs = {k: v for k, v in sorted(idfs.items())}  # TODO sort?
-json.dump(idfs, open(join(outpath, outfile), 'w'))
-print(f"finish: {time.time() - start_time}")
-# print(idfs)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='get idf weights for google ngrams.')
+    parser.add_argument('--n', type=int, help='n-gram')
+    parser.add_argument('--cs', type=bool, help='case_sensitive')
+    parser.add_argument('--year', type=str, help='year_constraint')
+    parser.add_argument('--alpha', type=bool, help='alphabetic')
+    args = parser.parse_args()
+
+    _n = args.n
+    _idf_smooth = False
+    _idf_prob = False
+    _case_sensitive = args.cs
+    _year_const = args.year
+    _alpha = args.alpha
+    outpath = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
+    outfile = f"{_n}_gram_casesensitive-{_case_sensitive}_year-{_year_const}_alphabetic-{_alpha}.json"
+    if exists(join(outpath, outfile)):
+        print(f"File Exists: {join(outpath, outfile)}")
+        exit()
+    makedirs(outpath, exist_ok=True)
+    start_time = time.time()
+    idfs = get_idf_weights(open('data/paths_vars/GoogleNgram', 'r').read().strip(), _n, None, _idf_smooth, _idf_prob,
+                           year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
+    # idfs = {k: v for k, v in sorted(idfs.items())}  # TODO sort?
+    json.dump(idfs, open(join(outpath, outfile), 'w'))
+    print(f"finish: {time.time() - start_time}")
+    # print(idfs)
 
 # implemented all, from_year
 # note: I also implemented last_year to get only the last years of a word, however, it is problematic as
