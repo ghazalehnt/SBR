@@ -1,7 +1,7 @@
 import json
 import time
 from os import listdir, makedirs
-from os.path import join
+from os.path import join, exists
 import gzip
 
 import numpy as np
@@ -101,6 +101,9 @@ _year_const = 'from_1980'
 _alpha = True
 outpath = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
 outfile = f"{_n}_gram_casesensitive-{_case_sensitive}_year-{_year_const}_alphabetic-{_alpha}.json"
+if exists(join(outpath, outfile)):
+    print(f"File Exists: {join(outpath, outfile)}")
+    exit()
 makedirs(outpath, exist_ok=True)
 start_time = time.time()
 idfs = get_idf_weights(open('data/paths_vars/GoogleNgram', 'r').read().strip(), _n, None, _idf_smooth, _idf_prob,
