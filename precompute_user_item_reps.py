@@ -22,7 +22,7 @@ def main(config_file):
     config = json.load(open(config_file, 'r'))
     if config['model']['precalc_batch_size'] > 1:
         raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
-                         "are producing wrong reps.")
+                         "are producing wrong reps. Please set the batch size to 1.")
 
     if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
         config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"] \
@@ -35,10 +35,10 @@ def main(config_file):
     prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
                              f"size{config['dataset']['chunk_size']}_u{config['dataset']['max_num_chunks_user']}-"
                              f"{'-'.join(config['dataset']['user_text'])}_{config['dataset']['user_review_choice']}_"
+                             f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}"
                              f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
     print(prec_path)
     os.makedirs(prec_path, exist_ok=True)
-
 
     agg_strategy = config['model']['agg_strategy']
     chunk_agg_strategy = config['model']['chunk_agg_strategy']
