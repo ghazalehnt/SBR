@@ -61,7 +61,7 @@ class VanillaClassifierUserTextProfileItemTextProfile(torch.nn.Module):
             outputs = []
             # go over chunks:
             for input_ids, att_mask in zip(
-                    batch['user_chunks_input_ids'], batch['user_chunks_attention_mask']):
+                    batch['item_chunks_input_ids'], batch['item_chunks_attention_mask']):
                 token_embeddings = self.bert_embeddings.forward(input_ids)
                 cls_tokens = token_embeddings[:, 0].unsqueeze(1)
                 other_tokens = token_embeddings[:, 1:]
