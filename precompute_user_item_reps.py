@@ -35,7 +35,7 @@ def main(config_file):
     prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
                              f"size{config['dataset']['chunk_size']}_u{config['dataset']['max_num_chunks_user']}-"
                              f"{'-'.join(config['dataset']['user_text'])}_{config['dataset']['user_review_choice']}_"
-                             f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}"
+                             f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}_"
                              f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
     print(prec_path)
     os.makedirs(prec_path, exist_ok=True)
