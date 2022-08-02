@@ -58,6 +58,8 @@ def load_data(config, pretrained_model):
         raise ValueError(f"dataset {config['name']} not implemented!")
     print(f"Finish: load dataset in {time.time()-start}")
 
+    # todo maybe implement filter somewhere here?
+
     # tokenize when needed:
     return_padding_token = None
     padding_token = None
@@ -425,6 +427,8 @@ def load_crawled_goodreads_dataset(config):
         user_text_fields = []
         item_text_fields = []
 
+    # todo maybe here? based on the user text filter change the users.csv file name to sth else
+
     # read users and items, create internal ids for them to be used
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"))
     remove_fields = user_info.columns
@@ -549,18 +553,21 @@ def load_crawled_goodreads_dataset(config):
 
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
     if len(user_text_fields) > 0:
-        user_info['text'] = user_info[user_text_fields].agg(', '.join, axis=1)
-        user_info['text'] = user_info['text'].replace(', ', '')
+        user_info['text'] = user_info[user_text_fields].agg('. '.join, axis=1)
+        if not config['case_sensitive']:
+            user_info['text'] = user_info['text'].apply(str.lower)
+        if config['normalize_negation']:
+            user_info['text'] = user_info['text'].replace("n\'t", " not", regex=True)
         user_info = user_info.drop(columns=user_text_fields)
     if len(item_text_fields) > 0:
-        item_info['text'] = item_info[item_text_fields].agg(', '.join, axis=1)
-        item_info['text'] = item_info['text'].replace(', ', '')
+        item_info['text'] = item_info[item_text_fields].agg('. '.join, axis=1)
+        if not config['case_sensitive']:
+            item_info['text'] = item_info['text'].apply(str.lower)
+        if config['normalize_negation']:
+            item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
         item_info = item_info.drop(columns=item_text_fields)
 
-    # # todo maybe here do the filtering by idf
-    # if 'user_text_filter' in config:
-    #     if config['user_text_filter'] == "idf":
-
+    # # todo: maybe filter here: to do that we need a tokenizer only to this end,to normalize the text...
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     # I would load them here.
