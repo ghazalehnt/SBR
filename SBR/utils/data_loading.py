@@ -449,14 +449,13 @@ def load_crawled_goodreads_dataset(config):
     keep_fields = ["item_id"]
     keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
     tie_breaker = None
-    if 'additional_fileds' in config:
-        if 'review_tie_breaker' in config['additional_fileds']:
-            if config['additional_fileds']['review_tie_breaker'].startswith("item."):
-                tie_breaker = config['additional_fileds']['review_tie_breaker']
-                tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
-                keep_fields.extend([tie_breaker])
-                item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
-            item_info = item_info
+    if 'review_tie_breaker' in config:
+        if config['review_tie_breaker'].startswith("item."):
+            tie_breaker = config['review_tie_breaker']
+            tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
+            keep_fields.extend([tie_breaker])
+            item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
+        item_info = item_info
     remove_fields = item_info.columns
     remove_fields = list(set(remove_fields) - set(keep_fields))
     item_info = item_info.drop(columns=remove_fields)
