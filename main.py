@@ -76,6 +76,7 @@ def main(op, config_file=None, result_folder=None):
                          f"nn-{config['dataset']['normalize_negation']}_"
                          f"u{config['dataset']['max_num_chunks_user']}-"
                          f"{'-'.join(config['dataset']['user_text'])}_{config['dataset']['user_review_choice']}_"
+                         f"{config['dataset']['review_tie_breaker'] if len(config['dataset']['user_text_filter']) == 0 else ''}_"
                          f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}_"
                          f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
     model = get_model(config['model'], users, items,
