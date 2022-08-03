@@ -82,6 +82,7 @@ def main(config_file):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = json.load(open(config_file, 'r'))
+    print(config['dataset'])
     dataset_config = config['dataset']
 
     if "<DATA_ROOT_PATH>" in dataset_config["dataset_path"]:
@@ -181,6 +182,7 @@ def main(config_file):
                           f"filter-{dataset_config['user_text_filter']}_"
                           f"cs-{dataset_config['case_sensitive']}_"
                           f"nn-{dataset_config['normalize_negation']}.csv"))
+    print("done")
 
 
 # main("configs/example_dataset/precalc.json")
