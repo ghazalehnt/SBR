@@ -1,10 +1,8 @@
-import csv
 import random
 import time
 from collections import Counter
 from os.path import join
 
-import pandas
 import pandas as pd
 import torch
 import transformers
@@ -14,6 +12,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf
 
 goodreads_rating_mapping = {
     'did not like it': 1,
@@ -49,16 +48,39 @@ def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks):
     return examples
 
 
+def filter_user_profile(dataset_config, user_info):
+    # filtering the user profile
+    # filter-type1.1 idf_sentence
+    if dataset_config['user_text_filter'] == "idf_sentence":
+        user_info = filter_user_profile_idf_sentences(dataset_config, user_info)
+    # filter-type1 idf: we can have idf_1_all, idf_2_all, idf_3_all, idf_1-2_all, ..., idf_1-2-3_all, idf_1_unique, ...
+    # filter-type2 tf-idf: tf-idf_1, ..., tf-idf_1-2-3
+    elif dataset_config['user_text_filter'].startswith("idf_") or \
+            dataset_config['user_text_filter'].startswith("tf-idf_"):
+        user_info = filter_user_profile_idf_tf(dataset_config, user_info)
+    else:
+        raise ValueError(
+            f"filtering method not implemented, or belong to another script! {dataset_config['user_text_filter']}")
+
+    return Dataset.from_pandas(user_info, preserve_index=False)
+
+
 def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
     if config["name"] == "CGR":
+        if config['user_text_filter'] == "idf_sentence":
+            temp_cs = config['case_sensitive']
+            config['case_sensitive'] = True
         datasets, user_info, item_info = load_crawled_goodreads_dataset(config)
+        if config['user_text_filter'] == "idf_sentence":
+            config['case_sensitive'] = temp_cs
     else:
         raise ValueError(f"dataset {config['name']} not implemented!")
     print(f"Finish: load dataset in {time.time()-start}")
 
-    # todo maybe implement filter somewhere here?
+    # apply filter:
+    user_info = filter_user_profile(config, user_info)
 
     # tokenize when needed:
     return_padding_token = None
@@ -426,8 +448,6 @@ def load_crawled_goodreads_dataset(config):
     if config['text_in_batch'] is False:
         user_text_fields = []
         item_text_fields = []
-
-    # todo maybe here? based on the user text filter change the users.csv file name to sth else
 
     # read users and items, create internal ids for them to be used
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"))
