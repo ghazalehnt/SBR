@@ -68,13 +68,6 @@ def tokenize_by_sent_function_torchtext(samples, tokenizer=None, sentencizer=Non
                 s = s.replace("n't", " not")
             sents.append(s)
             tokens = tokenizer(s)
-            # even if we want the original sentence (i.e. not lower cased, normalized), we need to lower case and normalize the tokens
-            # because they are going to be used to be compared with terms from googlengram
-            if case_sensitive: ## this is right, if case-sensitive it means it was not lower cased before
-                tokens = [t.lower() for t in tokens]
-            if not normalize_negation:  ## correct, if normalization is not done before,...
-                while "n't" in tokens:
-                    tokens[tokens.index("n't")] = "not"
             if unique:
                 tokens = list(set(tokens))
             sent_tokens.append(tokens)
