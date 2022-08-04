@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, calculate_cl_macro
-from data_loading import load_crawled_goodreads_dataset
+from SBR.utils.data_loading import load_crawled_goodreads_dataset
 
 relevance_level = 1
 prediction_threshold = 0.5
@@ -124,7 +124,7 @@ def get_metrics(ground_truth, prediction_scores):
     return results
 
 
-def get_cold_users(config, cold_threshold, with_text=False):
+def group_users(config, cold_threshold, with_text=False):
     # here we have some users who only exist in training set
     sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
                 "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
@@ -139,7 +139,9 @@ def get_cold_users(config, cold_threshold, with_text=False):
     # but we want to evaluate only for user and items with text...
     # in user case, with training-reviews, with item case description and genre.
     items_with_text = None
-    if with_text:
+    users_with_text = None
+    dataset_item_cnt = None
+    if with_text:  # we need to load users and items if we want to check if they have text, otherwise not needed
         # load user and item info as well, and here we have hard coded user_text and item_text fields
         config['dataset']['user_text'] = user_text_fields
         config['dataset']['item_text'] = item_text_fields
@@ -172,8 +174,8 @@ def get_cold_users(config, cold_threshold, with_text=False):
 def main(config, valid_gt, valid_pd, test_gt, test_pd, cold_threshold, with_text, outf):
     start = time.time()
     eval_cold_users, eval_warm_users, train_user_count, train_user_count_longtail, users_with_text, items_with_text, dataset_item_cnt = \
-        get_cold_users(config, cold_threshold, with_text)
-    print(f"get cold/warm users in {time.time()-start}")
+        group_users(config, cold_threshold, with_text)
+    print(f"grouped users in {time.time()-start}")
 
     # let's count how many interactions were there before with text
     before_valid_pos_inter_cnt_warm = 0
@@ -199,14 +201,33 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, cold_threshold, with_text
             before_test_pos_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 1])
             before_test_neg_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 0])
 
-    # first filter users with text:
-    valid_gt = {u: v for u, v in valid_gt.items() if u in users_with_text}
-    valid_pd = {u: v for u, v in valid_pd.items() if u in users_with_text}
-    test_gt = {u: v for u, v in test_gt.items() if u in users_with_text}
-    test_pd = {u: v for u, v in test_pd.items() if u in users_with_text}
+    outf.write(f"NO-TEXT-FILTER #total_evaluation_users = {len(eval_cold_users) + len(eval_warm_users)} \n"
+               f"NO-TEXT-FILTER #total_training_users = {len(eval_cold_users) + len(eval_warm_users) + len(train_user_count_longtail)} \n"
+               f"NO-TEXT-FILTER #total_longtail_trainonly_users = {len(train_user_count_longtail)} \n")
+    outf.write(f"NO-TEXT-FILTER #eval_users_warm = {len(eval_warm_users)}\n"
+               f"NO-TEXT-FILTER #eval_users_cold = {len(eval_cold_users)} (interactions <= {cold_threshold})\n\n")
+
+    outf.write(f"NO-TEXT-FILTER #total_positive_inters_validation = "
+               f"{before_valid_pos_inter_cnt_warm+before_valid_pos_inter_cnt_cold} "
+               f"(WARM = {before_valid_pos_inter_cnt_warm}, COLD = {before_valid_pos_inter_cnt_cold})\n"
+               f"NO-TEXT-FILTER #total_negative_inters_validation = "
+               f"{before_valid_neg_inter_cnt_warm+before_valid_neg_inter_cnt_cold} "
+               f"(WARM = {before_valid_neg_inter_cnt_warm}, COLD = {before_valid_neg_inter_cnt_cold})\n"
+               f"NO-TEXT-FILTER #total_positive_inters_test = "
+               f"{before_test_pos_inter_cnt_warm+before_test_pos_inter_cnt_cold} "
+               f"(WARM = {before_test_pos_inter_cnt_warm}, COLD = {before_test_pos_inter_cnt_cold})\n"
+               f"NO-TEXT-FILTER #total_negative_inters_test = "
+               f"{before_test_neg_inter_cnt_warm + before_test_neg_inter_cnt_cold} "
+               f"(WARM = {before_test_neg_inter_cnt_warm}, COLD = {before_test_neg_inter_cnt_cold})\n\n")
 
     # then we want to filter items with text now here:
     if with_text:
+        # first filter users with text:
+        valid_gt = {u: v for u, v in valid_gt.items() if u in users_with_text}
+        valid_pd = {u: v for u, v in valid_pd.items() if u in users_with_text}
+        test_gt = {u: v for u, v in test_gt.items() if u in users_with_text}
+        test_pd = {u: v for u, v in test_pd.items() if u in users_with_text}
+        # filter items with text
         for u in valid_gt:
             valid_gt[u] = {k: v for k, v in valid_gt[u].items() if k in items_with_text}
         for u in valid_pd:
@@ -239,26 +260,6 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, cold_threshold, with_text
                 after_test_pos_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 1])
                 after_test_neg_inter_cnt_cold += len([k for k, v in test_gt[u].items() if v == 0])
 
-    outf.write(f"BEFORE-TEXT-FILTER #total_evaluation_users = {len(eval_cold_users) + len(eval_warm_users)} \n"
-               f"BEFORE-TEXT-FILTER #total_training_users = {len(eval_cold_users) + len(eval_warm_users) + len(train_user_count_longtail)} \n"
-               f"BEFORE-TEXT-FILTER #total_longtail_trainonly_users = {len(train_user_count_longtail)} \n")
-    outf.write(f"BEFORE-TEXT-FILTER #eval_users_warm = {len(eval_warm_users)}\n"
-               f"BEFORE-TEXT-FILTER #eval_users_cold = {len(eval_cold_users)} (interactions <= {cold_threshold})\n\n")
-
-    outf.write(f"BEFORE-TEXT-FILTER #total_positive_inters_validation = "
-               f"{before_valid_pos_inter_cnt_warm+before_valid_pos_inter_cnt_cold} "
-               f"(WARM = {before_valid_pos_inter_cnt_warm}, COLD = {before_valid_pos_inter_cnt_cold})\n"
-               f"BEFORE-TEXT-FILTER #total_negative_inters_validation = "
-               f"{before_valid_neg_inter_cnt_warm+before_valid_neg_inter_cnt_cold} "
-               f"(WARM = {before_valid_neg_inter_cnt_warm}, COLD = {before_valid_neg_inter_cnt_cold})\n"
-               f"BEFORE-TEXT-FILTER #total_positive_inters_test = "
-               f"{before_test_pos_inter_cnt_warm+before_test_pos_inter_cnt_cold} "
-               f"(WARM = {before_test_pos_inter_cnt_warm}, COLD = {before_test_pos_inter_cnt_cold})\n"
-               f"BEFORE-TEXT-FILTER #total_negative_inters_test = "
-               f"{before_test_neg_inter_cnt_warm + before_test_neg_inter_cnt_cold} "
-               f"(WARM = {before_test_neg_inter_cnt_warm}, COLD = {before_test_neg_inter_cnt_cold})\n\n")
-
-    if with_text:
         outf.write(f"AFTER-TEXT-FILTER #total_evaluation_users = {len(eval_cold_users.intersection(users_with_text)) + len(eval_warm_users.intersection(users_with_text))} \n")
         outf.write(f"AFTER-TEXT-FILTER #eval_users_warm = {len(eval_warm_users.intersection(users_with_text))}\n"
                    f"AFTER-TEXT-FILTER #eval_users_cold = {len(eval_cold_users.intersection(users_with_text))} (interactions <= {cold_threshold})\n\n")
