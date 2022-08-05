@@ -62,8 +62,9 @@ def process_file(fname):
 
 
 exp_dir = ''
+res_file_name = 'results_coldth5_withtextFalse.txt'
 for fname in listdir(exp_dir):
-    process_file(join(exp_dir, fname))
+    process_file(join(exp_dir, fname, res_file_name))
     print("-----")
 
 
