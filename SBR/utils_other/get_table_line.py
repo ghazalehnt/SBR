@@ -1,3 +1,4 @@
+import argparse
 import json
 import math
 from os import listdir
@@ -32,7 +33,7 @@ def get_res(all, warm, cold, all_only=True):
     return l1 + "  &  " + l2
 
 
-def process_file(fname):
+def process_file(fname, eval_set):
     valid_res = {"ALL": {}, "WARM": {}, "COLD": {}}
     test_res = {"ALL": {}, "WARM": {}, "COLD": {}}
     config = json.load(open(join(fname[:fname.rindex("/")+1], "config.json"), 'r'))
@@ -51,8 +52,12 @@ def process_file(fname):
             elif line.startswith("Test results COLD"):
                 test_res["COLD"] = json.loads(line[line.index("{"):].replace("'", '"'))
 
-    res_all = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=True)
-    res_wc = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=False)
+    if eval_set == 'valid':
+        res_all = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=True)
+        res_wc = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=False)
+    elif eval_set == 'test':
+        res_all = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=True)
+        res_wc = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=False)
     print(f"Model: {config['model']}")
     if config['model']['name'] != "MF":
         print(f"Dataset: u{config['dataset']['max_num_chunks_user']}-{config['dataset']['user_text_filter']}")
@@ -61,15 +66,19 @@ def process_file(fname):
     print(res_wc)
 
 
-exp_dir = ''
-res_file_name = 'results_coldth5_withtextFalse.txt'
-for fname in listdir(exp_dir):
-    process_file(join(exp_dir, fname, res_file_name))
-    print("-----")
+def main(exp_dir, res_file_name, eval_set):
+    for fname in listdir(exp_dir):
+        process_file(join(exp_dir, fname, res_file_name), eval_set)
+        print("-----")
 
 
-
-
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', '-d', type=str, default=None, help='experiments dir')
+    parser.add_argument('--res_file_name', '-r', type=str, default='results_coldth5_withtextFalse.txt', help='result file name indicating threshold ...')
+    parser.add_argument('--set', '-s', type=str, help='valid/test')
+    args, _ = parser.parse_known_args()
+    main(args.d, args.r, args.s)
 
 
 
