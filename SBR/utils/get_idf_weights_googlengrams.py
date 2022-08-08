@@ -42,11 +42,11 @@ def acc_df_weights(per_year_stat, year_const, field=2):
 
 
 def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
-                    case_sensitive=True, year_const='all', alphabetic_only=False):
+                    case_sensitive=True, year_const='all', alphabetic_only=False, agg='max'):
     if year_const != 'all' and not year_const.startswith('from_'):
         raise ValueError(f"year_const = {year_const} not implemented")
 
-    acc_df = {}
+    agg_df = {}
     idf_weights = {}
 
     # first read total number of documents from totalcount file:
@@ -82,13 +82,17 @@ def get_idf_weights(ngram_dir, n, keys, idf_smooth, idf_prob,
                             continue
                 if case_sensitive is False:
                     k = k.lower()
-                if k not in acc_df:
-                    acc_df[k] = 0
+                if k not in agg_df:
+                    agg_df[k] = 0
                 if keys is None or k in keys:
                     df = acc_df_weights(sp[1:], year_const)
-                    acc_df[k] += df
+                    if agg == 'sum':
+                        agg_df[k] += df
+                    elif agg == 'max':
+                        if agg_df[k] < df:
+                            agg_df[k] = df
     print(f"{counter} files parsed. {time.time() - start_time}")
-    for k, df in acc_df.items():
+    for k, df in agg_df.items():
         if df > 0:
             idf_weights[k] = idf(total_num_docs, df, idf_smooth, idf_prob)
     return idf_weights
@@ -99,6 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('--cs', type=bool, help='case_sensitive', default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--year', type=str, help='year_constraint', default='all')
     parser.add_argument('--alpha', type=bool, help='alphabetic', default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--agg', type=str, help='aggregator of df when case insensitive', default='max')
     args = parser.parse_args()
 
     _n = args.n
@@ -107,8 +112,9 @@ if __name__ == '__main__':
     _case_sensitive = args.cs
     _year_const = args.year
     _alpha = args.alpha
+    _agg = args.agg
     outpath = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
-    outfile = f"{_n}_gram_casesensitive-{_case_sensitive}_year-{_year_const}_alphabetic-{_alpha}.json"
+    outfile = f"{_n}_gram_casesensitive-{_case_sensitive}-{_agg}_year-{_year_const}_alphabetic-{_alpha}.json"
     print(outfile)
     if exists(join(outpath, outfile)):
         print(f"File Exists: {join(outpath, outfile)}")
@@ -116,7 +122,8 @@ if __name__ == '__main__':
     makedirs(outpath, exist_ok=True)
     start_time = time.time()
     idfs = get_idf_weights(open('data/paths_vars/GoogleNgram', 'r').read().strip(), _n, None, _idf_smooth, _idf_prob,
-                           year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha)
+                           year_const=_year_const, case_sensitive=_case_sensitive, alphabetic_only=_alpha,
+                           agg=_agg)
     # idfs = {k: v for k, v in sorted(idfs.items())}  # TODO sort?
     json.dump(idfs, open(join(outpath, outfile), 'w'))
     print(f"finish: {time.time() - start_time}")
