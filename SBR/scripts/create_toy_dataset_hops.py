@@ -31,12 +31,12 @@ def get_per_user_interaction_cnt(inters):
 if __name__ == "__main__":
     random.seed(42)
 
-    starting_num_users = 200
-    num_lt_users = 200
-    num_h1_items = 3000
-    total_num_users = 160000
+    starting_num_users = 50
+    num_lt_users = 20
+    num_h1_items = 500
+    total_num_users = 10000
 
-    SPLIT_DATASET = "data/GR_read_5-folds/split_1/"
+    SPLIT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/split_1/"
 
     train, valid, test, inter_header = read_interactions(SPLIT_DATASET)
     print(inter_header)
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         chosen_h1_users = h1_users
     all_users = all_users.union(chosen_h1_users)
 
-    OUTPUT_DATASET = f"data/GR_read_5-folds/example_dataset_totalu{total_num_users}_su{starting_num_users}" \
+    OUTPUT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/example_dataset_totalu{total_num_users}_su{starting_num_users}" \
                      f"_sltu{num_lt_users}_h1i{num_h1_items}/"
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
