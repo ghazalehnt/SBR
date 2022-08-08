@@ -73,7 +73,7 @@ def get_per_item_interaction_cnt(inters):
 
 
 if __name__ == '__main__':
-    DATASET_DIR = "data/GR_read_5-folds/split_1/"
+    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/example_dataset_totalu60000_su100_sltu100_h1i300"
     statfile = open(join(DATASET_DIR, "stats.txt"), 'w')
 
     train, valid, test, header = read_interactions(DATASET_DIR)
@@ -86,6 +86,8 @@ if __name__ == '__main__':
                 "valid": get_per_item_interaction_cnt(valid),
                 "test": get_per_item_interaction_cnt(test)}
 
+    all_interactions = sum(per_user['train'].values())
+
     h_user = get_histogram(per_user['train'].values())
     x = list(h_user.keys())
     y = list(h_user.values())
@@ -94,7 +96,7 @@ if __name__ == '__main__':
         plt.text(i, y[i], y[i])
     plt.ylabel("number of users")
     plt.xlabel("interactions")
-    plt.show()
+    plt.savefig(join(DATASET_DIR, "user_interactions_train.png"))
 
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
@@ -104,6 +106,8 @@ if __name__ == '__main__':
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
+
+    statfile.write(f"training data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}")
 
 ### question: in k-fold cross-validation where we create the folds by users,
 ### all users exist in the train set. However, this is not the case for items,
