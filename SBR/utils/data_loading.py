@@ -69,11 +69,11 @@ def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
     if config["name"] == "CGR":
-        if config['user_text_filter'] == "idf_sentence":
+        if 'user_text_filter' in config and config['user_text_filter'] == "idf_sentence":
             temp_cs = config['case_sensitive']
             config['case_sensitive'] = True
         datasets, user_info, item_info = load_crawled_goodreads_dataset(config)
-        if config['user_text_filter'] == "idf_sentence":
+        if 'user_text_filter' in config and config['user_text_filter'] == "idf_sentence":
             config['case_sensitive'] = temp_cs
     else:
         raise ValueError(f"dataset {config['name']} not implemented!")
@@ -543,12 +543,12 @@ def load_crawled_goodreads_dataset(config):
                         if tie_breaker is None:
                             temp = temp.sort_values('rating', ascending=False).groupby(
                                 INTERNAL_USER_ID_FIELD)[text_field].apply(
-                                ', '.join).reset_index()
+                                ' . '.join).reset_index()  # TODO make the connector ., many other characters make them into 1 sentence
                         elif tie_breaker == "avg_rating":
                             temp = temp.merge(item_info[[INTERNAL_ITEM_ID_FIELD, tie_breaker]], on=INTERNAL_ITEM_ID_FIELD)
                             temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
                                 INTERNAL_USER_ID_FIELD)[text_field].apply(
-                                ', '.join).reset_index()
+                                ' . '.join).reset_index()
                         else:
                             raise ValueError("Not implemented!")
 
