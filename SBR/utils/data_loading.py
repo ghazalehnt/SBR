@@ -80,7 +80,7 @@ def load_data(config, pretrained_model):
     print(f"Finish: load dataset in {time.time()-start}")
 
     # apply filter:
-    if 'text' in user_info.column_names:
+    if 'text' in user_info.column_names and config['user_text_filter'] != "":
         user_info = filter_user_profile(config, user_info)
 
     # tokenize when needed:
