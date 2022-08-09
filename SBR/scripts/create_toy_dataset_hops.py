@@ -31,9 +31,9 @@ def get_per_user_interaction_cnt(inters):
 if __name__ == "__main__":
     random.seed(42)
 
-    starting_num_users = 50
-    num_lt_users = 20
-    num_h1_items = 500
+    starting_num_users = 500
+    num_lt_users = 200
+    num_h1_items = None
     total_num_users = 10000
 
     SPLIT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/split_1/"
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # grow chosen users by 2 hops
     h1_items = set([l[ITEM_ID_IDX] for l in train if l[USER_ID_IDX] in all_users])
-    if num_h1_items < len(h1_items):
+    if num_h1_items is not None and num_h1_items < len(h1_items):
         chosen_h1_items = random.sample(list(h1_items), k=num_h1_items)
     else:
         chosen_h1_items = h1_items
