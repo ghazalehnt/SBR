@@ -13,13 +13,15 @@ from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
-def main(config_file):
+def main(config_file, given_user_text_filter=None):
     np.random.seed(42)
     torch.manual_seed(42)
     torch.cuda.manual_seed(42)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = json.load(open(config_file, 'r'))
+    if given_user_text_filter is not None:
+        config['dataset']['user_text_filter'] = given_user_text_filter
     if config['model']['precalc_batch_size'] > 1:
         raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
                          "are producing wrong reps. Please set the batch size to 1.")
@@ -173,10 +175,11 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
+    parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
     args, _ = parser.parse_known_args()
 
     if not os.path.exists(args.config_file):
         raise ValueError(f"Config file does not exist: {args.config_file}")
-    main(config_file=args.config_file)
+    main(config_file=args.config_file, given_user_text_filter=args.user_text_filter)
     
 
