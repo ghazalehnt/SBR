@@ -200,7 +200,8 @@ def sort_sentences(samples, idf_weights=None):
             if len(w) > 0:
                 s_weights[i] = sum(w)/len(w)
             else:
-                s_weights[i] = -10  # there are somse sentences with neg weights, the sentences that did only have oov are weighted -10 to be last
+                s_weights[i] = 0
         ret.append([sentences[i] for i, v in sorted(s_weights.items(), key=lambda x:x[1], reverse=True)])
     return {f"sorted_text": ret}
 
+# I am giving 0 to oov
