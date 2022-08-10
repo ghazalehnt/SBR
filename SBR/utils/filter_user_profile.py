@@ -10,6 +10,7 @@ from torchtext.data.utils import ngrams_iterator
 
 # todo hard coded
 idf_ngram_year = 'all'
+df_agg = 'max'
 idf_ngram_alpha = True
 idf_ngram_path = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().strip()
 
@@ -149,7 +150,7 @@ def filter_user_profile_idf_sentences(dataset_config, user_info):
     idf_weights = {}
     for n in phrase_sizes:
         ngram_file = join(idf_ngram_path,
-                          f"{n}_gram_casesensitive-{dataset_config['case_sensitive']}_year-{idf_ngram_year}_alphabetic-{idf_ngram_alpha}.json")
+                          f"{n}_gram_casesensitive-{dataset_config['case_sensitive']}-{df_agg}_year-{idf_ngram_year}_alphabetic-{idf_ngram_alpha}.json")
         temp = json.load(open(ngram_file, 'r'))
         # filter for the vocab at hand:
         temp = {k: v for k, v in temp.items() if k in vocab[n]}
