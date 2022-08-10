@@ -32,6 +32,8 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
+    dataset_slice = "GR_rating3_5-folds"
+    original_split = "split_1"
     starting_num_users = 50
     num_lt_users = 20
     num_h0_items = 500
@@ -40,7 +42,7 @@ if __name__ == "__main__":
     # objective = 'sparse'
     objective = 'random'
 
-    SPLIT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/split_1/"
+    SPLIT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/{dataset_slice}/{original_split}"
 
     train, valid, test, inter_header = read_interactions(SPLIT_DATASET)
     print(inter_header)
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     chosen_h1_users = list(np.random.choice(h1_users_keys, size=total_num_users-len(h0_users), replace=False, p=h1_users_probs))
     all_users = h0_users.union(chosen_h1_users)
 
-    OUTPUT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/example_dataset_totalu{total_num_users}_su{starting_num_users}" \
+    OUTPUT_DATASET = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/{dataset_slice}/example_dataset_totalu{total_num_users}_su{starting_num_users}" \
                      f"_sltu{num_lt_users}_h1i{num_h0_items}_{objective}/"
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
