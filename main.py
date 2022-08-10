@@ -13,7 +13,7 @@ from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 
 
-def main(op, config_file=None, result_folder=None):
+def main(op, config_file=None, result_folder=None, given_user_text_filter=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -24,6 +24,8 @@ def main(op, config_file=None, result_folder=None):
     test_only = False
     if op == "train":
         config = json.load(open(config_file, 'r'))
+        if given_user_text_filter is not None:
+            config['dataset']['user_text_filter'] = given_user_text_filter
         if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
             config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"]\
                 .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read().strip())
@@ -97,6 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result forler, to evaluate')
+    parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
     parser.add_argument('op', type=str, help='operation train/test')
     args, _ = parser.parse_known_args()
 
@@ -111,7 +114,7 @@ if __name__ == '__main__':
             raise ValueError(f"Result folder does not exist: {args.config_file}")
         if args.config_file:
             raise ValueError(f"OP==test does not accept config_file")
-        main(op=args.op, result_folder=args.result_folder)
+        main(op=args.op, result_folder=args.result_folder, given_user_text_filter=args.user_text_filter)
 
 
 
