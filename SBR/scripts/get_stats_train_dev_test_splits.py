@@ -1,6 +1,8 @@
 import csv
 from os.path import join
 
+import networkx as nx
+from networkx.algorithms import bipartite
 import scipy.stats
 import matplotlib.pyplot as plt
 
@@ -72,8 +74,27 @@ def get_per_item_interaction_cnt(inters):
     return ret
 
 
+def get_graph(inters):
+    B = nx.Graph()
+    user_nodes = set()
+    item_nodes = set()
+    edges = []
+    for line in inters:
+        user_id = f"u_{line[1]}"
+        item_id = f"i_{line[2]}"
+        user_nodes.add(user_id)
+        item_nodes.add(item_id)
+        edges.append((user_id, item_id))
+    # Add nodes with the node attribute "bipartite"
+    B.add_nodes_from(list(user_nodes), bipartite=0)
+    B.add_nodes_from(list(item_nodes), bipartite=1)
+    # Add edges only between nodes of opposite node sets
+    B.add_edges_from(edges)
+    return B, user_nodes
+
 if __name__ == '__main__':
-    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/example_dataset_totalu60000_su100_sltu100_h1i300"
+    # DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/example_dataset_totalu10000_su100_sltu40_h1i1000"
+    DATASET_DIR = f"data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_sparse"
     statfile = open(join(DATASET_DIR, "stats.txt"), 'w')
 
     train, valid, test, header = read_interactions(DATASET_DIR)
@@ -100,14 +121,20 @@ if __name__ == '__main__':
 
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
+    statfile.write(
+        f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}\n")
+    G, user_nodes = get_graph(train)
+    statfile.write(f"TRAIN: is graph connected? {nx.is_connected(G)}\n")
+    statfile.write(f"TRAIN: number of connected components: {nx.number_connected_components(G)}\n")
+    statfile.write(f"TRAIN: density= {bipartite.density(G, user_nodes)}\n")
+    statfile.write(f"TRAIN: sparsity= {1 - bipartite.density(G, user_nodes)}\n\n")
 
     statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
-    statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
+    statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n\n")
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
 
-    statfile.write(f"training data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}")
 
 ### question: in k-fold cross-validation where we create the folds by users,
 ### all users exist in the train set. However, this is not the case for items,
