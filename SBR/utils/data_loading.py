@@ -1,5 +1,6 @@
 import random
 import time
+from builtins import NotImplementedError
 from collections import Counter
 from os.path import join
 
@@ -456,6 +457,8 @@ def load_crawled_goodreads_dataset(config):
     print(f"user fields: {remove_fields}")
     keep_fields = ["user_id"]
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if "user." in field])
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
+    keep_fields = list(set(keep_fields))
     remove_fields = list(set(remove_fields) - set(keep_fields))
     user_info = user_info.drop(columns=remove_fields)
     user_info = user_info.sort_values("user_id")
@@ -469,6 +472,8 @@ def load_crawled_goodreads_dataset(config):
     print(f"item fields: {item_info.columns}")
     keep_fields = ["item_id"]
     keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
+    keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if "item." in field])
+    keep_fields = list(set(keep_fields))
     tie_breaker = None
     if 'review_tie_breaker' in config:
         if config['review_tie_breaker'].startswith("item."):
@@ -524,6 +529,7 @@ def load_crawled_goodreads_dataset(config):
         else:
             sort_reviews = config['user_review_choice']
         if sp == 'train':
+            # for text fields from the intractions we have to aggregate the train file fields
             for text_field in [field[field.index("interaction.") + len("interaction."):]
                                for field in user_text_fields if "interaction." in field]:
                 if text_field == "review":
@@ -551,10 +557,37 @@ def load_crawled_goodreads_dataset(config):
                                 ' . '.join).reset_index()
                         else:
                             raise ValueError("Not implemented!")
+                else:
+                    raise ValueError("Not implemented!")
 
                 user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
                 user_info[text_field] = user_info[text_field].fillna('')
                 user_info = user_info.rename(columns={text_field: f"interaction.{text_field}"})
+
+            # for user text fields from the items, we also have to aggregate the train file fields as items are there
+            # todo these are hard coded as only this config is implemented
+            user_item_text_fields = [field for field in user_text_fields if "item." in field]
+            if len(user_item_text_fields) > 0:
+                sort_user_item_field = "pos_rating_sorted_3"
+                user_item_field_tie_breaker = "avg_rating"
+                pos_threshold = int(sort_user_item_field[sort_user_item_field.rindex("_") + 1:])
+
+                merge_fields = user_item_text_fields.copy()
+                merge_fields.extend([INTERNAL_ITEM_ID_FIELD, user_item_field_tie_breaker])
+
+                user_item_text_fields_merged_name = 'user_item_fields'
+                temp = df[(df['rating'] >= pos_threshold)][[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']] \
+                    .merge(item_info[merge_fields], on=INTERNAL_ITEM_ID_FIELD)
+                temp[user_item_text_fields_merged_name] = temp[user_item_text_fields].agg('. '.join, axis=1)
+                temp = temp.drop(columns=user_item_text_fields)
+                temp = temp.sort_values(['rating', user_item_field_tie_breaker], ascending=[False, False]).groupby(
+                    INTERNAL_USER_ID_FIELD)['user_item_fields'].apply(' . '.join).reset_index()
+                user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
+                user_info[user_item_text_fields_merged_name] = user_info[user_item_text_fields_merged_name].fillna('')
+                [user_text_fields.remove(f) for f in user_item_text_fields]
+                user_text_fields.append(user_item_text_fields_merged_name)
+
+            # for text fields from the intractions we have to aggregate the train file fields (not tested)
             for text_field in [field[field.index("interaction.") + len("interaction."):]
                                for field in item_text_fields if "interaction." in field]:
                 temp = df[[INTERNAL_ITEM_ID_FIELD, text_field]].groupby(INTERNAL_ITEM_ID_FIELD)[
@@ -562,6 +595,10 @@ def load_crawled_goodreads_dataset(config):
                 item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
                 item_info[text_field] = item_info[text_field].fillna('')
                 item_info = item_info.rename(columns={text_field: f"interaction.{text_field}"})
+            # for item text fields from the users, we also have to aggregate the train file fields as items are there
+            for text_field in [field[field.index("user.") + len("user."):]
+                               for field in item_text_fields if "user." in field]:
+                raise NotImplementedError("Not implemented - data_loading item-text from user file")
 
         # remove the rest
         remove_fields = df.columns
