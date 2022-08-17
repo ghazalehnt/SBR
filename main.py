@@ -108,13 +108,13 @@ if __name__ == '__main__':
             raise ValueError(f"Config file does not exist: {args.config_file}")
         if args.result_folder:
             raise ValueError(f"OP==train does not accept result_folder")
-        main(op=args.op, config_file=args.config_file)
+        main(op=args.op, config_file=args.config_file, given_user_text_filter=args.user_text_filter)
     elif args.op == "test":
         if not os.path.exists(join(args.result_folder, "config.json")):
             raise ValueError(f"Result folder does not exist: {args.config_file}")
         if args.config_file:
             raise ValueError(f"OP==test does not accept config_file")
-        main(op=args.op, result_folder=args.result_folder, given_user_text_filter=args.user_text_filter)
+        main(op=args.op, result_folder=args.result_folder)
 
 
 
