@@ -523,82 +523,95 @@ def load_crawled_goodreads_dataset(config):
         df = df.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         df = df.drop(columns=["user_id", "item_id"])
 
+        df = df.rename(
+            columns={field[field.index("interaction.") + len("interaction."):]: field for field in user_text_fields if
+                     "interaction." in field})
+        df = df.rename(
+            columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
+                     "interaction." in field})
+
         # concat and move the user/item text fields to user and item info:
         if "user_review_choice" not in config:
             sort_reviews = "rating_sorted"
         else:
             sort_reviews = config['user_review_choice']
         if sp == 'train':
-            # for text fields from the intractions we have to aggregate the train file fields
-            for text_field in [field[field.index("interaction.") + len("interaction."):]
-                               for field in user_text_fields if "interaction." in field]:
-                if text_field == "review":
-                    if sort_reviews == "nothing":
-                        temp = df[df[text_field] != ''][[INTERNAL_USER_ID_FIELD, text_field]]. \
-                        groupby(INTERNAL_USER_ID_FIELD)[text_field].apply(', '.join).reset_index()
-                    else:
-                        if sort_reviews == "rating_sorted":
-                            temp = df[df[text_field] != ''][
-                                [INTERNAL_USER_ID_FIELD, text_field, 'rating', INTERNAL_ITEM_ID_FIELD]]
-                        elif sort_reviews.startswith("pos_rating_sorted_"):
-                            pos_threshold = int(sort_reviews[sort_reviews.rindex("_")+1:])
-                            temp = df[(df[text_field] != '') & (df['rating'] >= pos_threshold)][
-                                [INTERNAL_USER_ID_FIELD, text_field, 'rating', INTERNAL_ITEM_ID_FIELD]]
-                        else:
-                            raise ValueError("Not implemented!")
+            ## USER:
+            # This code works for user text fields from interaction and item file
+            user_item_text_fields = [field for field in user_text_fields if "item." in field]
+            user_inter_text_fields = [field for field in user_text_fields if "interaction." in field]
+            user_item_inter_text_fields = user_item_text_fields.copy()
+            user_item_inter_text_fields.extend(user_inter_text_fields)
+
+            if len(user_item_inter_text_fields) > 0:
+                user_item_merge_fields = [INTERNAL_ITEM_ID_FIELD]
+                user_item_merge_fields.extend(user_item_text_fields)
+                if tie_breaker == 'avg_rating':
+                    user_item_merge_fields.append(tie_breaker)
+
+                user_inter_merge_fields = [INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']
+                user_inter_merge_fields.extend(user_inter_text_fields)
+
+                temp = df[user_inter_merge_fields].\
+                    merge(item_info[user_item_merge_fields], on=INTERNAL_ITEM_ID_FIELD)
+                if sort_reviews.startswith("pos_rating_sorted_"):
+                    pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
+                    temp = temp[temp['rating'] >= pos_threshold]
+                # before sorting them based on rating, etc., let's append each row's field together
+                temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
+
+                if sort_reviews == "nothing":
+                    temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text'].apply(', '.join).reset_index()
+                else:
+                    if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
                         if tie_breaker is None:
                             temp = temp.sort_values('rating', ascending=False).groupby(
-                                INTERNAL_USER_ID_FIELD)[text_field].apply(
-                                ' . '.join).reset_index()  # TODO make the connector ., many other characters make them into 1 sentence
+                                INTERNAL_USER_ID_FIELD)['text'].apply(' . '.join).reset_index()
                         elif tie_breaker == "avg_rating":
-                            temp = temp.merge(item_info[[INTERNAL_ITEM_ID_FIELD, tie_breaker]], on=INTERNAL_ITEM_ID_FIELD)
                             temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
-                                INTERNAL_USER_ID_FIELD)[text_field].apply(
+                                INTERNAL_USER_ID_FIELD)['text'].apply(
                                 ' . '.join).reset_index()
                         else:
                             raise ValueError("Not implemented!")
+                    else:
+                        raise ValueError("Not implemented!")
+
+                user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
+                user_info['text'] = user_info['text'].fillna('')
+
+            ## ITEM:
+            # This code works for item text fields from interaction and user file
+            item_user_text_fields = [field for field in item_text_fields if "user." in field]
+            item_inter_text_fields = [field for field in item_text_fields if "interaction." in field]
+            item_user_inter_text_fields = item_user_text_fields.copy()
+            item_user_inter_text_fields.extend(item_inter_text_fields)
+            
+            if len(item_user_inter_text_fields) > 0:
+                item_user_merge_fields = [INTERNAL_USER_ID_FIELD]
+                item_user_merge_fields.extend(item_user_text_fields)
+    
+                item_inter_merge_fields = [INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']
+                item_inter_merge_fields.extend(item_inter_text_fields)
+    
+                temp = df[item_inter_merge_fields]. \
+                    merge(user_info[item_user_merge_fields], on=INTERNAL_USER_ID_FIELD)
+                if sort_reviews.startswith("pos_rating_sorted_"):  # Todo sort_review field in config new?
+                    pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
+                    temp = temp[temp['rating'] >= pos_threshold]
+                # before sorting them based on rating, etc., let's append each row's field together
+                temp['text'] = temp[item_user_inter_text_fields].agg('. '.join, axis=1)
+    
+                if sort_reviews == "nothing":
+                    temp = temp.groupby(INTERNAL_ITEM_ID_FIELD)['text'].apply(', '.join).reset_index()
                 else:
-                    raise ValueError("Not implemented!")
-
-                user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
-                user_info[text_field] = user_info[text_field].fillna('')
-                user_info = user_info.rename(columns={text_field: f"interaction.{text_field}"})
-
-            # for user text fields from the items, we also have to aggregate the train file fields as items are there
-            # todo these are hard coded as only this config is implemented
-            user_item_text_fields = [field for field in user_text_fields if "item." in field]
-            if len(user_item_text_fields) > 0:
-                sort_user_item_field = "pos_rating_sorted_3"
-                user_item_field_tie_breaker = "avg_rating"
-                pos_threshold = int(sort_user_item_field[sort_user_item_field.rindex("_") + 1:])
-
-                merge_fields = user_item_text_fields.copy()
-                merge_fields.extend([INTERNAL_ITEM_ID_FIELD, user_item_field_tie_breaker])
-
-                user_item_text_fields_merged_name = 'user_item_fields'
-                temp = df[(df['rating'] >= pos_threshold)][[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']] \
-                    .merge(item_info[merge_fields], on=INTERNAL_ITEM_ID_FIELD)
-                temp[user_item_text_fields_merged_name] = temp[user_item_text_fields].agg('. '.join, axis=1)
-                temp = temp.drop(columns=user_item_text_fields)
-                temp = temp.sort_values(['rating', user_item_field_tie_breaker], ascending=[False, False]).groupby(
-                    INTERNAL_USER_ID_FIELD)['user_item_fields'].apply(' . '.join).reset_index()
-                user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
-                user_info[user_item_text_fields_merged_name] = user_info[user_item_text_fields_merged_name].fillna('')
-                [user_text_fields.remove(f) for f in user_item_text_fields]
-                user_text_fields.append(user_item_text_fields_merged_name)
-
-            # for text fields from the intractions we have to aggregate the train file fields (not tested)
-            for text_field in [field[field.index("interaction.") + len("interaction."):]
-                               for field in item_text_fields if "interaction." in field]:
-                temp = df[[INTERNAL_ITEM_ID_FIELD, text_field]].groupby(INTERNAL_ITEM_ID_FIELD)[
-                    text_field].apply(', '.join).reset_index()
+                    if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
+                        temp = temp.sort_values('rating', ascending=False).groupby(
+                            INTERNAL_ITEM_ID_FIELD)['text'].apply(' . '.join).reset_index()
+                    else:
+                        raise ValueError("Not implemented!")
+    
                 item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
-                item_info[text_field] = item_info[text_field].fillna('')
-                item_info = item_info.rename(columns={text_field: f"interaction.{text_field}"})
-            # for item text fields from the users, we also have to aggregate the train file fields as items are there
-            for text_field in [field[field.index("user.") + len("user."):]
-                               for field in item_text_fields if "user." in field]:
-                raise NotImplementedError("Not implemented - data_loading item-text from user file")
+                item_info['text'] = item_info['text'].fillna('')
 
         # remove the rest
         remove_fields = df.columns
@@ -609,20 +622,27 @@ def load_crawled_goodreads_dataset(config):
         split_datasets[sp] = df
 
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
-    if len(user_text_fields) > 0:
-        user_info['text'] = user_info[user_text_fields].agg('. '.join, axis=1)
+    user_remaining_text_fields = [field for field in user_text_fields if field.startswith("user.")]
+    if 'text' in user_info.columns:
+        user_remaining_text_fields.append('text')
+    if len(user_remaining_text_fields) > 0:
+        user_info['text'] = user_info[user_remaining_text_fields].agg('. '.join, axis=1)
         if not config['case_sensitive']:
             user_info['text'] = user_info['text'].apply(str.lower)
         if config['normalize_negation']:
             user_info['text'] = user_info['text'].replace("n\'t", " not", regex=True)
-        user_info = user_info.drop(columns=user_text_fields)
-    if len(item_text_fields) > 0:
-        item_info['text'] = item_info[item_text_fields].agg('. '.join, axis=1)
+        user_info = user_info.drop(columns=[field for field in user_text_fields if field.startswith("user.")])
+
+    item_remaining_text_fields = [field for field in item_text_fields if field.startswith("item.")]
+    if 'text' in item_info.columns:
+        item_remaining_text_fields.append('text')
+    if len(item_remaining_text_fields) > 0:
+        item_info['text'] = item_info[item_remaining_text_fields].agg('. '.join, axis=1)
         if not config['case_sensitive']:
             item_info['text'] = item_info['text'].apply(str.lower)
         if config['normalize_negation']:
             item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
-        item_info = item_info.drop(columns=item_text_fields)
+        item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
 
     # # todo: maybe filter here: to do that we need a tokenizer only to this end,to normalize the text...
 
