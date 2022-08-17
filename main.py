@@ -37,7 +37,10 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None):
         for param in config['params_in_exp_dir']:
             p1 = param[:param.index(".")]
             p2 = param[param.index(".")+1:]
-            exp_dir_params.append(str(config[p1][p2]))
+            if isinstance(config[p1][p2], list):
+                exp_dir_params.append('-'.join(config[p1][p2]))
+            else:
+                exp_dir_params.append(str(config[p1][p2]))
         exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
         config["experiment_dir"] = exp_dir
         # check if the exp dir exists, the config file is the same as given.
