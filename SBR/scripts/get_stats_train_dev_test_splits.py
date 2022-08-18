@@ -92,12 +92,43 @@ def get_graph(inters):
     B.add_edges_from(edges)
     return B, user_nodes
 
+
+def get_user_groups(train_set, user_id_idx, cold_thr=5):
+    user_count = {}
+    for line in train_set:
+        if line[user_id_idx] not in user_count:
+            user_count[line[user_id_idx]] = 1
+        else:
+            user_count[line[user_id_idx]] += 1
+    cold = set()
+    warm = set()
+    for user, cnt in user_count.items():
+        if cnt > cold_thr:
+            warm.add(user)
+        else:
+            cold.add(user)
+    return cold, warm
+
+
+def user_grp_inter_cnt(split_set, users, user_id_idx):
+    cnt = 0
+    for line in split_set:
+        if line[user_id_idx] in users:
+            cnt += 1
+    return cnt
+
+
 if __name__ == '__main__':
-    # DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_read_5-folds/example_dataset_totalu10000_su100_sltu40_h1i1000"
-    DATASET_DIR = f"data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_sparse"
+    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating3_5-folds/example_dataset_totalu10000_su100_sltu100_h1i500_dense"
+    # DATASET_DIR = f"data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_sparse"
+    # DATASET_DIR = 'data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_dense'
     statfile = open(join(DATASET_DIR, "stats.txt"), 'w')
+    cold_threshold = 5
 
     train, valid, test, header = read_interactions(DATASET_DIR)
+    cold_users, warm_users = get_user_groups(train, header.index("user_id"), cold_threshold)
+    test_users = set([line[header.index("user_id")] for line in test])
+    valid_users = set([line[header.index("user_id")] for line in valid])
 
     per_user = {"train": get_per_user_interaction_cnt(train),
                 "valid": get_per_user_interaction_cnt(valid),
@@ -121,6 +152,7 @@ if __name__ == '__main__':
 
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
+    statfile.write(f"TRAIN: num longlong tail users only in train: {len(cold_users) - len(test_users.intersection(cold_users))}\n")
     statfile.write(
         f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}\n")
     G, user_nodes = get_graph(train)
@@ -130,11 +162,18 @@ if __name__ == '__main__':
     statfile.write(f"TRAIN: sparsity= {1 - bipartite.density(G, user_nodes)}\n\n")
 
     statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
-    statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n\n")
+    statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
+    statfile.write(f"VALID: num warm users={len(valid_users.intersection(warm_users))} with "
+                   f"{user_grp_inter_cnt(valid, valid_users.intersection(warm_users), header.index('user_id'))} interactions\n")
+    statfile.write(f"VALID: num cold users={len(valid_users.intersection(cold_users))} with "
+                   f"{user_grp_inter_cnt(valid, valid_users.intersection(cold_users), header.index('user_id'))} interactions\n\n")
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
-
+    statfile.write(f"TEST: num warm users={len(test_users.intersection(warm_users))} with "
+                   f"{user_grp_inter_cnt(test, test_users.intersection(warm_users), header.index('user_id'))} interactions\n")
+    statfile.write(f"TEST: num cold users={len(test_users.intersection(cold_users))} with "
+                   f"{user_grp_inter_cnt(test, test_users.intersection(cold_users), header.index('user_id'))} interactions\n\n")
 
 ### question: in k-fold cross-validation where we create the folds by users,
 ### all users exist in the train set. However, this is not the case for items,
