@@ -71,7 +71,8 @@ def process_file(fname, eval_set, all_only):
             res = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=False)
     print(f"Model: {config['model']}")
     if config['model']['name'] != "MF":
-        print(f"Dataset: u{config['dataset']['max_num_chunks_user']}-{config['dataset']['user_text_filter']}")
+        print(f"Dataset: u{config['dataset']['max_num_chunks_user']}-{config['dataset']['user_text_filter']}-"
+              f"{'item-fields' if 'item.title' in config['dataset']['user_text'] else ''}")
     print(res)
 
 
