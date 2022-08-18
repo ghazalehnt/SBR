@@ -2,7 +2,7 @@ import argparse
 import json
 import math
 from os import listdir
-from os.path import join
+from os.path import join, exists, getsize
 
 
 def round_half_up(n, decimals=0):
@@ -33,7 +33,14 @@ def get_res(all, warm, cold, all_only=True):
     return l1 + "  &  " + l2
 
 
-def process_file(fname, eval_set):
+def process_file(fname, eval_set, all_only):
+    if not exists(fname):
+        print(f"res-paht: {fname}")
+        return
+    fsize = getsize(fname)
+    print(f"res-paht: {fname} - {fsize}")
+    if fsize < 4000:
+        return
     valid_res = {"ALL": {}, "WARM": {}, "COLD": {}}
     test_res = {"ALL": {}, "WARM": {}, "COLD": {}}
     config = json.load(open(join(fname[:fname.rindex("/")+1], "config.json"), 'r'))
@@ -53,33 +60,40 @@ def process_file(fname, eval_set):
                 test_res["COLD"] = json.loads(line[line.index("{"):].replace("'", '"'))
 
     if eval_set == 'valid':
-        res_all = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=True)
-        res_wc = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=False)
+        if all_only:
+            res = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=True)
+        else:
+            res = get_res(valid_res["ALL"], valid_res["WARM"], valid_res["COLD"], all_only=False)
     elif eval_set == 'test':
-        res_all = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=True)
-        res_wc = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=False)
+        if all_only:
+            res = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=True)
+        else:
+            res = get_res(test_res["ALL"], test_res["WARM"], test_res["COLD"], all_only=False)
     print(f"Model: {config['model']}")
     if config['model']['name'] != "MF":
         print(f"Dataset: u{config['dataset']['max_num_chunks_user']}-{config['dataset']['user_text_filter']}")
-    print(f"res-paht: {fname}")
-    print(res_all)
-    print(res_wc)
+    print(res)
 
 
 def main(exp_dir, res_file_name, eval_set):
-    for fname in listdir(exp_dir):
-        process_file(join(exp_dir, fname, res_file_name), eval_set)
+    print("----------------ALL-----------------")
+    for fname in sorted(listdir(exp_dir)):
+        process_file(join(exp_dir, fname, res_file_name), eval_set, True)
         print("-----")
+    print("----------------WARM/COLD-------------")
+    for fname in sorted(listdir(exp_dir)):
+        process_file(join(exp_dir, fname, res_file_name), eval_set, False)
+        print("-----")
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', '-d', type=str, default=None, help='experiments dir')
     parser.add_argument('--res_file_name', '-r', type=str, default='results_coldth5_withtextFalse.txt', help='result file name indicating threshold ...')
-    parser.add_argument('--set', '-s', type=str, help='valid/test')
+    parser.add_argument('--set', '-s', type=str, default='test', help='valid/test')
     args, _ = parser.parse_known_args()
-    main(args.d, args.r, args.s)
-
+    main(args.dir, args.res_file_name, args.set)
 
 
 
