@@ -203,7 +203,7 @@ if __name__ == "__main__":
     test_ground_truth = json.load(open(os.path.join(result_folder, "test_ground_truth.json")))
     test_prediction = json.load(open(os.path.join(result_folder, "test_predicted.json")))
 
-    outfile_name = os.path.join(result_folder, f"results_th-{'-'.join([str(t) for t in thrs])}.txt")
+    outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}.txt")
     print(outfile_name)
     outfile = open(outfile_name, 'w')
 
