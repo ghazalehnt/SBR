@@ -39,7 +39,7 @@ def process_file(fname, eval_set, all_only):
         return
     fsize = getsize(fname)
     print(f"res-paht: {fname} - {fsize}")
-    if fsize < 4000:
+    if fsize < 3990:
         return
     valid_res = {"ALL": {}, "WARM": {}, "COLD": {}}
     test_res = {"ALL": {}, "WARM": {}, "COLD": {}}
@@ -72,7 +72,10 @@ def process_file(fname, eval_set, all_only):
     print(f"Model: {config['model']}")
     if config['model']['name'] != "MF":
         print(f"Dataset: u{config['dataset']['max_num_chunks_user']}-{config['dataset']['user_text_filter']}-"
-              f"{'item-fields' if 'item.title' in config['dataset']['user_text'] else ''}")
+              f"{'t' if 'item.title' in config['dataset']['user_text'] else ''},"
+              f"{'g' if 'item.genres' in config['dataset']['user_text'] else ''},"
+              f"{'r' if 'interaction.review' in config['dataset']['user_text'] else ''}")
+
     print(res)
 
 
