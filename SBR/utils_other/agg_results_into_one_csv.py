@@ -2,7 +2,7 @@ import argparse
 import csv
 import math
 from os import listdir
-from os.path import join
+from os.path import join, exists
 
 
 def round_half_up(n, decimals=0):
@@ -13,8 +13,13 @@ def round_half_up(n, decimals=0):
 # False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_item.title-item.genres,Test
 # .avg_rating_item.title-item.genres-interaction.review,Test
 def main(exp_dir, result_file_name):
-    rows = []
+    group_rows = {}
     for fname in sorted(listdir(exp_dir)):
+        if fname.endswith("csv"):
+            continue
+        if not exists(join(exp_dir, fname, result_file_name)):
+            print(f"no results found for: {fname}")
+            continue
         print(fname)
         if fname.startswith("False") or fname.startswith("True"):
             if "test_neg_random_100_1_1_" in fname:
@@ -48,15 +53,18 @@ def main(exp_dir, result_file_name):
         reader = csv.reader(res_file)
         header = next(reader)
         for line in reader:
-            rows.append([model_config, profile] + [str(round_half_up(float(m)*100, 4)) for m in line])
-        rows.append([])
+            if line[0] not in group_rows:
+                group_rows[line[0]] = []
+            group_rows[line[0]].append([model_config, profile, line[0]] + [str(round_half_up(float(m)*100, 4)) for m in line[1:]])
 
     header = ["model config", "user profile"] + header
     with open(join(args.dir, "test_results.csv"), 'w') as outfile:
         print(join(args.dir, "test_results.csv"))
         writer = csv.writer(outfile)
         writer.writerow(header)
-        writer.writerows(rows)
+        for rows in group_rows.items():
+            writer.writerows(rows)
+            writer.writerow([])
 
 
 if __name__ == '__main__':
