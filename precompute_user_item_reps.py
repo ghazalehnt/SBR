@@ -13,7 +13,7 @@ from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
-def main(config_file, given_user_text_filter=None):
+def main(config_file, given_user_text_filter=None, given_limit_training_data=None):
     np.random.seed(42)
     torch.manual_seed(42)
     torch.cuda.manual_seed(42)
@@ -22,6 +22,8 @@ def main(config_file, given_user_text_filter=None):
     config = json.load(open(config_file, 'r'))
     if given_user_text_filter is not None:
         config['dataset']['user_text_filter'] = given_user_text_filter
+    if given_limit_training_data is not None:
+        config['dataset']['limit_training_data'] = given_limit_training_data
     if config['model']['precalc_batch_size'] > 1:
         raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
                          "are producing wrong reps. Please set the batch size to 1.")
@@ -177,10 +179,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
     parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
+    parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
     args, _ = parser.parse_known_args()
 
     if not os.path.exists(args.config_file):
         raise ValueError(f"Config file does not exist: {args.config_file}")
-    main(config_file=args.config_file, given_user_text_filter=args.user_text_filter)
+    main(config_file=args.config_file, given_user_text_filter=args.user_text_filter,
+         given_limit_training_data=args.limit_training_data)
     
 
