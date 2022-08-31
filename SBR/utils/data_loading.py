@@ -1,3 +1,4 @@
+import json
 import random
 import time
 from builtins import NotImplementedError
@@ -73,7 +74,7 @@ def load_data(config, pretrained_model):
         if 'user_text_filter' in config and config['user_text_filter'] == "idf_sentence":
             temp_cs = config['case_sensitive']
             config['case_sensitive'] = True
-        datasets, user_info, item_info = load_crawled_goodreads_dataset(config)
+        datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_crawled_goodreads_dataset(config)
         if 'user_text_filter' in config and config['user_text_filter'] == "idf_sentence":
             config['case_sensitive'] = temp_cs
     else:
@@ -113,7 +114,7 @@ def load_data(config, pretrained_model):
                     config['test_neg_sampling_strategy']]:
         start = time.time()
         print("Start: get user used items...")
-        user_used_items = get_user_used_items(datasets)
+        user_used_items = get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit)
         print(f"Finish: get user used items in {time.time()-start}")
 
     # previously we loaded the "textual profiles" when training into each batch...
@@ -303,6 +304,7 @@ class CollateRepresentationBuilder(object):
             ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
         return ret
 
+
 class CollateNegSamplesRandomOpt(object):
     def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None):
         self.num_neg_samples = num_neg_samples
@@ -336,16 +338,15 @@ class CollateNegSamplesRandomOpt(object):
                 current_samples = set(random.sample(self.all_items, num_user_neg_samples))
                 current_samples -= user_samples
                 cur_used_samples = self.used_items[user_id].intersection(current_samples)
+                current_samples = current_samples - cur_used_samples
+                user_samples = user_samples.union(current_samples)
+                num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
                 if len(user_samples) < max_num_user_neg_samples:
-                    current_samples = current_samples - cur_used_samples
-                    user_samples = user_samples.union(current_samples)
-                    num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
                     # to make the process faster
                     if num_user_neg_samples < len(user_samples):
                         num_user_neg_samples = min(max_num_user_neg_samples, num_user_neg_samples * 2)
                     try_cnt += 1
                 else:
-                    user_samples = user_samples.union(current_samples)
                     if len(user_samples) > max_num_user_neg_samples:
                         user_samples = set(list(user_samples)[:max_num_user_neg_samples])
                     break
@@ -432,7 +433,7 @@ class CollateNegSamplesRandomOpt(object):
 #         return ret
 
 
-def get_user_used_items(datasets):
+def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
     used_items = {}
     for split in datasets.keys():
         used_items[split] = {}
@@ -440,6 +441,9 @@ def get_user_used_items(datasets):
             if user_iid not in used_items[split]:
                 used_items[split][user_iid] = set()
             used_items[split][user_iid].add(item_iid)
+
+    for user, books in filtered_out_user_item_pairs_by_limit.items():
+        used_items['train'][user] = used_items['train'][user].union(books)
 
     return used_items
 
@@ -488,19 +492,46 @@ def load_crawled_goodreads_dataset(config):
     item_info = item_info.sort_values("item_id")
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
     item_info = item_info.fillna('')
+    # TODO add wrong genre removal, i.e. "like"
     item_info = item_info.rename(
         columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
                  "item." in field})
-    ### todo genres with space g1,g2 -> g1, g2
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
                 "validation": join(config['dataset_path'], "validation.csv"),
                 "test": join(config['dataset_path'], "test.csv")}
     split_datasets = {}
+    filtered_out_user_item_pairs_by_limit = None
     for sp, file in sp_files.items():
         df = pd.read_csv(file)
         df['review'] = df['review'].fillna('')
+        if sp == 'train':
+            if config['limit_training_data'].startswith("max_book"):
+                limited_user_books = json.load(open(join(config['dataset_path'], f"{config['limit_training_data']}.json"), 'r'))
+            else:
+                raise NotImplementedError(f"limit_training_data={config['limit_training_data']} not implemented")
+
+            limited_user_item_ids = []
+            for user, books in limited_user_books.items():
+                limited_user_item_ids.extend([f"{user}-{b}" for b in books])
+
+            df['user_item_ids'] = df['user_id'].map(str) + '-' + df['item_id'].map(str)
+            temp = df[df['user_item_ids'].isin(limited_user_item_ids)]['user_item_ids']
+            temp = set(df['user_item_ids']) - set(temp)
+            user_info_temp = user_info.copy()
+            user_info_temp = user_info_temp.set_index('user_id')
+            item_info_temp = item_info.copy()
+            item_info_temp = item_info_temp.set_index('item_id')
+            filtered_out_user_item_pairs_by_limit = {}
+            for ui in temp:
+                user = user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id
+                item = item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id
+                if user not in filtered_out_user_item_pairs_by_limit:
+                    filtered_out_user_item_pairs_by_limit[user] = set()
+                filtered_out_user_item_pairs_by_limit[user].add(item)
+            df = df[df['user_item_ids'].isin(limited_user_item_ids)]
+            df = df.drop(columns=['user_item_ids'])
 
         if config['binary_interactions']:
             # if binary prediction (interaction): set label for all rated/unrated/highrated/lowrated to 1.
@@ -561,16 +592,15 @@ def load_crawled_goodreads_dataset(config):
                 temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
 
                 if sort_reviews == "nothing":
-                    temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text'].apply(', '.join).reset_index()
+                    temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
                 else:
                     if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
                         if tie_breaker is None:
                             temp = temp.sort_values('rating', ascending=False).groupby(
-                                INTERNAL_USER_ID_FIELD)['text'].apply(' . '.join).reset_index()
+                                INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
                         elif tie_breaker == "avg_rating":
                             temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
-                                INTERNAL_USER_ID_FIELD)['text'].apply(
-                                ' . '.join).reset_index()
+                                INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
                         else:
                             raise ValueError("Not implemented!")
                     else:
@@ -602,11 +632,11 @@ def load_crawled_goodreads_dataset(config):
                 temp['text'] = temp[item_user_inter_text_fields].agg('. '.join, axis=1)
     
                 if sort_reviews == "nothing":
-                    temp = temp.groupby(INTERNAL_ITEM_ID_FIELD)['text'].apply(', '.join).reset_index()
+                    temp = temp.groupby(INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
                 else:
                     if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
                         temp = temp.sort_values('rating', ascending=False).groupby(
-                            INTERNAL_ITEM_ID_FIELD)['text'].apply(' . '.join).reset_index()
+                            INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
                     else:
                         raise ValueError("Not implemented!")
     
@@ -644,8 +674,6 @@ def load_crawled_goodreads_dataset(config):
             item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
         item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
 
-    # # todo: maybe filter here: to do that we need a tokenizer only to this end,to normalize the text...
-
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     # I would load them here.
     if config['validation_neg_sampling_strategy'].startswith("f:"):
@@ -668,7 +696,7 @@ def load_crawled_goodreads_dataset(config):
         split_datasets[split] = Dataset.from_pandas(split_datasets[split], preserve_index=False)
 
     return DatasetDict(split_datasets), Dataset.from_pandas(user_info, preserve_index=False), \
-           Dataset.from_pandas(item_info, preserve_index=False)
+           Dataset.from_pandas(item_info, preserve_index=False), filtered_out_user_item_pairs_by_limit
 
 
 # load_data({"dataset_path": "/home/ghazaleh/workspace/SBR/data/GR_read_5-folds/toy_dataset/",
