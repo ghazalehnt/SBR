@@ -525,8 +525,8 @@ def load_crawled_goodreads_dataset(config):
             item_info_temp = item_info_temp.set_index('item_id')
             filtered_out_user_item_pairs_by_limit = {}
             for ui in temp:
-                user = user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id
-                item = item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id
+                user = int(user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id)
+                item = int(item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id)
                 if user not in filtered_out_user_item_pairs_by_limit:
                     filtered_out_user_item_pairs_by_limit[user] = set()
                 filtered_out_user_item_pairs_by_limit[user].add(item)
