@@ -12,7 +12,14 @@ def round_half_up(n, decimals=0):
 # False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_interaction.review
 # False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_item.title-item.genres,Test
 # .avg_rating_item.title-item.genres-interaction.review,Test
-def main(exp_dir, result_file_name):
+def main(exp_dir, evalset, thresholds):
+    if evalset == 'test':
+        result_file_name = f"results_test_th_{'_'.join([str(t) for t in thresholds])}.csv"
+    elif evalset == 'valid':
+        result_file_name = f"results_valid_th_{'_'.join([str(t) for t in thresholds])}.csv"
+    else:
+        raise ValueError("set given wrong!")
+
     group_rows = {}
     for fname in sorted(listdir(exp_dir)):
         if fname.endswith("csv"):
@@ -58,11 +65,11 @@ def main(exp_dir, result_file_name):
             group_rows[line[0]].append([model_config, profile, line[0]] + [str(round_half_up(float(m)*100, 4)) for m in line[1:]])
 
     header = ["model config", "user profile"] + header
-    with open(join(args.dir, "test_results.csv"), 'w') as outfile:
-        print(join(args.dir, "test_results.csv"))
+    with open(join(args.dir, f"{evalset}_results_{'_'.join([str(t) for t in thresholds])}.csv"), 'w') as outfile:
+        print(join(args.dir, f"{evalset}_results_{'_'.join([str(t) for t in thresholds])}.csv"))
         writer = csv.writer(outfile)
         writer.writerow(header)
-        for rows in group_rows.items():
+        for rows in group_rows.values():
             writer.writerows(rows)
             writer.writerow([])
 
@@ -74,11 +81,4 @@ if __name__ == '__main__':
     parser.add_argument('--set', '-s', type=str, default='test', help='valid/test')
     args, _ = parser.parse_known_args()
 
-    if args.set == 'test':
-        res_file_name = f"results_test_th_{'_'.join([str(t) for t in args.thresholds])}.csv"
-    elif args.set == 'valid':
-        res_file_name = f"results_valid_th_{'_'.join([str(t) for t in args.thresholds])}.csv"
-    else:
-        raise ValueError("set given wrong!")
-
-    main(args.dir, res_file_name)
+    main(args.dir, args.set, args.thresholds)
