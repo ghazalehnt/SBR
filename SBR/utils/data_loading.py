@@ -9,6 +9,8 @@ import pandas as pd
 import torch
 import transformers
 from datasets import Dataset, DatasetDict
+from sentence_splitter import SentenceSplitter
+from sentence_transformers import SentenceTransformer, util
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 import numpy as np
@@ -50,6 +52,33 @@ def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks):
     return examples
 
 
+# def sentencize_function(samples, sentencizer=None, doc_desc_field="text",
+#                         case_sensitive=True, normalize_negation=True):
+#     sent_ret = []
+#
+#     for text in samples[doc_desc_field]:
+#         sents = []
+#         for s in sentencizer.split(text=text):
+#             if not case_sensitive:
+#                 s = s.lower()
+#             if normalize_negation:
+#                 s = s.replace("n't", " not")
+#             sents.append(s)
+#         sent_ret.append(sents)
+#     return {f"sentences_{doc_desc_field}": sent_ret}
+
+
+def sentencize(text, sentencizer, case_sensitive, normalize_negation):
+    sents = []
+    for s in sentencizer.split(text=text):
+        if not case_sensitive:
+            s = s.lower()
+        if normalize_negation:
+            s = s.replace("n't", " not")
+        sents.append(s)
+    return sents
+
+
 def filter_user_profile(dataset_config, user_info):
     # filtering the user profile
     # filter-type1.1 idf_sentence
@@ -71,11 +100,11 @@ def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
     if config["name"] == "CGR":
-        if 'user_text_filter' in config and config['user_text_filter'] == "idf_sentence":
+        if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
             temp_cs = config['case_sensitive']
             config['case_sensitive'] = True
         datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_crawled_goodreads_dataset(config)
-        if 'user_text_filter' in config and config['user_text_filter'] == "idf_sentence":
+        if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
             config['case_sensitive'] = temp_cs
     else:
         raise ValueError(f"dataset {config['name']} not implemented!")
@@ -83,7 +112,8 @@ def load_data(config, pretrained_model):
 
     # apply filter:
     if 'text' in user_info.column_names and config['user_text_filter'] != "":
-        user_info = filter_user_profile(config, user_info)
+        if config['user_text_filter'] not in ["item_sentence_SBERT"]:
+            user_info = filter_user_profile(config, user_info)
 
     # tokenize when needed:
     return_padding_token = None
@@ -502,11 +532,12 @@ def load_crawled_goodreads_dataset(config):
                 "validation": join(config['dataset_path'], "validation.csv"),
                 "test": join(config['dataset_path'], "test.csv")}
     split_datasets = {}
-    filtered_out_user_item_pairs_by_limit = None
+    filtered_out_user_item_pairs_by_limit = {}
     for sp, file in sp_files.items():
         df = pd.read_csv(file)
         df['review'] = df['review'].fillna('')
-        if sp == 'train':
+        # book limit:
+        if sp == 'train' and config['limit_training_data'] != "":
             if config['limit_training_data'].startswith("max_book"):
                 limited_user_books = json.load(open(join(config['dataset_path'], f"{config['limit_training_data']}.json"), 'r'))
             else:
@@ -523,7 +554,6 @@ def load_crawled_goodreads_dataset(config):
             user_info_temp = user_info_temp.set_index('user_id')
             item_info_temp = item_info.copy()
             item_info_temp = item_info_temp.set_index('item_id')
-            filtered_out_user_item_pairs_by_limit = {}
             for ui in temp:
                 user = int(user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id)
                 item = int(item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id)
@@ -566,6 +596,7 @@ def load_crawled_goodreads_dataset(config):
             sort_reviews = "rating_sorted"
         else:
             sort_reviews = config['user_review_choice']
+        # text profile:
         if sp == 'train':
             ## USER:
             # This code works for user text fields from interaction and item file
@@ -588,26 +619,78 @@ def load_crawled_goodreads_dataset(config):
                 if sort_reviews.startswith("pos_rating_sorted_"):
                     pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
                     temp = temp[temp['rating'] >= pos_threshold]
-                # before sorting them based on rating, etc., let's append each row's field together
+                # before sorting them based on rating, etc., let's append each row's field together (e.g. title. genres. review.)
                 temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
 
-                if sort_reviews == "nothing":
-                    temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                if config['user_text_filter'] in ["item_sentence_SBERT"]:
+                    # first we sort the items based on the ratings, tie-breaker
+                    temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False])
+                    # sentencize the user text (r, tgr, ...)
+                    sent_splitter = SentenceSplitter(language='en')
+                    temp['sentences_text'] = temp.apply(lambda row: sentencize(row['text'], sent_splitter,
+                                                                               config['case_sensitive'],
+                                                                               config['normalize_negation']), axis=1)
+                    # temp = temp.map(sentencize_function, fn_kwargs={
+                    #     'case_sensitive': config['case_sensitive'],  # TODO set this to true?
+                    #     'normalize_negation': config['normalize_negation'],
+                    #     'sentencizer': sent_splitter
+                    # }, batched=True)
+                    temp = temp.drop(columns=['text'])
+                    temp = temp.drop(columns=user_text_fields)
+
+                    # load SBERT
+                    sbert = SentenceTransformer("all-mpnet-base-v2")  # TODO hard coded
+                    # "all-MiniLM-L12-v2"
+                    # "all-MiniLM-L6-v2"
+                    print("sentence transformer loaded!")
+
+                    user_texts = []
+                    for user_idx in list(user_info.index):
+                        user = user_info.loc[user_idx][INTERNAL_USER_ID_FIELD]
+                        user_items = []
+                        user_item_temp = temp[temp[INTERNAL_USER_ID_FIELD] == user]
+                        for item_id, sents in zip(user_item_temp[INTERNAL_ITEM_ID_FIELD], user_item_temp['sentences_text']):
+                            item = item_info.loc[item_id]
+                            if item_id != item[INTERNAL_ITEM_ID_FIELD]:
+                                raise ValueError("item id and index does not match!")
+                            item_text = '. '.join(list(item[item_text_fields]))
+                            scores = util.dot_score(sbert.encode(item_text), sbert.encode(sents))
+                            user_items.append([sent for score, sent in sorted(zip(scores[0], sents), reverse=True)])  # todo if we want to sort all sentences at once we need to keep the scores
+                        # print(len(user_items))
+                        user_text = []
+                        cnts = {i: 0 for i in range(len(user_items))}
+                        while True:
+                            remaining = False
+                            for i in range(len(user_items)):
+                                if cnts[i] == len(user_items[i]):
+                                    continue
+                                remaining = True
+                                user_text.append(user_items[i][cnts[i]])
+                                cnts[i] += 1
+                            if not remaining:
+                                break
+                        user_texts.append(' '.join(user_text))
+                    user_info['text'] = user_texts
+                    print(f"user text matching with item done!")
                 else:
-                    if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
-                        if tie_breaker is None:
-                            temp = temp.sort_values('rating', ascending=False).groupby(
-                                INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
-                        elif tie_breaker == "avg_rating":
-                            temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
-                                INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                    if sort_reviews == "nothing":
+                        temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                    else:
+                        if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
+                            # joined the text of user books(title, genre, review):  TODO before here need to do the thing for sorting each of these, and also consider cutting it.
+                            if tie_breaker is None:
+                                temp = temp.sort_values('rating', ascending=False).groupby(
+                                    INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                            elif tie_breaker == "avg_rating":
+                                temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
+                                    INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                            else:
+                                raise ValueError("Not implemented!")
                         else:
                             raise ValueError("Not implemented!")
-                    else:
-                        raise ValueError("Not implemented!")
 
-                user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
-                user_info['text'] = user_info['text'].fillna('')
+                    user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
+                    user_info['text'] = user_info['text'].fillna('')
 
             ## ITEM:
             # This code works for item text fields from interaction and user file
@@ -615,14 +698,14 @@ def load_crawled_goodreads_dataset(config):
             item_inter_text_fields = [field for field in item_text_fields if "interaction." in field]
             item_user_inter_text_fields = item_user_text_fields.copy()
             item_user_inter_text_fields.extend(item_inter_text_fields)
-            
+
             if len(item_user_inter_text_fields) > 0:
                 item_user_merge_fields = [INTERNAL_USER_ID_FIELD]
                 item_user_merge_fields.extend(item_user_text_fields)
-    
+
                 item_inter_merge_fields = [INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']
                 item_inter_merge_fields.extend(item_inter_text_fields)
-    
+
                 temp = df[item_inter_merge_fields]. \
                     merge(user_info[item_user_merge_fields], on=INTERNAL_USER_ID_FIELD)
                 if sort_reviews.startswith("pos_rating_sorted_"):  # Todo sort_review field in config new?
@@ -630,7 +713,7 @@ def load_crawled_goodreads_dataset(config):
                     temp = temp[temp['rating'] >= pos_threshold]
                 # before sorting them based on rating, etc., let's append each row's field together
                 temp['text'] = temp[item_user_inter_text_fields].agg('. '.join, axis=1)
-    
+
                 if sort_reviews == "nothing":
                     temp = temp.groupby(INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
                 else:
@@ -639,7 +722,7 @@ def load_crawled_goodreads_dataset(config):
                             INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
                     else:
                         raise ValueError("Not implemented!")
-    
+
                 item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
                 item_info['text'] = item_info['text'].fillna('')
 
@@ -651,6 +734,7 @@ def load_crawled_goodreads_dataset(config):
         df = df.drop(columns=remove_fields)
         split_datasets[sp] = df
 
+    # TODO the SBERT match with item desc should also be applied here?? guess not
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
     user_remaining_text_fields = [field for field in user_text_fields if field.startswith("user.")]
     if 'text' in user_info.columns:
