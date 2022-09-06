@@ -40,12 +40,7 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                              f"size{config['dataset']['chunk_size']}_"
                              f"cs-{config['dataset']['case_sensitive']}_"
                              f"nn-{config['dataset']['normalize_negation']}_"
-                             f"u{config['dataset']['max_num_chunks_user']}-"
-                             f"{'-'.join(config['dataset']['user_text'])}_{config['dataset']['user_review_choice']}_"
-                             f"{config['dataset']['review_tie_breaker'] if len(config['dataset']['user_text_filter']) == 0 else ''}_"
-                             f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}_"
-                             f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}_"
-                             f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
+                             f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
     print(prec_path)
     os.makedirs(prec_path, exist_ok=True)
 
@@ -76,9 +71,17 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
     start = time.time()
-    user_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_" \
-                    f"cf{config['model']['use_CF']}_user_representation.pkl"
+    user_rep_file = f"user_representation_" \
+                    f"{agg_strategy}_{chunk_agg_strategy}_" \
+                    f"id{config['model']['append_id']}_" \
+                    f"tb{config['model']['tune_BERT']}_" \
+                    f"cf{config['model']['use_CF']}_" \
+                    f"ch{config['dataset']['max_num_chunks_user']}_" \
+                    f"{'-'.join(config['dataset']['user_text'])}_" \
+                    f"{config['dataset']['user_review_choice']}_" \
+                    f"{config['dataset']['review_tie_breaker'] if config['dataset']['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                    f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
+                    f".pkl"
     if os.path.exists(os.path.join(prec_path, user_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
     else:
@@ -90,9 +93,14 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
     print(f"user rep created  {time.time() - start}")
 
     start = time.time()
-    item_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                    f"id{config['model']['append_id']}_tb{config['model']['tune_BERT']}_" \
-                    f"cf{config['model']['use_CF']}_item_representation.pkl"
+    item_rep_file = f"item_representation_" \
+                    f"{agg_strategy}_{chunk_agg_strategy}_" \
+                    f"id{config['model']['append_id']}_" \
+                    f"tb{config['model']['tune_BERT']}_" \
+                    f"cf{config['model']['use_CF']}_" \
+                    f"ch{config['dataset']['max_num_chunks_item']}_" \
+                    f"{'-'.join(config['dataset']['item_text'])}" \
+                    f".pkl"
     if os.path.exists(os.path.join(prec_path, item_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
     else:

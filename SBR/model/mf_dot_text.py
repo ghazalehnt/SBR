@@ -23,16 +23,31 @@ class MatrixFactorizatoinTextDotProduct(torch.nn.Module):
         freeze_prec_rep = config['freeze_prec_reps']
         agg_strategy = config['agg_strategy']
         chunk_agg_strategy = config['chunk_agg_strategy']
-        user_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                        f"id{config['append_id']}_tb{config['tune_BERT']}_cf{config['use_CF']}_user_representation.pkl"
+        user_rep_file = f"user_representation_" \
+                        f"{agg_strategy}_{chunk_agg_strategy}_" \
+                        f"id{config['model']['append_id']}_" \
+                        f"tb{config['model']['tune_BERT']}_" \
+                        f"cf{config['model']['use_CF']}_" \
+                        f"ch{config['dataset']['max_num_chunks_user']}_" \
+                        f"{'-'.join(config['dataset']['user_text'])}_" \
+                        f"{config['dataset']['user_review_choice']}_" \
+                        f"{config['dataset']['review_tie_breaker'] if len(config['dataset']['user_text_filter']) == 0 else ''}_" \
+                        f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
+                        f".pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
             weights = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
         else:
             raise ValueError(f"Precalculated user embedding does not exist! {os.path.join(prec_dir, user_rep_file)}")
         self.user_text_rep = torch.nn.Embedding.from_pretrained(weights, freeze=freeze_prec_rep)
 
-        item_rep_file = f"{agg_strategy}_{chunk_agg_strategy}_" \
-                        f"id{config['append_id']}_tb{config['tune_BERT']}_cf{config['use_CF']}_item_representation.pkl"
+        item_rep_file = f"item_representation_" \
+                        f"{agg_strategy}_{chunk_agg_strategy}_" \
+                        f"id{config['model']['append_id']}_" \
+                        f"tb{config['model']['tune_BERT']}_" \
+                        f"cf{config['model']['use_CF']}_" \
+                        f"ch{config['dataset']['max_num_chunks_item']}_" \
+                        f"{'-'.join(config['dataset']['item_text'])}" \
+                        f".pkl"
         if os.path.exists(os.path.join(prec_dir, item_rep_file)):
             weights = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
         else:

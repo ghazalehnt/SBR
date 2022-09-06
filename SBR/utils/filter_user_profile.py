@@ -185,7 +185,7 @@ def tokenize_by_sent_function_torchtext(samples, tokenizer=None, sentencizer=Non
             sent_tokens.append(tokens)
         sent_ret.append(sents)
         sent_tokens_ret.append(sent_tokens)
-
+        
     return {f"sentences_{doc_desc_field}": sent_ret, f"tokenized_sentences_{doc_desc_field}": sent_tokens_ret}
 
 
