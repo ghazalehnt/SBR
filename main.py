@@ -83,7 +83,8 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                                  f"nn-{config['dataset']['normalize_negation']}_"
                                  f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
     model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, prec_path) # todo else num-ratings
+                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, prec_path,
+                      config['dataset']) # todo else num-ratings
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,

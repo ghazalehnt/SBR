@@ -13,7 +13,8 @@ from SBR.utils.data_loading import CollateRepresentationBuilder
 
 
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Module):
-    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device, prec_dir):
+    def __init__(self, config, n_users, n_items, num_classes, user_info, item_info, padding_token, device, prec_dir,
+                 dataset_config):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculated, self).__init__()
         bert_embedding_dim = 768
 
@@ -57,14 +58,14 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
 
         user_rep_file = f"user_representation_" \
                         f"{agg_strategy}_{chunk_agg_strategy}_" \
-                        f"id{config['model']['append_id']}_" \
-                        f"tb{config['model']['tune_BERT']}_" \
-                        f"cf{config['model']['use_CF']}_" \
-                        f"ch{config['dataset']['max_num_chunks_user']}_" \
-                        f"{'-'.join(config['dataset']['user_text'])}_" \
-                        f"{config['dataset']['user_review_choice']}_" \
-                        f"{config['dataset']['review_tie_breaker'] if len(config['dataset']['user_text_filter']) == 0 else ''}_" \
-                        f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
+                        f"id{config['append_id']}_" \
+                        f"tb{config['tune_BERT']}_" \
+                        f"cf{config['use_CF']}_" \
+                        f"ch{dataset_config['max_num_chunks_user']}_" \
+                        f"{'-'.join(dataset_config['user_text'])}_" \
+                        f"{dataset_config['user_review_choice']}_" \
+                        f"{dataset_config['review_tie_breaker'] if len(dataset_config['user_text_filter']) == 0 else ''}_" \
+                        f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
                         f".pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
             weights = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
@@ -74,11 +75,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
 
         item_rep_file = f"item_representation_" \
                         f"{agg_strategy}_{chunk_agg_strategy}_" \
-                        f"id{config['model']['append_id']}_" \
-                        f"tb{config['model']['tune_BERT']}_" \
-                        f"cf{config['model']['use_CF']}_" \
-                        f"ch{config['dataset']['max_num_chunks_item']}_" \
-                        f"{'-'.join(config['dataset']['item_text'])}" \
+                        f"id{config['append_id']}_" \
+                        f"tb{config['tune_BERT']}_" \
+                        f"cf{config['use_CF']}_" \
+                        f"ch{dataset_config['max_num_chunks_item']}_" \
+                        f"{'-'.join(dataset_config['item_text'])}" \
                         f".pkl"
         if os.path.exists(os.path.join(prec_dir, item_rep_file)):
             weights = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
