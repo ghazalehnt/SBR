@@ -9,6 +9,7 @@ import os
 import time
 from collections import Counter
 
+import transformers
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,7 +58,7 @@ def get_metrics(ground_truth, prediction_scores, calc_cl_metrics=True):
     return results
 
 
-def group_users(config, thresholds):
+def group_users(config, thresholds, min_user_review_len=None):
     # here we have some users who only exist in training set
     sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
                 "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
@@ -69,8 +70,28 @@ def group_users(config, thresholds):
         split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
 
     train_user_count = Counter(split_datasets['train']['user_id'])
+
+    # here we have users with long reviews and rest would neet to be intersect with it
+    if min_user_review_len is not None:
+        keep_users = {}
+        tokenizer = transformers.AutoTokenizer.from_pretrained(BERTMODEL)
+        user_reviews = {}
+        for user_id, review in zip(split_datasets['train']['user_id'], split_datasets['train']['review']):
+            if user_id not in user_reviews:
+                user_reviews[user_id] = []
+            if review is not None:
+                user_reviews[user_id].append(review)
+        for user_id in user_reviews:
+            user_reviews[user_id] = ". ".join(user_reviews[user_id])
+            num_toks = len(tokenizer(user_reviews[user_id], truncation=False)['input_ids'])
+            if num_toks >= min_user_review_len:
+                keep_users[user_id] = num_toks
+        # print(keep_users)
+        train_user_count = {k: v for k, v in train_user_count.items() if k in keep_users.keys()}
+
     eval_users = set(split_datasets['test']['user_id'])
     eval_users.update(set(split_datasets['validation']['user_id']))
+    eval_users = eval_users.intersection(train_user_count.keys())
     train_user_count_longtail = {str(k): v for k, v in train_user_count.items() if k not in eval_users}
 
     groups = {thr: set() for thr in sorted(thresholds)}
@@ -94,13 +115,21 @@ def group_users(config, thresholds):
             new_gr = f"{last}-{gr}"
             last = gr + 1
         ret_group[new_gr] = groups[gr]
+
+    train_user_count = {str(k): v for k, v in train_user_count.items()}
     return ret_group, train_user_count, train_user_count_longtail
 
 
-def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds, outf, valid_csv_f, test_csv_f):
+def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds, outf, valid_csv_f, test_csv_f,
+         min_user_review_len=None):
     start = time.time()
-    user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds)
+    user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds, min_user_review_len)
     print(f"grouped users in {time.time()-start}")
+
+    test_gt = {k: v for k, v in test_gt.items() if k in train_user_count.keys()}
+    test_pd = {k: v for k, v in test_pd.items() if k in train_user_count.keys()}
+    valid_gt = {k: v for k, v in valid_gt.items() if k in train_user_count.keys()}
+    valid_pd = {k: v for k, v in valid_pd.items() if k in train_user_count.keys()}
 
     assert sum([len(ug) for ug in user_groups.values()]) == len(set(test_gt.keys()).union(valid_gt.keys()))
 
@@ -108,16 +137,22 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds, outf, valid_c
     valid_pos_inter_cnt = {group: 0 for group in user_groups}
     valid_neg_inter_cnt = {group: 0 for group in user_groups}
     for u in valid_gt:
-        group = [k for k in user_groups if u in user_groups[k]][0]
+        group = [k for k in user_groups if u in user_groups[k]]
+        if len(group) == 0:
+            continue
+        group = group[0]
         valid_pos_inter_cnt[group] += len([k for k, v in valid_gt[u].items() if v == 1])
         valid_neg_inter_cnt[group] += len([k for k, v in valid_gt[u].items() if v == 0])
 
     test_pos_inter_cnt = {group: 0 for group in user_groups}
     test_neg_inter_cnt = {group: 0 for group in user_groups}
     for u in test_gt:
-        group = [k for k in user_groups if u in user_groups[k]][0]
-        test_pos_inter_cnt[group] += len([k for k, v in valid_gt[u].items() if v == 1])
-        test_neg_inter_cnt[group] += len([k for k, v in valid_gt[u].items() if v == 0])
+        group = [k for k in user_groups if u in user_groups[k]]
+        if len(group) == 0:
+            continue
+        group = group[0]
+        test_pos_inter_cnt[group] += len([k for k, v in test_gt[u].items() if v == 1])
+        test_neg_inter_cnt[group] += len([k for k, v in test_gt[u].items() if v == 0])
 
     outf.write(f"#total_evaluation_users = {len(set(test_gt.keys()).union(valid_gt.keys()))} \n"
                f"#total_training_users = {len(set(test_gt.keys()).union(valid_gt.keys())) + len(train_user_count_longtail)} \n"
@@ -183,14 +218,17 @@ if __name__ == "__main__":
     # hard coded
     calc_cl_metric = False
     csv_metric_header = ["P_1", "Rprec", "ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
+    BERTMODEL = "bert-base-uncased"  # TODO hard coded
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result folder, to evaluate')
     parser.add_argument('--thresholds', type=int, nargs='+', default=None, help='user thresholds')
+    parser.add_argument('--user_review_len', type=int, default=None, help='min length of the user review')
     args, _ = parser.parse_known_args()
 
     result_folder = args.result_folder
     thrs = args.thresholds
+    r_len = args.user_review_len
 
     if not os.path.exists(os.path.join(result_folder, "config.json")):
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
@@ -203,16 +241,24 @@ if __name__ == "__main__":
     test_ground_truth = json.load(open(os.path.join(result_folder, "test_ground_truth.json")))
     test_prediction = json.load(open(os.path.join(result_folder, "test_predicted.json")))
 
-    outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}.txt")
+    if r_len is not None:
+        outfile_name = os.path.join(result_folder,
+                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{r_len}.txt")
+        valid_csv = open(os.path.join(result_folder,
+                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{r_len}.csv"), "w")
+        test_csv = open(os.path.join(result_folder,
+                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{r_len}.csv"), "w")
+    else:
+        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}.txt")
+        valid_csv = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
+        test_csv = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
+
     print(outfile_name)
     outfile = open(outfile_name, 'w')
 
-    valid_csv = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
-    test_csv = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
-
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
-         thrs, outfile, valid_csv, test_csv)
+         thrs, outfile, valid_csv, test_csv, r_len)
 
     outfile.close()
     valid_csv.close()
