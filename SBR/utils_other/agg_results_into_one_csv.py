@@ -64,8 +64,11 @@ def main(exp_dir, evalset, file_suffix):
             book_limit = f"max {num_books} - {book_pick_strategy}"
 
         res_file = open(join(exp_dir, folder_name, result_file_name), 'r')
-        reader = csv.reader(res_file)
-        header = next(reader)
+        try:
+            reader = csv.reader(res_file)
+            header = next(reader)
+        except Exception:
+            print(f"empty file: {res_file}")
         for line in reader:
             if line[0] not in group_rows:
                 group_rows[line[0]] = []
