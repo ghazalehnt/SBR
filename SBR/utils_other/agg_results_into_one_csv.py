@@ -27,7 +27,7 @@ def main(exp_dir, evalset, thresholds):
         if not exists(join(exp_dir, folder_name, result_file_name)):
             print(f"no results found for: {folder_name}")
             continue
-        print(folder_name)
+#        print(folder_name)
         if folder_name.startswith("False") or folder_name.startswith("True"):
             if "test_neg_random_100_1_1_" in folder_name:
                 ch = 1
@@ -37,7 +37,7 @@ def main(exp_dir, evalset, thresholds):
                 raise ValueError("num chunks not found in fname")
             sortby = ""
             for filter in ["tf-idf_1", "tf-idf_2", "tf-idf_3", "tf-idf_1-2-3", "idf_1_unique", "idf_2_unique",
-                           "idf_3_unique", "idf_1-2-3_unique", "idf_sentence"]:
+                           "idf_3_unique", "idf_1-2-3_unique", "idf_sentence", "item_sentence_SBERT"]:
                 if filter in folder_name:
                     sortby = filter
                     break
