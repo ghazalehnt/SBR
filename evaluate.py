@@ -73,6 +73,10 @@ def group_users(config, thresholds, min_user_review_len=None):
 
     # here we have users with long reviews and rest would neet to be intersect with it
     if min_user_review_len is not None:
+        # don't calc for limited train data as they are not comparable at this point
+        if 'limit_training_data' in config['dataset'] and config['dataset']['limit_training_data'] != "":
+            return {}, {}, set()
+
         keep_users = {}
         tokenizer = transformers.AutoTokenizer.from_pretrained(BERTMODEL)
         user_reviews = {}
@@ -120,11 +124,29 @@ def group_users(config, thresholds, min_user_review_len=None):
     return ret_group, train_user_count, train_user_count_longtail
 
 
-def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds, outf, valid_csv_f, test_csv_f,
+def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
          min_user_review_len=None):
     start = time.time()
     user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds, min_user_review_len)
+    if len(train_user_count) == 0:
+        return
+
     print(f"grouped users in {time.time()-start}")
+
+    if min_user_review_len is not None:
+        outfile_name = os.path.join(result_folder,
+                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}.txt")
+        valid_csv_f = open(os.path.join(result_folder,
+                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}.csv"), "w")
+        test_csv_f = open(os.path.join(result_folder,
+                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}.csv"), "w")
+    else:
+        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}.txt")
+        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
+        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
+
+    print(outfile_name)
+    outf = open(outfile_name, 'w')
 
     test_gt = {k: v for k, v in test_gt.items() if k in train_user_count.keys()}
     test_pd = {k: v for k, v in test_pd.items() if k in train_user_count.keys()}
@@ -213,6 +235,10 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds, outf, valid_c
     twriter = csv.writer(test_csv_f)
     twriter.writerows(rows_test)
 
+    outf.close()
+    valid_csv_f.close()
+    test_csv_f.close()
+
 
 if __name__ == "__main__":
     # hard coded
@@ -241,25 +267,9 @@ if __name__ == "__main__":
     test_ground_truth = json.load(open(os.path.join(result_folder, "test_ground_truth.json")))
     test_prediction = json.load(open(os.path.join(result_folder, "test_predicted.json")))
 
-    if r_len is not None:
-        outfile_name = os.path.join(result_folder,
-                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{r_len}.txt")
-        valid_csv = open(os.path.join(result_folder,
-                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{r_len}.csv"), "w")
-        test_csv = open(os.path.join(result_folder,
-                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{r_len}.csv"), "w")
-    else:
-        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}.txt")
-        valid_csv = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
-        test_csv = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
-
-    print(outfile_name)
-    outfile = open(outfile_name, 'w')
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
-         thrs, outfile, valid_csv, test_csv, r_len)
+         thrs, r_len)
 
-    outfile.close()
-    valid_csv.close()
-    test_csv.close()
+
