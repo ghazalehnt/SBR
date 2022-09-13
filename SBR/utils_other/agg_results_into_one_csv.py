@@ -12,11 +12,11 @@ def round_half_up(n, decimals=0):
 # False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_interaction.review
 # False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_item.title-item.genres,Test
 # .avg_rating_item.title-item.genres-interaction.review,Test
-def main(exp_dir, evalset, thresholds):
+def main(exp_dir, evalset, file_suffix):
     if evalset == 'test':
-        result_file_name = f"results_test_th_{'_'.join([str(t) for t in thresholds])}.csv"
+        result_file_name = f"results_test_{file_suffix}.csv"
     elif evalset == 'valid':
-        result_file_name = f"results_valid_th_{'_'.join([str(t) for t in thresholds])}.csv"
+        result_file_name = f"results_valid_{file_suffix}.csv"
     else:
         raise ValueError("set given wrong!")
 
@@ -72,8 +72,8 @@ def main(exp_dir, evalset, thresholds):
             group_rows[line[0]].append([model_config, profile, book_limit, line[0]] + [str(round_half_up(float(m)*100, 4)) for m in line[1:]])
 
     header = ["model config", "user profile", "book limit"] + header
-    with open(join(args.dir, f"{evalset}_results_{'_'.join([str(t) for t in thresholds])}.csv"), 'w') as outfile:
-        print(join(args.dir, f"{evalset}_results_{'_'.join([str(t) for t in thresholds])}.csv"))
+    with open(join(args.dir, f"{evalset}_results_{file_suffix}.csv"), 'w') as outfile:
+        print(join(args.dir, f"{evalset}_results_{file_suffix}.csv"))
         writer = csv.writer(outfile)
         writer.writerow(header)
         for rows in group_rows.values():
@@ -84,8 +84,8 @@ def main(exp_dir, evalset, thresholds):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', '-d', type=str, default=None, help='experiments dir')
-    parser.add_argument('--thresholds', '-t', type=int, nargs='+', default=None, help='user thresholds')
+    parser.add_argument('--file_suffix', '-f', type=int, nargs='+', default=None, help='suffix of eval file')
     parser.add_argument('--set', '-s', type=str, default='test', help='valid/test')
     args, _ = parser.parse_known_args()
 
-    main(args.dir, args.set, args.thresholds)
+    main(args.dir, args.set, args.file_suffix)
