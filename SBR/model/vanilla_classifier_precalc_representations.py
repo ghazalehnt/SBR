@@ -64,7 +64,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                         f"ch{dataset_config['max_num_chunks_user']}_" \
                         f"{'-'.join(dataset_config['user_text'])}_" \
                         f"{dataset_config['user_review_choice']}_" \
-                        f"{dataset_config['review_tie_breaker'] if len(dataset_config['user_text_filter']) == 0 else ''}_" \
+                        f"{dataset_config['review_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
                         f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
                         f".pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
