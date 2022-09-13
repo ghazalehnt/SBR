@@ -84,7 +84,7 @@ def main(exp_dir, evalset, file_suffix):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', '-d', type=str, default=None, help='experiments dir')
-    parser.add_argument('--file_suffix', '-f', type=int, nargs='+', default=None, help='suffix of eval file')
+    parser.add_argument('--file_suffix', '-f', type=str, default=None, help='suffix of eval file')
     parser.add_argument('--set', '-s', type=str, default='test', help='valid/test')
     args, _ = parser.parse_known_args()
 
