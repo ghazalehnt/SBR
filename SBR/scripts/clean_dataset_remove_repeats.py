@@ -2,8 +2,6 @@ import csv
 from collections import defaultdict
 from os.path import join
 
-item_replacement = defaultdict()
-
 INTERACTION_FILE = "goodreads_crawled.interactions"
 ITEM_FILE = "goodreads_crawled.items"
 
@@ -11,6 +9,7 @@ def main(in_folder, out_folder):
     user_interactions = defaultdict(list)
     item_count = defaultdict(lambda:0)
     item_info = defaultdict()
+    author_items = defaultdict(list)
 
     with open(join(in_folder, INTERACTION_FILE), 'r') as f:
         reader = csv.reader(f)
@@ -34,15 +33,22 @@ def main(in_folder, out_folder):
         for line in reader:
             item_id = line[ITEM_IDX_ITEM]
             item_info[item_id] = line
+            author_items[line[AUTHOR_IDX_ITEM]].append(line)
 
     print(sum([len(inters) for inters in user_interactions.values()]))
+
+    item_replacement = merge_items(author_items, item_info, header_item, item_count)
+
     for user_id in user_interactions.keys():
         user_interactions[user_id] = clean_with_same_review(user_interactions[user_id], item_count, item_info,
+                                                            item_replacement,
                                                             RATING_IDX_INTER, REVIEW_IDX_INTER, ITEM_IDX_INTER,
                                                             AUTHOR_IDX_ITEM, AVG_RATING_IDX_ITEM)
     print(sum([len(inters) for inters in user_interactions.values()]))
+
     for user_id in user_interactions.keys():
         user_interactions[user_id] = replace_items_by_replacement(user_interactions[user_id], item_info,
+                                                                  item_replacement,
                                                                   REVIEW_IDX_INTER, ITEM_IDX_INTER,
                                                                   AUTHOR_IDX_ITEM, AVG_RATING_IDX_ITEM)
     print(sum([len(inters) for inters in user_interactions.values()]))
@@ -67,7 +73,45 @@ def main(in_folder, out_folder):
                 writer.writerow(info_line)
 
 
-def replace_items_by_replacement(user_inters, item_info,
+def merge_items(author_items, item_info, header_item, item_count):
+    item_replacement_high = defaultdict()
+
+    ITEM_IDX_ITEM = header_item.index("item_id")
+    AVG_RATING_IDX_ITEM = header_item.index("avg_rating")
+    NUM_RATING_IDX_ITEM = header_item.index("num_rating")
+
+    for author, items in author_items.items():
+        high_score_grped = []
+        for i in range(0, len(items)):
+            # skip on totally new items (TODO maybe increase this number, as usually dupples exist for more popular books)
+            if item_info[items[i][ITEM_IDX_ITEM]][NUM_RATING_IDX_ITEM] == "":
+                continue
+            if int(item_info[items[i][ITEM_IDX_ITEM]][NUM_RATING_IDX_ITEM].replace(',', '')) <= 5:
+                continue
+            for j in range(i+1, len(items)):
+                if item_info[items[j][ITEM_IDX_ITEM]][NUM_RATING_IDX_ITEM] == "":
+                    continue
+                if items[i][AVG_RATING_IDX_ITEM] == items[j][AVG_RATING_IDX_ITEM]:
+                    if items[i][NUM_RATING_IDX_ITEM].replace(',', '') == items[j][NUM_RATING_IDX_ITEM].replace(',', ''):
+                        added = False
+                        for grp in high_score_grped:
+                            if i in grp:
+                                grp.add(j)
+                                added = True
+                                break
+                        if not added:
+                            high_score_grped.append(set([i, j]))
+
+        for grp in high_score_grped:
+            sorted_item_ids = sorted([items[g][ITEM_IDX_ITEM] for g in grp], key=lambda x: item_count[x], reverse=True)
+            most_used_item = sorted_item_ids[0]
+            for item_id in sorted_item_ids[1:]:
+                item_replacement_high[item_id] = most_used_item
+
+    return item_replacement_high
+
+
+def replace_items_by_replacement(user_inters, item_info, item_replacement,
                                  REVIEW_IDX_INTER, ITEM_IDX_INTER, AUTHOR_IDX_ITEM, AVG_RATING_IDX_ITEM):
     ret_inters = []
 
@@ -97,7 +141,7 @@ def replace_items_by_replacement(user_inters, item_info,
     return ret_inters
 
 
-def clean_with_same_review(user_inters, item_count, item_info,
+def clean_with_same_review(user_inters, item_count, item_info, item_replacement,
                            RATING_IDX_INTER, REVIEW_IDX_INTER, ITEM_IDX_INTER, AUTHOR_IDX_ITEM, AVG_RATING_IDX_ITEM):
     ret_inters = []
 
