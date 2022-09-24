@@ -65,7 +65,7 @@ if __name__ == "__main__":
     user_interaction_cnt = get_per_user_interaction_cnt(interactions, USER_ID_IDX_INTER)
 
     lt_users = [user for user in user_interaction_cnt.keys() if user_interaction_cnt[user] <= LT_THRESHOLD]
-    shared_users = user_interaction_cnt - set(lt_users)
+    shared_users = user_interaction_cnt.keys() - set(lt_users)
 
     chosen_long_tail_users = random.sample(lt_users, k=num_lt_users)
     chosen_users = random.sample(shared_users, k=starting_num_users)
