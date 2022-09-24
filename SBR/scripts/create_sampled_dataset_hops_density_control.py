@@ -35,10 +35,11 @@ if __name__ == "__main__":
     USER_FILE = "goodreads_crawled.users"
     USER_ID_FIELD = "user_id"
     ITEM_ID_FIELD = "item_id"
+    RATING_FIELD = "rating"
 
     rating_threshold = 3
-    starting_num_users = 50
-    num_lt_users = 20
+    starting_num_users = 100
+    num_lt_users = 100
     num_h0_items = 500
     total_num_users = 10000
     # objective = 'dense'
@@ -50,10 +51,15 @@ if __name__ == "__main__":
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
         reader = csv.reader(f)
         inter_header = next(reader)
-        RATING_IDX_INTER = inter_header.index("rating")
+        RATING_IDX_INTER = inter_header.index(RATING_FIELD)
         for line in reader:
             if rating_threshold is not None:
-                rating = rating_mapping[line[RATING_IDX_INTER]]
+                if INTERACTION_FILE.strip("goodreads_crawled"):
+                    rating = rating_mapping[line[RATING_IDX_INTER]]
+                elif INTERACTION_FILE.strip("amazon_reviews_books"):
+                    rating = int(line[RATING_IDX_INTER])
+                else:
+                    raise NotImplementedError("not implemented!")
                 if rating < rating_threshold:
                     continue
             interactions.append(line)
