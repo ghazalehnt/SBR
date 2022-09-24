@@ -1,7 +1,6 @@
 import csv
 import os
 import random
-from collections import defaultdict
 from os.path import join
 import numpy as np
 
@@ -34,6 +33,8 @@ if __name__ == "__main__":
     INTERACTION_FILE = "goodreads_crawled.interactions"
     ITEM_FILE = "goodreads_crawled.items"
     USER_FILE = "goodreads_crawled.users"
+    USER_ID_FIELD = "user_id"
+    ITEM_ID_FIELD = "item_id"
 
     rating_threshold = 3
     starting_num_users = 50
@@ -58,8 +59,8 @@ if __name__ == "__main__":
             interactions.append(line)
     print(inter_header)
 
-    USER_ID_IDX_INTER = inter_header.index("user_id")
-    ITEM_ID_IDX_INTER = inter_header.index("item_id")
+    USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
+    ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
 
     user_interaction_cnt = get_per_user_interaction_cnt(interactions, USER_ID_IDX_INTER)
 
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     with open(join(DATASET_PATH, USER_FILE), 'r') as f:
         reader = csv.reader(f)
         user_header = next(reader)
-        IDX = user_header.index("user_id")
+        IDX = user_header.index(USER_ID_FIELD)
         for line in reader:
             if line[IDX] in total_users:
                 user_info.append(line)
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     with open(join(DATASET_PATH, ITEM_FILE), 'r') as f:
         reader = csv.reader(f)
         item_header = next(reader)
-        IDX = item_header.index("item_id")
+        IDX = item_header.index(ITEM_ID_FIELD)
         for line in reader:
             if line[IDX] in total_items:
                 item_info.append(line)
