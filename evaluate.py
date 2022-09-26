@@ -11,12 +11,9 @@ from collections import Counter
 
 import transformers
 from datasets import load_dataset
-import matplotlib.pyplot as plt
 import numpy as np
-from sqlalchemy.sql.functions import user
 
 from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, calculate_cl_macro
-from SBR.utils.data_loading import load_crawled_goodreads_dataset
 
 relevance_level = 1
 prediction_threshold = 0.5
