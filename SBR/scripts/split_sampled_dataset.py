@@ -41,9 +41,16 @@ if __name__ == "__main__":
     np.random.seed(42)
 
     DATASET_PATH = "TODO"
-    INTERACTION_FILE = "goodreads_crawled.interactions"
-    ITEM_FILE = "goodreads_crawled.items"
-    USER_FILE = "goodreads_crawled.users"
+    # INTERACTION_FILE = "goodreads_crawled.interactions"
+    # ITEM_FILE = "goodreads_crawled.items"
+    # USER_FILE = "goodreads_crawled.users"
+    # USER_ID_FIELD = "user_id"
+    # ITEM_ID_FIELD = "item_id"
+    INTERACTION_FILE = "amazon_reviews_books.interactions"
+    ITEM_FILE = "amazon_reviews_books.items"
+    USER_FILE = "amazon_reviews_books.users"
+    USER_ID_FIELD = "reviewerID"
+    ITEM_ID_FIELD = "asin"
 
     lt_threshold = 4
     ratios = [0.6, 0.2, 0.2]
@@ -52,20 +59,21 @@ if __name__ == "__main__":
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
         reader = csv.reader(f)
         inter_header = next(reader)
-        USER_ID_IDX_INTER = inter_header.index("user_id")
-        ITEM_ID_IDX_INTER = inter_header.index("item_id")
+        USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
+        ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
         for line in reader:
             per_user_interactions[line[USER_ID_IDX_INTER]].append(line)
 
     train, valid, test = create_splits(per_user_interactions, ratios, lt_threshold)
 
     out_path = join(DATASET_PATH, f"ltth{lt_threshold}_ratios{'-'.join([str(r) for r in ratios])}")
+    os.makedirs(out_path, exist_ok=True)
 
     with open(join(out_path, "train.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
         writer.writerows(train)
-    with open(join(out_path, "valid.csv"), 'w') as f:
+    with open(join(out_path, "validation.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
         writer.writerows(valid)
