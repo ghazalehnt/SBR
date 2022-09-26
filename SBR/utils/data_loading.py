@@ -645,7 +645,11 @@ def load_split_dataset(config):
 
                 if config['user_text_filter'] in ["item_sentence_SBERT"]:
                     # first we sort the items based on the ratings, tie-breaker
-                    temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False])
+                    if tie_breaker is None:
+                        temp = temp.sort_values(['rating'], ascending=[False])
+                    else:
+                        temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False])
+
                     # sentencize the user text (r, tgr, ...)
                     sent_splitter = SentenceSplitter(language='en')
                     temp['sentences_text'] = temp.apply(lambda row: sentencize(row['text'], sent_splitter,
