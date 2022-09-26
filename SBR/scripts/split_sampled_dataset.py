@@ -46,11 +46,13 @@ if __name__ == "__main__":
     # USER_FILE = "goodreads_crawled.users"
     # USER_ID_FIELD = "user_id"
     # ITEM_ID_FIELD = "item_id"
+    # RATING_FIELD = "rating"
     INTERACTION_FILE = "amazon_reviews_books.interactions"
     ITEM_FILE = "amazon_reviews_books.items"
     USER_FILE = "amazon_reviews_books.users"
     USER_ID_FIELD = "reviewerID"
     ITEM_ID_FIELD = "asin"
+    RATING_FIELD = "overall"
 
     lt_threshold = 4
     ratios = [0.6, 0.2, 0.2]
@@ -69,6 +71,9 @@ if __name__ == "__main__":
     out_path = join(DATASET_PATH, f"ltth{lt_threshold}_ratios{'-'.join([str(r) for r in ratios])}")
     os.makedirs(out_path, exist_ok=True)
 
+    inter_header[USER_ID_IDX_INTER] = "user_id"
+    inter_header[ITEM_ID_IDX_INTER] = "item_id"
+    inter_header[inter_header.index(RATING_FIELD)] = "rating"
     with open(join(out_path, "train.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
@@ -82,9 +87,27 @@ if __name__ == "__main__":
         writer.writerow(inter_header)
         writer.writerows(test)
 
-    # copy user and item files
-    shutil.copyfile(join(DATASET_PATH, ITEM_FILE), join(out_path, "items.csv"))
-    shutil.copyfile(join(DATASET_PATH, USER_FILE), join(out_path, "users.csv"))
+    # copy user and item files, change header
+    with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin, open(join(out_path, "items.csv"), 'w') as fout:
+        reader = csv.reader(fin)
+        item_header = next(reader)
+        writer = csv.writer(fout)
+        item_header[item_header.index(ITEM_ID_FIELD)] = "item_id"
+        writer.writerow(item_header)
+        for line in reader:
+            writer.writerow(line)
+
+    with open(join(DATASET_PATH, USER_FILE), 'r') as fin, open(join(out_path, "users.csv"), 'w') as fout:
+        reader = csv.reader(fin)
+        user_header = next(reader)
+        writer = csv.writer(fout)
+        user_header[user_header.index(USER_ID_FIELD)] = "user_id"
+        writer.writerow(user_header)
+        for line in reader:
+            writer.writerow(line)
+
+    # shutil.copyfile(join(DATASET_PATH, ITEM_FILE), join(out_path, "items.csv"))
+    # shutil.copyfile(join(DATASET_PATH, USER_FILE), join(out_path, "users.csv"))
 
     allusers = set([line[USER_ID_IDX_INTER] for line in train])
     allusers = allusers.union(set([line[USER_ID_IDX_INTER] for line in test]))
