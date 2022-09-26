@@ -527,10 +527,12 @@ def load_split_dataset(config):
                  "item." in field})
     # TODO maybe move these preprocessing to another step? of creating the dataset?
     if config["name"] == "Amazon":
-        item_info['item.category'] = item_info['item.category'].apply(
-            lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
-        item_info['item.description'] = item_info['item.description'].apply(
-            lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
+        if 'item.category' in item_info.columns:
+            item_info['item.category'] = item_info['item.category'].apply(
+                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
+        if 'item.description' in item_info.columns:
+            item_info['item.description'] = item_info['item.description'].apply(
+                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
