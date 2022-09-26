@@ -494,7 +494,7 @@ def load_split_dataset(config):
     keep_fields = list(set(keep_fields))
     remove_fields = list(set(remove_fields) - set(keep_fields))
     user_info = user_info.drop(columns=remove_fields)
-    user_info = user_info.sort_values("user_id")
+    user_info = user_info.sort_values("user_id").reset_index(drop=True)
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
     user_info = user_info.fillna('')
     user_info = user_info.rename(
@@ -514,11 +514,10 @@ def load_split_dataset(config):
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
             keep_fields.extend([tie_breaker])
             item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
-        item_info = item_info
     remove_fields = item_info.columns
     remove_fields = list(set(remove_fields) - set(keep_fields))
     item_info = item_info.drop(columns=remove_fields)
-    item_info = item_info.sort_values("item_id")
+    item_info = item_info.sort_values("item_id").reset_index(drop=True)
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
     item_info = item_info.fillna('')
     # TODO add wrong genre removal, i.e. "like"
