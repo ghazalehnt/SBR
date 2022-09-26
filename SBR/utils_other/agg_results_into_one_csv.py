@@ -46,7 +46,13 @@ def main(exp_dir, evalset, file_suffix):
                 profile.append('t')
             if "item.genres" in folder_name:
                 profile.append('g')
+            if "item.category" in folder_name:
+                profile.append('c')
+            if "interaction.summary" in folder_name:
+                profile.append('s')
             if "interaction.review" in folder_name:
+                profile.append('r')
+            if "interaction.reviewText" in folder_name:
                 profile.append('r')
             profile = ''.join(profile)
             if folder_name.startswith("True"):
