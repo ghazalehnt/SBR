@@ -17,6 +17,7 @@ from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, cal
 
 relevance_level = 1
 prediction_threshold = 0.5
+
 goodreads_rating_mapping = {
     None: None,  ## this means there was no rating
     'did not like it': 1,
@@ -61,7 +62,12 @@ def group_users(config, thresholds, min_user_review_len=None):
                 "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
                 "test": os.path.join(config['dataset']['dataset_path'], "test.csv")}
     split_datasets = load_dataset("csv", data_files=sp_files)
-    split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
+    if config['dataset']['name'] == "CGR":
+        split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
+    elif config["name"] == "Amazon":
+        split_datasets = split_datasets.map(lambda x: {int(float(x))})
+    else:
+        raise NotImplementedError(f"dataset {config['name']} not implemented!")
     if not config['dataset']['binary_interactions']:
         # if predicting rating: remove the not-rated entries and map rating text to int
         split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
