@@ -99,15 +99,12 @@ def filter_user_profile(dataset_config, user_info):
 def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
-    if config["name"] == "CGR":
-        if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
-            temp_cs = config['case_sensitive']
-            config['case_sensitive'] = True
-        datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_crawled_goodreads_dataset(config)
-        if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
-            config['case_sensitive'] = temp_cs
-    else:
-        raise ValueError(f"dataset {config['name']} not implemented!")
+    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
+        temp_cs = config['case_sensitive']
+        config['case_sensitive'] = True
+    datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_split_dataset(config)
+    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
+        config['case_sensitive'] = temp_cs
     print(f"Finish: load dataset in {time.time()-start}")
 
     # apply filter:
@@ -331,6 +328,8 @@ class CollateRepresentationBuilder(object):
         for col in batch_df.columns:
             if col in ret:
                 continue
+            if col in ["user_id", "item_id"]:
+                continue
             ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
         return ret
 
@@ -478,7 +477,7 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
     return used_items
 
 
-def load_crawled_goodreads_dataset(config):
+def load_split_dataset(config):
     user_text_fields = config['user_text']
     item_text_fields = config['item_text']
     if config['text_in_batch'] is False:
@@ -526,6 +525,12 @@ def load_crawled_goodreads_dataset(config):
     item_info = item_info.rename(
         columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
                  "item." in field})
+    # TODO maybe move these preprocessing to another step? of creating the dataset?
+    if config["name"] == "Amazon":
+        item_info['item.category'] = item_info['item.category'].apply(
+            lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
+        item_info['item.description'] = item_info['item.description'].apply(
+            lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
@@ -535,7 +540,6 @@ def load_crawled_goodreads_dataset(config):
     filtered_out_user_item_pairs_by_limit = {}
     for sp, file in sp_files.items():
         df = pd.read_csv(file)
-        df['review'] = df['review'].fillna('')
         # book limit:
         if sp == 'train' and config['limit_training_data'] != "":
             if config['limit_training_data'].startswith("max_book"):
@@ -569,13 +573,23 @@ def load_crawled_goodreads_dataset(config):
             df['label'] = np.ones(df.shape[0])
             # df = df.drop(columns=['rating']) # todo we are not removing this now, bcs maybe we need it next when choosing the reviews
             df['rating'] = df['rating'].fillna(-1)
-            for k, v in goodreads_rating_mapping.items():
-                df['rating'] = df['rating'].replace(k, v)
+            if config["name"] == "CGR":
+                for k, v in goodreads_rating_mapping.items():
+                    df['rating'] = df['rating'].replace(k, v)
+            elif config["name"] == "Amazon":
+                df['rating'] = df['rating'].astype(int)
+            else:
+                raise NotImplementedError(f"dataset {config['name']} not implemented!")
         else:
             # if predicting rating: remove the not-rated entries and map rating text to int
             df = df[df['rating'].notna()].reset_index()
-            for k, v in goodreads_rating_mapping.items():
-                df['rating'] = df['rating'].replace(k, v)
+            if config["name"] == "CGR":
+                for k, v in goodreads_rating_mapping.items():
+                    df['rating'] = df['rating'].replace(k, v)
+            elif config["name"] == "Amazon":
+                df['rating'] = df['rating'].astype(int)
+            else:
+                raise NotImplementedError(f"dataset {config['name']} not implemented!")
             df['label'] = df['rating']
             # df = df.rename(columns={"rating": "label"})  # todo we are not removing this now, bcs maybe we need it next
 
@@ -590,6 +604,11 @@ def load_crawled_goodreads_dataset(config):
         df = df.rename(
             columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
                      "interaction." in field})
+
+        # TODO preprocessing? removing html tags? ....
+        for field in user_text_fields:
+            if "interaction." in field:
+                df[field] = df[field].fillna('')
 
         # concat and move the user/item text fields to user and item info:
         if "user_review_choice" not in config:
@@ -650,6 +669,8 @@ def load_crawled_goodreads_dataset(config):
                         user_items = []
                         user_item_temp = temp[temp[INTERNAL_USER_ID_FIELD] == user]
                         for item_id, sents in zip(user_item_temp[INTERNAL_ITEM_ID_FIELD], user_item_temp['sentences_text']):
+                            if len(sents) == 0:
+                                continue
                             item = item_info.loc[item_id]
                             if item_id != item[INTERNAL_ITEM_ID_FIELD]:
                                 raise ValueError("item id and index does not match!")
@@ -781,6 +802,7 @@ def load_crawled_goodreads_dataset(config):
 
     return DatasetDict(split_datasets), Dataset.from_pandas(user_info, preserve_index=False), \
            Dataset.from_pandas(item_info, preserve_index=False), filtered_out_user_item_pairs_by_limit
+
 
 
 # load_data({"dataset_path": "/home/ghazaleh/workspace/SBR/data/GR_read_5-folds/toy_dataset/",
