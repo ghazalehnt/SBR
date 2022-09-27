@@ -28,9 +28,11 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
             config['dataset']['user_text_filter'] = given_user_text_filter
         if given_limit_training_data is not None:
             config['dataset']['limit_training_data'] = given_limit_training_data
-        if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
+        if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
+            DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
+                             config["dataset"]["dataset_path"].index(">")+1]
             config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"]\
-                .replace("<DATA_ROOT_PATH>", open("data/paths_vars/DATA_ROOT_PATH").read().strip())
+                .replace(DATA_ROOT_PATH, open(f"data/paths_vars/{DATA_ROOT_PATH[1:-1]}").read().strip())
         if "<EXP_ROOT_PATH>" in config["experiment_root"]:
             config["experiment_root"] = config["experiment_root"]\
                 .replace("<EXP_ROOT_PATH>", open("data/paths_vars/EXP_ROOT_PATH").read().strip())
