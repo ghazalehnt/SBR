@@ -1,4 +1,5 @@
 import csv
+import math
 import os
 import random
 import re
@@ -59,7 +60,10 @@ if __name__ == "__main__":
 
     item_authors = defaultdict()
     all_authors = set()
-    item_tie_breaks = defaultdict(lambda : {1: 0, 2: 0, 3: 0})
+    if INTERACTION_FILE.startswith("amazon_reviews_books"):
+        item_tie_breaks = defaultdict(lambda: {0: math.inf, 1: math.inf, 2: math.inf, 3: math.inf})
+    else:
+        raise NotImplementedError("todo")
     with open(join(DATASET_PATH, ITEM_FILE), 'r') as f:
         reader = csv.reader(f)
         item_header = next(reader)
@@ -82,19 +86,25 @@ if __name__ == "__main__":
                 # in Books
                 try:
                     tie_brk = int(re.sub(r"(?:\['>#)?([\d,]+) in Books.*", '\g<1>', tie_brk).replace(',', ''))
-                    item_tie_breaks[item_id][1] = tie_brk
+                    item_tie_breaks[item_id][0] = tie_brk
                 except:
                     try:
                         tie_brk = int(re.sub(r"(?:\['>#)?([\d,]+) Paid in Kindle Store.*", '\g<1>', tie_brk).replace(',', ''))
-                        item_tie_breaks[item_id][2] = tie_brk
+                        item_tie_breaks[item_id][1] = tie_brk
                     except:
                         try:
                             tie_brk = int(
                                 re.sub(r"(?:\['>#)?([\d,]+) Free in Kindle Store.*", '\g<1>', tie_brk).replace(',', ''))
-                            item_tie_breaks[item_id][3] = tie_brk
+                            item_tie_breaks[item_id][2] = tie_brk
                         except:
-                            print(tie_brk)
-                            tie_brk = 0
+                            try:
+                                tie_brk = int(
+                                    re.sub(r"(?:\['>#)?([\d,]+) in .*", '\g<1>', tie_brk).replace(',',
+                                                                                                                   ''))
+                                item_tie_breaks[item_id][3] = tie_brk
+                            except:
+                                print(tie_brk)
+                                tie_brk = 0
             else:
                 print(tie_brk)
                 tie_brk = 0
@@ -140,11 +150,12 @@ if __name__ == "__main__":
                 remaining_items.add(inters[0][ITEM_ID_IDX_INTER])
             else:
                 # choosing 1 book per author per user
-                inters = sorted(inters, key=lambda x: (int(float(x[RATING_IDX_INTER])),
+                inters = sorted(inters, key=lambda x: (-1 * int(float(x[RATING_IDX_INTER])),
+                                                       item_tie_breaks[x[ITEM_ID_IDX_INTER]][0],
                                                        item_tie_breaks[x[ITEM_ID_IDX_INTER]][1],
                                                        item_tie_breaks[x[ITEM_ID_IDX_INTER]][2],
                                                        item_tie_breaks[x[ITEM_ID_IDX_INTER]][3]),
-                                reverse=True)
+                                reverse=False)  # main sort is rating, bigger the better. but we *-1 to be coherent with other tie breakers which is the rank, smaller better.
                 interactions.append(inters[0])
                 remaining_items.add(inters[0][ITEM_ID_IDX_INTER])
 
@@ -176,6 +187,7 @@ if __name__ == "__main__":
         writer.writerow(inter_header)
         for line in interactions:
             writer.writerow(line)
+    print(f"remaining interactions: {len(interactions)}")
 
     print("Done")
     # TODOthere are cases where if we remove Visit ... from the author name it exists in the authores.. but let's keep it now as is (124 out of ~1.4M authors though!)
