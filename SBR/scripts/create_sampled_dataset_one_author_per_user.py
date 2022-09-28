@@ -185,11 +185,11 @@ if __name__ == "__main__":
     with open(join(out_path, INTERACTION_FILE), 'w') as fout:
         writer = csv.writer(fout)
         writer.writerow(inter_header)
-        for line in interactions:
-            writer.writerow(line)
+        writer.writerows(interactions)
     print(f"remaining interactions: {len(interactions)}")
 
     print("Done")
+
     # TODOthere are cases where if we remove Visit ... from the author name it exists in the authores.. but let's keep it now as is (124 out of ~1.4M authors though!)
     # for author in all_authors:
     #     if "Visit Amazon" in author:
