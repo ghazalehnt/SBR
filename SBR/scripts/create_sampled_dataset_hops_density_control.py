@@ -3,6 +3,8 @@ import os
 import random
 from os.path import join
 import numpy as np
+import sys
+csv.field_size_limit(sys.maxsize)
 
 rating_mapping = {
     '': 0,
@@ -29,22 +31,30 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
-    DATASET_PATH = ".../extracted_dataset..."
-    INTERACTION_FILE = "goodreads_crawled.interactions"
-    ITEM_FILE = "goodreads_crawled.items"
-    USER_FILE = "goodreads_crawled.users"
-    USER_ID_FIELD = "user_id"
-    ITEM_ID_FIELD = "item_id"
-    RATING_FIELD = "rating"
+    #DATASET_PATH = ".../extracted_dataset..."
+    #INTERACTION_FILE = "goodreads_crawled.interactions"
+    #ITEM_FILE = "goodreads_crawled.items"
+    #USER_FILE = "goodreads_crawled.users"
+    #USER_ID_FIELD = "user_id"
+    #ITEM_ID_FIELD = "item_id"
+    #RATING_FIELD = "rating"
+    
+    DATASET_PATH = "tODO"
+    INTERACTION_FILE = "amazon_reviews_books.interactions"
+    ITEM_FILE = "amazon_reviews_books.items"
+    USER_FILE = "amazon_reviews_books.users"
+    USER_ID_FIELD = "reviewerID"
+    ITEM_ID_FIELD = "asin"
+    RATING_FIELD = "overall"
 
     rating_threshold = 3
-    starting_num_users = 100
-    num_lt_users = 100
-    num_h0_items = 500
-    total_num_users = 10000
-    # objective = 'dense'
-    objective = 'sparse'
-    # objective = 'random'
+    starting_num_users = 5
+    num_lt_users = 5
+    num_h0_items = 10
+    total_num_users = 50
+    #objective = 'dense'
+    #objective = 'sparse'
+    objective = 'random'
     LT_THRESHOLD = 4
 
     interactions = []
@@ -54,10 +64,12 @@ if __name__ == "__main__":
         RATING_IDX_INTER = inter_header.index(RATING_FIELD)
         for line in reader:
             if rating_threshold is not None:
-                if INTERACTION_FILE.strip("goodreads_crawled"):
+                if INTERACTION_FILE.startswith("goodreads_crawled"):
                     rating = rating_mapping[line[RATING_IDX_INTER]]
-                elif INTERACTION_FILE.strip("amazon_reviews_books"):
-                    rating = int(line[RATING_IDX_INTER])
+                elif INTERACTION_FILE.startswith("amazon_reviews_books"):
+#                    if len(line) < RATING_IDX_INTER:
+#                    print(line)
+                    rating = int(float(line[RATING_IDX_INTER]))
                 else:
                     raise NotImplementedError("not implemented!")
                 if rating < rating_threshold:
