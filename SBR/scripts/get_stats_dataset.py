@@ -2,10 +2,10 @@ import csv
 from collections import defaultdict
 from os.path import join
 
-import networkx as nx
-from networkx.algorithms import bipartite
+import matplotlib
 import scipy.stats
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 
 
 def get_histogram(vals):
@@ -61,64 +61,6 @@ def get_per_field_interaction_cnt(inters, field):
     return ret
 
 
-def get_graph(inters):
-    B = nx.Graph()
-    user_nodes = set()
-    item_nodes = set()
-    edges = []
-    for line in inters:
-        user_id = f"u_{line[1]}"
-        item_id = f"i_{line[2]}"
-        user_nodes.add(user_id)
-        item_nodes.add(item_id)
-        edges.append((user_id, item_id))
-    # Add nodes with the node attribute "bipartite"
-    B.add_nodes_from(list(user_nodes), bipartite=0)
-    B.add_nodes_from(list(item_nodes), bipartite=1)
-    # Add edges only between nodes of opposite node sets
-    B.add_edges_from(edges)
-    return B, user_nodes
-
-
-def get_user_groups(train_set, user_id_idx, thresholds=[5]):
-    user_count = {}
-    for line in train_set:
-        if line[user_id_idx] not in user_count:
-            user_count[line[user_id_idx]] = 1
-        else:
-            user_count[line[user_id_idx]] += 1
-    groups = {thr: set() for thr in sorted(thresholds)}
-    groups['rest'] = set()
-    for user, cnt in user_count.items():
-        added = False
-        for thr in sorted(thresholds):
-            if cnt <= thr:
-                groups[thr].add(user)
-                added = True
-                break
-        if not added:
-            groups['rest'].add(user)
-
-    ret_group = {}
-    last = 1
-    for gr in groups:
-        if gr == 'rest':
-            new_gr = f"{last}+"
-        else:
-            new_gr = f"{last}-{gr}"
-            last = gr + 1
-        ret_group[new_gr] = groups[gr]
-    return ret_group
-
-
-def user_grp_inter_cnt(split_set, users, user_id_idx):
-    cnt = 0
-    for line in split_set:
-        if line[user_id_idx] in users:
-            cnt += 1
-    return cnt
-
-
 if __name__ == '__main__':
     DATASET_DIR = ''
     USER_ID_FIELD = "reviewerID"
@@ -130,7 +72,6 @@ if __name__ == '__main__':
     statfile = open(join(DATASET_DIR, f"stats.txt"), 'w')
 
     interactions, inter_header = read_interactions(join(DATASET_DIR, INTERACTION_FILE))
-    # user_groups = get_user_groups(interactions, inter_header.index(USER_ID_FIELD), thresholds)
 
     per_user_inters = get_per_field_interaction_cnt(interactions, inter_header.index(USER_ID_FIELD))
     per_item_inters = get_per_field_interaction_cnt(interactions, inter_header.index(ITEM_ID_FIELD))
