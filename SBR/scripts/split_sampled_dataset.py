@@ -1,11 +1,13 @@
 import csv
 import os
 import random
-import shutil
+import re
 from collections import defaultdict
 from os.path import join
 import numpy as np
 from sklearn.model_selection import train_test_split
+
+CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
 
 def create_splits(per_user_interactions, ratios, longtail_trainonly_th):
@@ -77,15 +79,15 @@ if __name__ == "__main__":
     with open(join(out_path, "train.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
-        writer.writerows(train)
+        writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in train])
     with open(join(out_path, "validation.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
-        writer.writerows(valid)
+        writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in valid])
     with open(join(out_path, "test.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
-        writer.writerows(test)
+        writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in test])
 
     # copy user and item files, change header
     with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin, open(join(out_path, "items.csv"), 'w') as fout:
@@ -95,7 +97,7 @@ if __name__ == "__main__":
         item_header[item_header.index(ITEM_ID_FIELD)] = "item_id"
         writer.writerow(item_header)
         for line in reader:
-            writer.writerow(line)
+            writer.writerow([re.sub(CLEANR, '', l) for l in line])
 
     with open(join(DATASET_PATH, USER_FILE), 'r') as fin, open(join(out_path, "users.csv"), 'w') as fout:
         reader = csv.reader(fin)
@@ -104,7 +106,7 @@ if __name__ == "__main__":
         user_header[user_header.index(USER_ID_FIELD)] = "user_id"
         writer.writerow(user_header)
         for line in reader:
-            writer.writerow(line)
+            writer.writerow([re.sub(CLEANR, '', l) for l in line])
 
     # shutil.copyfile(join(DATASET_PATH, ITEM_FILE), join(out_path, "items.csv"))
     # shutil.copyfile(join(DATASET_PATH, USER_FILE), join(out_path, "users.csv"))
