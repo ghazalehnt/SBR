@@ -6,6 +6,8 @@ from collections import defaultdict
 from os.path import join
 import numpy as np
 from sklearn.model_selection import train_test_split
+import sys
+csv.field_size_limit(sys.maxsize)
 
 CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
