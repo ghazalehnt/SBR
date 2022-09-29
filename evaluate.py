@@ -56,7 +56,7 @@ def get_metrics(ground_truth, prediction_scores, calc_cl_metrics=True):
     return results
 
 
-def group_users(config, thresholds, min_user_review_len=None):
+def group_users(config, thresholds, min_user_review_len=None, review_field=None):
     # here we have some users who only exist in training set
     sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
                 "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
@@ -83,7 +83,7 @@ def group_users(config, thresholds, min_user_review_len=None):
         keep_users = {}
         tokenizer = transformers.AutoTokenizer.from_pretrained(BERTMODEL)
         user_reviews = {}
-        for user_id, review in zip(split_datasets['train']['user_id'], split_datasets['train']['review']):
+        for user_id, review in zip(split_datasets['train']['user_id'], split_datasets['train'][review_field]):
             if user_id not in user_reviews:
                 user_reviews[user_id] = []
             if review is not None:
@@ -128,9 +128,10 @@ def group_users(config, thresholds, min_user_review_len=None):
 
 
 def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
-         min_user_review_len=None):
+         min_user_review_len=None, review_field=None):
     start = time.time()
-    user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds, min_user_review_len)
+    user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds,
+                                                                           min_user_review_len, review_field)
     if len(train_user_count) == 0:
         return
 
@@ -253,11 +254,13 @@ if __name__ == "__main__":
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result folder, to evaluate')
     parser.add_argument('--thresholds', type=int, nargs='+', default=None, help='user thresholds')
     parser.add_argument('--user_review_len', type=int, default=None, help='min length of the user review')
+    parser.add_argument('--review_field', type=str, default="review", help='review field')
     args, _ = parser.parse_known_args()
 
     result_folder = args.result_folder
     thrs = args.thresholds
     r_len = args.user_review_len
+    r_field = args.review_field
 
     if not os.path.exists(os.path.join(result_folder, "config.json")):
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
@@ -273,6 +276,6 @@ if __name__ == "__main__":
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
-         thrs, r_len)
+         thrs, r_len, r_field)
 
 
