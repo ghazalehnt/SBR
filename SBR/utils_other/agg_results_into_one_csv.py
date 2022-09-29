@@ -53,7 +53,7 @@ def main(exp_dir, evalset, file_suffix):
             item_text_part = folder_name[folder_name.rindex("_"):]
             if item_text_part == "_item.title-item.category-item-description":
                 item_text = "tcd"
-            elif item_text_part == "_item.title-item.genres-item-description":
+            elif item_text_part == "_item.title-item.genres-item.description":
                 item_text = "tgd"
             elif item_text_part == "_item.title-item.category":
                 item_text = "tc"
