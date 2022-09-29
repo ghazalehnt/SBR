@@ -9,9 +9,8 @@ def round_half_up(n, decimals=0):
     multiplier = 10 ** decimals
     return math.floor(n * multiplier + 0.5) / multiplier
 
-# False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_interaction.review
-# False_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512_max_pool_mean_last__False_True_item.avg_rating_item.title-item.genres,Test
-# .avg_rating_item.title-item.genres-interaction.review,Test
+# False_200_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512
+# _max_pool_mean_last_tf-idf_2_False_True__item.category__item.title-item.category-item-description
 def main(exp_dir, evalset, file_suffix):
     if evalset == 'test':
         result_file_name = f"results_test_{file_suffix}.csv"
@@ -29,9 +28,9 @@ def main(exp_dir, evalset, file_suffix):
             continue
 #        print(folder_name)
         if folder_name.startswith("False") or folder_name.startswith("True"):
-            if "test_neg_random_100_1_1_" in folder_name:
+            if "random_100_1_1_" in folder_name:
                 ch = 1
-            elif "test_neg_random_100_5_5_" in folder_name:
+            elif "random_100_5_5_" in folder_name:
                 ch = 5
             else:
                 raise ValueError("num chunks not found in fname")
@@ -41,6 +40,20 @@ def main(exp_dir, evalset, file_suffix):
                 if filter in folder_name:
                     sortby = filter
                     break
+
+            item_text = ""
+            item_text_part = folder_name[folder_name.rindex("_"):]
+            if item_text_part == "_item.title-item.category-item-description":
+                item_text = "tcd"
+            elif item_text_part == "_item.title-item.genres-item-description":
+                item_text = "tgd"
+            elif item_text_part == "_item.title-item.category":
+                item_text = "tc"
+            elif item_text_part == "_item.title-item.genres":
+                item_text = "tg"
+            if item_text != "":
+                folder_name = folder_name[:folder_name.rindex("_")]
+
             profile = []
             if "item.title" in folder_name:
                 profile.append('t')
@@ -78,9 +91,9 @@ def main(exp_dir, evalset, file_suffix):
         for line in reader:
             if line[0] not in group_rows:
                 group_rows[line[0]] = []
-            group_rows[line[0]].append([model_config, profile, book_limit, line[0]] + [str(round_half_up(float(m)*100, 4)) for m in line[1:]])
+            group_rows[line[0]].append([model_config, profile, item_text, book_limit, line[0]] + [str(round_half_up(float(m)*100, 4)) for m in line[1:]])
 
-    header = ["model config", "user profile", "book limit"] + header
+    header = ["model config", "user profile", "item text", "book limit"] + header
     with open(join(args.dir, f"{evalset}_results_{file_suffix}.csv"), 'w') as outfile:
         print(join(args.dir, f"{evalset}_results_{file_suffix}.csv"))
         writer = csv.writer(outfile)
