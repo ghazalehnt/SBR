@@ -27,6 +27,14 @@ def main(exp_dir, evalset, file_suffix):
             print(f"no results found for: {folder_name}")
             continue
 #        print(folder_name)
+
+        res_file = open(join(exp_dir, folder_name, result_file_name), 'r')
+        try:
+            reader = csv.reader(res_file)
+            header = next(reader)
+        except Exception:
+            print(f"empty file: {join(exp_dir, folder_name, result_file_name)}")
+
         if folder_name.startswith("False") or folder_name.startswith("True"):
             if "random_100_1_1_" in folder_name:
                 ch = 1
@@ -75,6 +83,7 @@ def main(exp_dir, evalset, file_suffix):
         else:
             model_config = f"CF-{folder_name[:folder_name.index('_')]}"
             profile = ''
+            item_text = ''
         book_limit = 'all books'
         if 'max_book' in folder_name:
             temp = folder_name[folder_name.index("max_book_")+len("max_book_"):]
@@ -82,12 +91,6 @@ def main(exp_dir, evalset, file_suffix):
             num_books = temp[:temp.index("_")]
             book_limit = f"max {num_books} - {book_pick_strategy}"
 
-        res_file = open(join(exp_dir, folder_name, result_file_name), 'r')
-        try:
-            reader = csv.reader(res_file)
-            header = next(reader)
-        except Exception:
-            print(f"empty file: {join(exp_dir, folder_name, result_file_name)}")
         for line in reader:
             if line[0] not in group_rows:
                 group_rows[line[0]] = []
