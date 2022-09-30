@@ -73,7 +73,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                         f"{dataset_config['user_review_choice']}_" \
                         f"{dataset_config['review_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
                         f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
-                        f"{'_i' + '-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
+                        f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                         f".pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
             weights = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
