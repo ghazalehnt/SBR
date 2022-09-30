@@ -83,6 +83,7 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                     f"{config['dataset']['user_review_choice']}_" \
                     f"{config['dataset']['review_tie_breaker'] if config['dataset']['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
                     f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
+                    f"{'_i'+'-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                     f".pkl"
     if os.path.exists(os.path.join(prec_path, user_rep_file)):
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")

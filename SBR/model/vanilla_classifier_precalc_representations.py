@@ -22,6 +22,13 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             self.transform_u = torch.nn.Linear(bert_embedding_dim, config['k'])
             self.transform_i = torch.nn.Linear(bert_embedding_dim, config['k'])
 
+        if "k1" in config and config["k1"] not in ['', 0]:
+            self.transform_u_1 = torch.nn.Linear(bert_embedding_dim, config['k1'])
+            self.transform_i_1 = torch.nn.Linear(bert_embedding_dim, config['k1'])
+        if "k2" in config and config["k2"] not in ['', 0]:
+            self.transform_u_2 = torch.nn.Linear(config['k1'], config['k2'])
+            self.transform_i_2 = torch.nn.Linear(config['k1'], config['k2'])
+
         if config['similarity'] == "dot_product":
             self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
             self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
@@ -66,6 +73,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                         f"{dataset_config['user_review_choice']}_" \
                         f"{dataset_config['review_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
                         f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
+                        f"{'_i' + '-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                         f".pkl"
         if os.path.exists(os.path.join(prec_dir, user_rep_file)):
             weights = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
@@ -96,6 +104,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
         if hasattr(self, 'transform_u'):
             user_rep = self.transform_u(user_rep)
             item_rep = self.transform_i(item_rep)
+        elif hasattr(self, 'transform_u_1'):
+            user_rep = torch.nn.functional.relu(self.transform_u_1(user_rep))
+            item_rep = torch.nn.functional.relu(self.transform_i_1(item_rep))
+            user_rep = self.transform_u_2(user_rep)
+            item_rep = self.transform_i_2(item_rep)
         if hasattr(self, 'classifier'):
             result = self.classifier(torch.concat([user_rep, item_rep], dim=1))
         elif hasattr(self, 'bias'):
