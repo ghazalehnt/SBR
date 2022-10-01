@@ -271,10 +271,10 @@ if __name__ == "__main__":
     if not os.path.exists(os.path.join(result_folder, "test_predicted.json")):
         raise ValueError(f"Result file test_output.json does not exist: {result_folder}")
 
-    valid_ground_truth = json.load(open(os.path.join(result_folder, f"best_valid_ground_truth_{neg_strategy}.json")))  # TODO change
-    valid_prediction = json.load(open(os.path.join(result_folder, f"best_valid_predicted_{neg_strategy}.json")))
-    test_ground_truth = json.load(open(os.path.join(result_folder, f"test_ground_truth_{neg_strategy}.json")))
-    test_prediction = json.load(open(os.path.join(result_folder, f"test_predicted_{neg_strategy}.json")))
+    valid_ground_truth = json.load(open(os.path.join(result_folder, f"best_valid_ground_truth_validation_neg_{neg_strategy}.json")))
+    valid_prediction = json.load(open(os.path.join(result_folder, f"best_valid_predicted_validation_neg_{neg_strategy}.json")))
+    test_ground_truth = json.load(open(os.path.join(result_folder, f"test_ground_truth_test_neg_{neg_strategy}.json")))
+    test_prediction = json.load(open(os.path.join(result_folder, f"test_predicted_test_neg_{neg_strategy}.json")))
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
