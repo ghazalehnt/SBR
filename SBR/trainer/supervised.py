@@ -26,10 +26,16 @@ class SupervisedTrainer:
         self.valid_metric = config['valid_metric']
         self.patience = config['early_stopping_patience']
         self.best_model_path = join(exp_dir, 'best_model.pth')
-        self.best_valid_output_path = {"ground_truth": join(exp_dir, 'best_valid_ground_truth.json'),
-                                       "predicted": join(exp_dir, 'best_valid_predicted.json')}
-        self.test_output_path = {"ground_truth": join(exp_dir, 'test_ground_truth.json'),
-                                 "predicted": join(exp_dir, 'test_predicted.json')}
+        neg_name = config['dataset']['validation_neg_sampling_strategy']
+        if neg_name.startswith("f:"):
+            neg_name = neg_name[len("f:"):]
+        self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
+                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json')}
+        neg_name = config['dataset']['test_neg_sampling_strategy']
+        if neg_name.startswith("f:"):
+            neg_name = neg_name[len("f:"):]
+        self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
+                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}.json')}
         self.users = users
         self.items = items
 

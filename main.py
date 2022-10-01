@@ -13,7 +13,8 @@ from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 
 
-def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None):
+def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
+         given_neg_files=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -66,6 +67,10 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         config = json.load(open(join(result_folder, "config.json"), 'r'))
         test_only = True
         exp_dir = config["experiment_dir"]
+        if given_neg_files["validation"] is not None:
+            config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
+        if given_neg_files["test"] is not None:
+            config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
     else:
         raise ValueError("op not defined!")
 
@@ -113,7 +118,9 @@ if __name__ == '__main__':
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result forler, to evaluate')
     parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
     parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
-    parser.add_argument('op', type=str, help='operation train/test')
+    parser.add_argument('--testtime_validation_neg_strategy', '-v', default=None, help='valid neg strategy, only for op == test')
+    parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
+    parser.add_argument('--op', type=str, help='operation train/test')
     args, _ = parser.parse_known_args()
 
     if args.op == "train":
@@ -121,6 +128,8 @@ if __name__ == '__main__':
             raise ValueError(f"Config file does not exist: {args.config_file}")
         if args.result_folder:
             raise ValueError(f"OP==train does not accept result_folder")
+        if args.testtime_validation_neg_strategy or args.testtime_test_neg_strategy:
+            raise ValueError(f"OP==train does not accept test-time eval neg strategies.")
         main(op=args.op, config_file=args.config_file, given_user_text_filter=args.user_text_filter,
              given_limit_training_data=args.limit_training_data)
     elif args.op == "test":
@@ -128,7 +137,9 @@ if __name__ == '__main__':
             raise ValueError(f"Result folder does not exist: {args.config_file}")
         if args.config_file:
             raise ValueError(f"OP==test does not accept config_file")
-        main(op=args.op, result_folder=args.result_folder)
+        main(op=args.op, result_folder=args.result_folder,
+             given_neg_files={"validation": args.testtime_validation_neg_strategy,
+                              "test": args.testtime_test_neg_strategy})
 
 
 
