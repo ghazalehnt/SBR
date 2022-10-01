@@ -99,6 +99,10 @@ if __name__ == "__main__":
         item_header[item_header.index(ITEM_ID_FIELD)] = "item_id"
         writer.writerow(item_header)
         for line in reader:
+            # try to clean the genres
+            if ITEM_FILE.startswith("goodreads_crawled"):
+                if "like" in line[item_header.index("genres")]:
+                    line[item_header.index("genres")] = ''
             writer.writerow([re.sub(CLEANR, '', l) for l in line])
 
     with open(join(DATASET_PATH, USER_FILE), 'r') as fin, open(join(out_path, "users.csv"), 'w') as fout:
