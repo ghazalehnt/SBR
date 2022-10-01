@@ -268,7 +268,7 @@ if __name__ == "__main__":
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
     config = json.load(open(os.path.join(result_folder, "config.json")))
 
-    if not os.path.exists(os.path.join(result_folder, "test_predicted.json")):
+    if not os.path.exists(os.path.join(result_folder, f"best_valid_predicted_validation_neg_{neg_strategy}.json")):
         raise ValueError(f"Result file test_output.json does not exist: {result_folder}")
 
     valid_ground_truth = json.load(open(os.path.join(result_folder, f"best_valid_ground_truth_validation_neg_{neg_strategy}.json")))
