@@ -46,11 +46,11 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                 temp = config[p1][p2]
                 temp = temp[temp.index("f:validation_neg_")+len("f:validation_neg_"):]
                 exp_dir_params.append(f"f-{temp}")
-            if param == "dataset.test_neg_sampling_strategy" and config[p1][p2].startswith("f:"):
+            elif param == "dataset.test_neg_sampling_strategy" and config[p1][p2].startswith("f:"):
                 temp = config[p1][p2]
                 temp = temp[temp.index("f:test_neg_")+len("f:test_neg_"):]
                 exp_dir_params.append(f"f-{temp}")
-            if isinstance(config[p1][p2], list):
+            elif isinstance(config[p1][p2], list):
                 exp_dir_params.append('-'.join(config[p1][p2]))
             else:
                 exp_dir_params.append(str(config[p1][p2]))
