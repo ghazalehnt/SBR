@@ -30,8 +30,10 @@ def get_items_by_genre(dataset_path, genre_field):
     items_by_genre = defaultdict(list)
     item_genres = defaultdict(list)
     items = pd.read_csv(item_file)
+    items[genre_field] = items[genre_field].fillna("")
+    # some book do not  have any genre, these are considered as same genre! as we don't want to loose them in neg sampling
     for item_id, genres in zip(items[ITEM_ID_FIELD], items[genre_field]):
-        if genre_field == "category":
+        if genre_field in ["category", "genres"]:
             for g in [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]:
                 items_by_genre[g].append(item_id)
                 item_genres[item_id].append(g)
@@ -84,7 +86,7 @@ def neg_sampling_by_train_genre(pos_eval_data, per_user_train_genre_cnt, items_b
             # if we tried sampling more than needed reduce them from more frequent ones:
             while remaining_num_samples < 0:
                 for g, sample_cnt in sorted(num_samples_per_genre.items(), key=lambda x: x[1], reverse=True):
-                    if num_samples_per_genre[g] != 1:
+                    if num_samples_per_genre[g] != 0:
                         num_samples_per_genre[g] -= 1
                         remaining_num_samples += 1
                     if remaining_num_samples == 0:
