@@ -15,7 +15,7 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 class SupervisedTrainer:
     def __init__(self, config, model, device, logger, exp_dir, test_only=False, tuning=False, save_checkpoint=True,
-                 relevance_level=1, users=None, items=None):
+                     relevance_level=1, users=None, items=None, dataset_eval_neg_sampling=None):
         self.model = model
         self.device = device
         self.logger = logger
@@ -26,12 +26,12 @@ class SupervisedTrainer:
         self.valid_metric = config['valid_metric']
         self.patience = config['early_stopping_patience']
         self.best_model_path = join(exp_dir, 'best_model.pth')
-        neg_name = config['dataset']['validation_neg_sampling_strategy']
+        neg_name = dataset_eval_neg_sampling['validation']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
                                        "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json')}
-        neg_name = config['dataset']['test_neg_sampling_strategy']
+        neg_name = dataset_eval_neg_sampling['test']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
