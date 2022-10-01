@@ -128,7 +128,7 @@ def group_users(config, thresholds, min_user_review_len=None, review_field=None)
 
 
 def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
-         min_user_review_len=None, review_field=None):
+         min_user_review_len=None, review_field=None, neg_st=None):
     start = time.time()
     user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds,
                                                                            min_user_review_len, review_field)
@@ -139,15 +139,15 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     if min_user_review_len is not None:
         outfile_name = os.path.join(result_folder,
-                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}.txt")
+                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{neg_st}.txt")
         valid_csv_f = open(os.path.join(result_folder,
-                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}.csv"), "w")
+                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{neg_st}.csv"), "w")
         test_csv_f = open(os.path.join(result_folder,
-                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}.csv"), "w")
+                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{neg_st}.csv"), "w")
     else:
-        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}.txt")
-        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
-        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}.csv"), "w")
+        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_{neg_st}.txt")
+        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{neg_st}.csv"), "w")
+        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{neg_st}.csv"), "w")
 
     print(outfile_name)
     outf = open(outfile_name, 'w')
@@ -255,12 +255,14 @@ if __name__ == "__main__":
     parser.add_argument('--thresholds', type=int, nargs='+', default=None, help='user thresholds')
     parser.add_argument('--user_review_len', type=int, default=None, help='min length of the user review')
     parser.add_argument('--review_field', type=str, default="review", help='review field')
+    parser.add_argument('--neg_strategy', type=str, default="random", help='negative sampling strategy')
     args, _ = parser.parse_known_args()
 
     result_folder = args.result_folder
     thrs = args.thresholds
     r_len = args.user_review_len
     r_field = args.review_field
+    neg_strategy = args.neg_strategy
 
     if not os.path.exists(os.path.join(result_folder, "config.json")):
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
@@ -268,14 +270,14 @@ if __name__ == "__main__":
 
     if not os.path.exists(os.path.join(result_folder, "test_predicted.json")):
         raise ValueError(f"Result file test_output.json does not exist: {result_folder}")
-    valid_ground_truth = json.load(open(os.path.join(result_folder, "best_valid_ground_truth.json")))
-    valid_prediction = json.load(open(os.path.join(result_folder, "best_valid_predicted.json")))
-    test_ground_truth = json.load(open(os.path.join(result_folder, "test_ground_truth.json")))
-    test_prediction = json.load(open(os.path.join(result_folder, "test_predicted.json")))
 
+    valid_ground_truth = json.load(open(os.path.join(result_folder, f"best_valid_ground_truth_{neg_strategy}.json")))  # TODO change
+    valid_prediction = json.load(open(os.path.join(result_folder, f"best_valid_predicted_{neg_strategy}.json")))
+    test_ground_truth = json.load(open(os.path.join(result_folder, f"test_ground_truth_{neg_strategy}.json")))
+    test_prediction = json.load(open(os.path.join(result_folder, f"test_predicted_{neg_strategy}.json")))
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
-         thrs, r_len, r_field)
+         thrs, r_len, r_field, neg_strategy)
 
 
