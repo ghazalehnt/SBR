@@ -2,7 +2,7 @@ import json
 import random
 import time
 from builtins import NotImplementedError
-from collections import Counter
+from collections import Counter, defaultdict
 from os.path import join
 
 import pandas as pd
@@ -485,24 +485,25 @@ def load_split_dataset(config):
         item_text_fields = []
 
     # read users and items, create internal ids for them to be used
-    user_info = pd.read_csv(join(config['dataset_path'], "users.csv"))
-    remove_fields = user_info.columns
-    print(f"user fields: {remove_fields}")
+
+    # remove_fields = user_info.columns
+    # print(f"user fields: {remove_fields}")
     keep_fields = ["user_id"]
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if "user." in field])
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
     keep_fields = list(set(keep_fields))
-    remove_fields = list(set(remove_fields) - set(keep_fields))
-    user_info = user_info.drop(columns=remove_fields)
-    user_info = user_info.sort_values("user_id").reset_index(drop=True)
+    # remove_fields = list(set(remove_fields) - set(keep_fields))
+    user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields)
+    # user_info = user_info.drop(columns=remove_fields)
+    user_info = user_info.sort_values("user_id").reset_index(drop=True) # this is crucial, as the precomputing is done with internal ids
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
     user_info = user_info.fillna('')
     user_info = user_info.rename(
         columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
                  "user." in field})
 
-    item_info = pd.read_csv(join(config['dataset_path'], "items.csv"))
-    print(f"item fields: {item_info.columns}")
+
+    # print(f"item fields: {item_info.columns}")
     keep_fields = ["item_id"]
     keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
     keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if "item." in field])
@@ -513,11 +514,14 @@ def load_split_dataset(config):
             tie_breaker = config['review_tie_breaker']
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
             keep_fields.extend([tie_breaker])
-            item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
-    remove_fields = item_info.columns
-    remove_fields = list(set(remove_fields) - set(keep_fields))
-    item_info = item_info.drop(columns=remove_fields)
-    item_info = item_info.sort_values("item_id").reset_index(drop=True)
+        # item_info = item_info  TODO: what was this here for?
+    # remove_fields = item_info.columns
+    # remove_fields = list(set(remove_fields) - set(keep_fields))
+    # item_info = item_info.drop(columns=remove_fields)
+    item_info = pd.read_csv(join(config['dataset_path'], "items.csv"))
+    if tie_breaker is not None:
+        item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
+    item_info = item_info.sort_values("item_id").reset_index(drop=True)  # this is crucial, as the precomputing is done with internal ids
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
     item_info = item_info.fillna('')
     # TODO add wrong genre removal, i.e. "like"
@@ -538,7 +542,7 @@ def load_split_dataset(config):
                 "validation": join(config['dataset_path'], "validation.csv"),
                 "test": join(config['dataset_path'], "test.csv")}
     split_datasets = {}
-    filtered_out_user_item_pairs_by_limit = {}
+    filtered_out_user_item_pairs_by_limit = defaultdict(set)
     for sp, file in sp_files.items():
         df = pd.read_csv(file)
         # book limit:
@@ -562,8 +566,8 @@ def load_split_dataset(config):
             for ui in temp:
                 user = int(user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id)
                 item = int(item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id)
-                if user not in filtered_out_user_item_pairs_by_limit:
-                    filtered_out_user_item_pairs_by_limit[user] = set()
+                # if user not in filtered_out_user_item_pairs_by_limit:
+                #     filtered_out_user_item_pairs_by_limit[user] = set()
                 filtered_out_user_item_pairs_by_limit[user].add(item)
             df = df[df['user_item_ids'].isin(limited_user_item_ids)]
             df = df.drop(columns=['user_item_ids'])
