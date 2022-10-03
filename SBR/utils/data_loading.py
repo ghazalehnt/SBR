@@ -493,7 +493,7 @@ def load_split_dataset(config):
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
     keep_fields = list(set(keep_fields))
     # remove_fields = list(set(remove_fields) - set(keep_fields))
-    user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields)
+    user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, low_memory=False)
     # user_info = user_info.drop(columns=remove_fields)
     user_info = user_info.sort_values("user_id").reset_index(drop=True) # this is crucial, as the precomputing is done with internal ids
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
@@ -518,7 +518,7 @@ def load_split_dataset(config):
     # remove_fields = item_info.columns
     # remove_fields = list(set(remove_fields) - set(keep_fields))
     # item_info = item_info.drop(columns=remove_fields)
-    item_info = pd.read_csv(join(config['dataset_path'], "items.csv"))
+    item_info = pd.read_csv(join(config['dataset_path'], "items.csv"), low_memory=False)
     if tie_breaker is not None:
         item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
     item_info = item_info.sort_values("item_id").reset_index(drop=True)  # this is crucial, as the precomputing is done with internal ids
