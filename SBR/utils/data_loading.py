@@ -690,7 +690,7 @@ def load_split_dataset(config):
                                 raise ValueError("item id and index does not match!")
                             item_text = '. '.join(list(item[item_text_fields]))
                             scores = util.dot_score(sbert.encode(item_text), sbert.encode(sents))
-                            user_items.append([sent for score, sent in sorted(zip(scores[0], sents), reverse=True)])  # todo if we want to sort all sentences at once we need to keep the scores
+                            user_items.append([sent for score, sent in sorted(zip(scores[0], sents), reverse=True)])
                         # print(len(user_items))
                         user_text = []
                         cnts = {i: 0 for i in range(len(user_items))}
@@ -796,7 +796,8 @@ def load_split_dataset(config):
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     # I would load them here.
     if config['validation_neg_sampling_strategy'].startswith("f:"):
-        negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:]+".csv"))
+        negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:]+".csv"), dtype=str)
+        negs['label'] = negs['label'].astype(int)
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
@@ -804,7 +805,8 @@ def load_split_dataset(config):
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
     if config['test_neg_sampling_strategy'].startswith("f:"):
-        negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
+        negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"), dtype=str)
+        negs['label'] = negs['label'].astype(int)
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
