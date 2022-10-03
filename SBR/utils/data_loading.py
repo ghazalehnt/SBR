@@ -587,7 +587,7 @@ def load_split_dataset(config):
                 for k, v in goodreads_rating_mapping.items():
                     df['rating'] = df['rating'].replace(k, v)
             elif config["name"] == "Amazon":
-                df['rating'] = df['rating'].astype(int)
+                df['rating'] = df['rating'].astype(float).astype(int)
             else:
                 raise NotImplementedError(f"dataset {config['name']} not implemented!")
         else:
@@ -597,7 +597,7 @@ def load_split_dataset(config):
                 for k, v in goodreads_rating_mapping.items():
                     df['rating'] = df['rating'].replace(k, v)
             elif config["name"] == "Amazon":
-                df['rating'] = df['rating'].astype(int)
+                df['rating'] = df['rating'].astype(float).astype(int)
             else:
                 raise NotImplementedError(f"dataset {config['name']} not implemented!")
             df['label'] = df['rating']
