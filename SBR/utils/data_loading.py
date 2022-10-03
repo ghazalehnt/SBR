@@ -493,7 +493,7 @@ def load_split_dataset(config):
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
     keep_fields = list(set(keep_fields))
     # remove_fields = list(set(remove_fields) - set(keep_fields))
-    user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, low_memory=False)
+    user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
     # user_info = user_info.drop(columns=remove_fields)
     user_info = user_info.sort_values("user_id").reset_index(drop=True) # this is crucial, as the precomputing is done with internal ids
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
@@ -518,8 +518,12 @@ def load_split_dataset(config):
     # remove_fields = item_info.columns
     # remove_fields = list(set(remove_fields) - set(keep_fields))
     # item_info = item_info.drop(columns=remove_fields)
-    item_info = pd.read_csv(join(config['dataset_path'], "items.csv"), low_memory=False)
+    item_info = pd.read_csv(join(config['dataset_path'], "items.csv"), usecols=keep_fields, low_memory=False, dtype=str)
     if tie_breaker is not None:
+        if tie_breaker == "avg_rating":
+            item_info[tie_breaker] = item_info[tie_breaker].astype(float)
+        elif tie_breaker == "rank":
+            raise NotImplementedError("rank type to int")
         item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
     item_info = item_info.sort_values("item_id").reset_index(drop=True)  # this is crucial, as the precomputing is done with internal ids
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
@@ -536,6 +540,7 @@ def load_split_dataset(config):
         if 'item.description' in item_info.columns:
             item_info['item.description'] = item_info['item.description'].apply(
                 lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
+        # TODO rank one from str with , to int or something for tie breaker!
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
@@ -544,7 +549,7 @@ def load_split_dataset(config):
     split_datasets = {}
     filtered_out_user_item_pairs_by_limit = defaultdict(set)
     for sp, file in sp_files.items():
-        df = pd.read_csv(file)
+        df = pd.read_csv(file, dtype=str)  # rating:float64
         # book limit:
         if sp == 'train' and config['limit_training_data'] != "":
             if config['limit_training_data'].startswith("max_book"):
