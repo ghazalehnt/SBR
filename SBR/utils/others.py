@@ -2,7 +2,7 @@ from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.model.vanilla_classifier import VanillaClassifierUserTextProfileItemTextProfile
 from SBR.model.vanilla_classifier_precalc_representations import VanillaClassifierUserTextProfileItemTextProfilePrecalculated
 from SBR.model.mf_dot_text import MatrixFactorizatoinTextDotProduct
-from vanilla_classifier_precalc_representations_agg_chunks import \
+from SBR.model.vanilla_classifier_precalc_representations_agg_chunks import \
     VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks
 
 
