@@ -1,0 +1,94 @@
+import os.path
+
+import torch
+
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+
+
+class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torch.nn.Module):
+    def __init__(self, config, n_users, n_items, device, prec_dir, dataset_config):
+        super(VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks, self).__init__()
+        bert_embedding_dim = 768
+
+        self.transform_u_1 = torch.nn.Linear(bert_embedding_dim, config['k1'])
+        self.transform_i_1 = torch.nn.Linear(bert_embedding_dim, config['k1'])
+        self.transform_u_2 = torch.nn.Linear(config['k1'], config['k2'])
+        self.transform_i_2 = torch.nn.Linear(config['k1'], config['k2'])
+
+        self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
+        self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
+        self.bias = torch.nn.Parameter(torch.zeros(1))
+
+        self.chunk_agg_strategy = config['chunk_agg_strategy']
+        self.max_num_chunks_user = dataset_config['max_num_chunks_user']
+        self.max_num_chunks_item = dataset_config['max_num_chunks_item']
+
+        user_rep_file = f"user_representation_" \
+                        f"{config['agg_strategy']}_" \
+                        f"id{config['append_id']}_" \
+                        f"tb{config['tune_BERT']}_" \
+                        f"cf{config['use_CF']}_" \
+                        f"{'-'.join(dataset_config['user_text'])}_" \
+                        f"{dataset_config['user_review_choice']}_" \
+                        f"{dataset_config['review_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                        f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
+                        f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
+                        f".pkl"
+        if os.path.exists(os.path.join(prec_dir, user_rep_file)):
+            self.user_chunks_reps = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
+        else:
+            raise ValueError(f"Precalculated user embedding does not exist! {os.path.join(prec_dir, user_rep_file)}")
+
+        item_rep_file = f"item_representation_" \
+                        f"{config['agg_strategy']}_" \
+                        f"id{config['append_id']}_" \
+                        f"tb{config['tune_BERT']}_" \
+                        f"cf{config['use_CF']}_" \
+                        f"{'-'.join(dataset_config['item_text'])}" \
+                        f".pkl"
+        if os.path.exists(os.path.join(prec_dir, item_rep_file)):
+            self.item_chunks_reps = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
+        else:
+            raise ValueError(f"Precalculated item embedding does not exist! {os.path.join(prec_dir, item_rep_file)}")
+
+    def forward(self, batch):
+        # batch -> chunks * batch_size * tokens
+        user_ids = batch[INTERNAL_USER_ID_FIELD].squeeze(1)
+        item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
+        # TODO change later: this is slow
+        user_reps = []
+        for u in user_ids:
+            outputs = []
+            for c in range(0, min(len(self.user_chunks_reps[u]), self.max_num_chunks_user)):
+                ch_rep = self.user_chunks_reps[u][c]
+                ch_rep = torch.nn.functional.relu(self.transform_u_1(ch_rep))
+                ch_rep = self.transform_u_2(ch_rep)
+                outputs.append(ch_rep)
+            if self.chunk_agg_strategy == "max_pool":
+                rep = torch.stack(outputs).max(dim=0).values
+            else:
+                raise NotImplementedError()
+            user_reps.append(rep)
+        user_reps = torch.concat(user_reps) ## TODO check
+
+        item_reps = []
+        for i in item_ids:
+            outputs = []
+            for c in range(0, min(len(self.item_chunks_reps[i]), self.max_num_chunks_item)):
+                ch_rep = self.item_chunks_reps[i][c]
+                ch_rep = torch.nn.functional.relu(self.transform_i_1(ch_rep))
+                ch_rep = self.transform_i_2(ch_rep)
+                outputs.append(ch_rep)
+            if self.chunk_agg_strategy == "max_pool":
+                rep = torch.stack(outputs).max(dim=0).values
+            else:
+                raise NotImplementedError()
+            item_reps.append(rep)
+        item_reps = torch.concat(item_reps)  ## TODO check
+
+        result = torch.sum(torch.mul(user_reps, item_reps), dim=1)
+        result = result + self.item_bias[item_ids] + self.user_bias[user_ids]
+        result = result + self.bias
+        result = result.unsqueeze(1)
+        return result  # do not apply sigmoid and use BCEWithLogitsLoss
+

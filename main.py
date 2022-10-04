@@ -55,6 +55,9 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
             else:
                 exp_dir_params.append(str(config[p1][p2]))
         exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
+        # TODO in the future this can be removed, but now since the exp_dir of both chunk agg at precompute, and and model are the same this is added:
+        if config['model']['name'] == "VanillaClassifier_precalc_agg_chunks":
+            exp_dir += "_lca" # late chunk agg
         config["experiment_dir"] = exp_dir
         # check if the exp dir exists, the config file is the same as given.
         if os.path.exists(join(exp_dir, "config.json")):
