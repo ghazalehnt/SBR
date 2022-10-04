@@ -52,8 +52,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                         ch_rep.append(user_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
                     else:
                         raise NotImplementedError()
-            self.chunk_user_reps[c] = torch.concat(ch_rep)  # TODO? or concat? stach -> n*1*768 , concatn*768
-            self.chunk_user_reps[c].requires_grad = False
+            self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=config['freeze_prec_reps']) # TODO? or concat? stach -> n*1*768 , concatn*768
 
         item_rep_file = f"item_representation_" \
                         f"{config['agg_strategy']}_" \
@@ -78,8 +77,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                         ch_rep.append(item_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
                     else:
                         raise NotImplementedError()
-            self.chunk_item_reps[c] = torch.concat(ch_rep)  # TODO? or concat? stach -> n*1*768 , concatn*768
-            self.chunk_item_reps[c].requires_grad = False
+            self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=config)  # TODO? or concat? stach -> n*1*768 , concatn*768
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
@@ -89,7 +87,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         # todo for users/items who had fewer than max-chunks, I put their chunk[0] for the missing chunks, so the output would be same az 0, max pooling gets chunk0
         user_reps = []
         for c in range(len(self.chunk_user_reps.keys())):
-            user_ch_rep = self.chunk_user_reps[c][user_ids]
+            user_ch_rep = self.chunk_user_reps[c](user_ids)
             user_ch_rep = torch.nn.functional.relu(self.transform_u_1(user_ch_rep))
             user_ch_rep = self.transform_u_2(user_ch_rep)
             user_reps.append(user_ch_rep)
@@ -97,7 +95,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
 
         item_reps = []
         for c in range(len(self.chunk_item_reps.keys())):
-            item_ch_rep = self.chunk_item_reps[c][item_ids]
+            item_ch_rep = self.chunk_item_reps[c](item_ids)
             item_ch_rep = torch.nn.functional.relu(self.transform_i_1(item_ch_rep))
             item_ch_rep = self.transform_i_2(item_ch_rep)
             item_reps.append(item_ch_rep)
