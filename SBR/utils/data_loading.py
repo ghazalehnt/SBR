@@ -138,6 +138,7 @@ def load_data(config, pretrained_model):
 
     user_used_items = None
     if 'random' in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
+                    config['test_neg_sampling_strategy']] or "genres" in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
                     config['test_neg_sampling_strategy']]:
         start = time.time()
         print("Start: get user used items...")
@@ -158,12 +159,17 @@ def load_data(config, pretrained_model):
         start = time.time()
         print("Start: used_item copy and train collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
-        print(f"Mid: used_item copy in {time.time() - start}")
         train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info,
                                                       item_info, padding_token=padding_token)
         print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
     elif config['training_neg_sampling_strategy'] == "":
         train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
+    elif config['training_neg_sampling_strategy'] == "genres":
+        print("Start: used_item copy and train collate_fn initialize...")
+        cur_used_items = user_used_items['train'].copy()
+        train_collate_fn = CollateNegSamplesGenresOpt(config['training_neg_samples'], cur_used_items, user_info,
+                                                      item_info, padding_token=padding_token)
+        print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
 
     if config['validation_neg_sampling_strategy'] == "random":
         start = time.time()
@@ -420,6 +426,84 @@ class CollateNegSamplesRandomOpt(object):
         return ret
 
 
+class CollateNegSamplesGenresOpt(object):
+    def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None):
+        self.num_neg_samples = num_neg_samples
+        self.used_items = used_items
+        all_items = []  #?? it is set to not sample the positive valid/test items, but should it?
+        for items in self.used_items.values():
+            all_items.extend(items)
+        self.all_items = list(set(all_items))
+        self.user_info = user_info.to_pandas()
+        self.item_info = item_info.to_pandas()
+        self.genres_field = 'category' if 'category' in self.item_info.columns else 'genres'
+        self.genres_item = defaultdict(set)
+        for item, genres in zip(self.item_info[INTERNAL_ITEM_ID_FIELD], self.item_info[self.genres_field]):
+            for g in [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]:
+                self.genres_item[g].add(item)
+
+        self.padding_token = padding_token
+
+
+    def __call__(self, batch):
+        batch_df = pd.DataFrame(batch)
+        user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
+        samples = []
+        user_samples = defaultdict(set)
+        batch_df = batch_df.merge(self.item_info[[self.genres_field, INTERNAL_ITEM_ID_FIELD]], on=INTERNAL_ITEM_ID_FIELD)
+        for user_id, item_id, genres in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD], batch_df[self.genres_field]):
+            genres = [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]
+            candids = []
+            for g in genres:
+                candids.extend(list((self.genres_item[g]-set(self.used_items[user_id]))-user_samples[user_id]))
+            candids = Counter(candids)
+            # here I choose negative samples randomly, as each item has unique set of genre, however since items
+            # have more than one genre, from which we may have in our item genres, we do it as such:
+            # for eval negatives I do the sampling differently, as I have all pos items and their genres, there
+            # is an additional count there.
+            sampled_item_ids = np.random.choice(list(candids.keys()), min(len(candids), self.num_neg_samples),
+                                                p=[c/sum(candids.values()) for c in candids.values()], replace=False)
+            samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
+                            for sampled_item_id in sampled_item_ids])
+            user_samples[user_id].update(set(sampled_item_ids))
+        batch_df = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index().drop(columns=['index'])
+
+        # todo make this somehow that each of them could have text and better code
+        if self.padding_token is not None:
+            # user:
+            temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
+                .reset_index().drop(columns=['index'])
+            temp_user = pd.concat([batch_df, temp_user], axis=1)
+            temp_user = temp_user.rename(columns={"chunks_input_ids": "user_chunks_input_ids",
+                                                  "chunks_attention_mask": "user_chunks_attention_mask"})
+            # item:
+            temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
+                .reset_index().drop(columns=['index'])
+            temp_item = pd.concat([batch_df, temp_item], axis=1)
+            temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
+                                                  "chunks_attention_mask": "item_chunks_attention_mask"})
+            temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+
+            # pad ,  the resulting tensor is num-chunks * batch * tokens -> bcs later we want to do batchwise
+            ret = {}
+            for col in ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
+                        "item_chunks_attention_mask"]:
+                # instances = [pad_sequence([torch.tensor(t) for t in instance], padding_value=self.padding_token) for
+                #              instance in temp[col]]
+                instances = [torch.tensor([list(t) for t in instance]) for instance in temp[col]]
+                ret[col] = pad_sequence(instances, padding_value=self.padding_token).type(torch.int64)
+            for col in temp.columns:
+                if col in ret:
+                    continue
+                ret[col] = torch.tensor(temp[col]).unsqueeze(1)
+        else:
+            ret = {}
+            for col in batch[0].keys():
+                if col in ret:
+                    continue
+                ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
+        return ret
+
 # class CollateNegSamplesFixed(object):
 #     def __init__(self, samples, user_info=None, item_info=None, padding_token=None):
 #         self.samples_grouped = samples.groupby(by=[INTERNAL_USER_ID_FIELD])
@@ -514,6 +598,13 @@ def load_split_dataset(config):
             tie_breaker = config['review_tie_breaker']
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
             keep_fields.extend([tie_breaker])
+    if config["training_neg_sampling_strategy"] == "genres":
+        if config["name"] == "Amazon":
+            keep_fields.append("category")
+        elif config["name"] == "CGR":
+            keep_fields.append("genres")
+        else:
+            raise NotImplementedError()
         # item_info = item_info  TODO: what was this here for?
     # remove_fields = item_info.columns
     # remove_fields = list(set(remove_fields) - set(keep_fields))
