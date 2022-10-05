@@ -16,7 +16,8 @@ ranking_metrics = [
     "ndcg_cut_20",
     "recall_100",
     "recall_1000",
-    "Rprec"
+    "Rprec",
+    "recip_rank"
 ]
 
 
