@@ -17,6 +17,7 @@ import numpy as np
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf
+from filter_user_profile import filter_user_profile_random_sentences
 
 goodreads_rating_mapping = {
     'did not like it': 1,
@@ -27,28 +28,57 @@ goodreads_rating_mapping = {
 }
 
 
-def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks):
-    result = tokenizer(
-        examples[field],
-        truncation=True,
-        max_length=max_length,
-        return_overflowing_tokens=True,
-        padding="max_length"  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
-    )
+def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks, item_per_chunk=False):
+    if item_per_chunk:
+        tokenizer.add_tokens("<ENDOFITEM>")
+        result = tokenizer(
+            examples[field],
+            truncation=False
+        )
+        eoi_token = tokenizer.convert_tokens_to_ids(["<ENDOFITEM>"])[0]
 
-    sample_map = result.pop("overflow_to_sample_mapping")
-    # Here they expand other fields of the data to match the number of chunks... repeating user id ...
-    # this creates new examples, is it something we want? IDK maybe
-    # for key, values in examples.items():
-    #     result[key] = [values[i] for i in sample_map]
-    # # todo here maybe have a max chunk thing?
-    # Instead we could have a field having all chunks:
-    examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
-    examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
-    for i, j in zip(sample_map, range(len(result['input_ids']))):
-        if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
-            examples['chunks_input_ids'][i].append(result['input_ids'][j])
-            examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
+        # we need to pad and chunk manually
+        examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
+        examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
+        for i in range(len(examples["user_id"])):
+            # 1:-1 to remove the cls and sep tokens
+            temp = result["input_ids"][i][1:-1]
+            if len(temp) == 0:
+                examples['chunks_input_ids'][i].append([tokenizer.cls_token_id] + [tokenizer.sep_token_id]
+                                                       + [0] * (max_length - 2))
+                examples['chunks_attention_mask'][i].append([1] * 2 + [0] * (max_length - 2))
+                continue
+
+            start_idx = 0
+            while start_idx < len(temp):
+                eoi_idx = temp.index(eoi_token, start_idx)
+                chunk = temp[start_idx:eoi_idx]
+                chunk = [tokenizer.cls_token_id] + chunk[:max_length-2] + [tokenizer.sep_token_id]
+                examples['chunks_input_ids'][i].append(chunk + [0] * (max_length - len(chunk)))
+                examples['chunks_attention_mask'][i].append([1] * len(chunk) + [0] * (max_length - len(chunk)))
+                start_idx = eoi_idx + 1
+    else:
+        result = tokenizer(
+            examples[field],
+            truncation=True,
+            max_length=max_length,
+            return_overflowing_tokens=True,
+            padding="max_length"  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
+        )
+
+        sample_map = result.pop("overflow_to_sample_mapping")
+        # Here they expand other fields of the data to match the number of chunks... repeating user id ...
+        # this creates new examples, is it something we want? IDK maybe
+        # for key, values in examples.items():
+        #     result[key] = [values[i] for i in sample_map]
+        # # todo here maybe have a max chunk thing?
+        # Instead we could have a field having all chunks:
+        examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
+        examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
+        for i, j in zip(sample_map, range(len(result['input_ids']))):
+            if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
+                examples['chunks_input_ids'][i].append(result['input_ids'][j])
+                examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
     return examples
 
 
@@ -89,6 +119,8 @@ def filter_user_profile(dataset_config, user_info):
     elif dataset_config['user_text_filter'].startswith("idf_") or \
             dataset_config['user_text_filter'].startswith("tf-idf_"):
         user_info = filter_user_profile_idf_tf(dataset_config, user_info)
+    elif dataset_config['user_text_filter'] == "random_sentence":
+        user_info = filter_user_profile_random_sentences(dataset_config, user_info)
     else:
         raise ValueError(
             f"filtering method not implemented, or belong to another script! {dataset_config['user_text_filter']}")
@@ -99,17 +131,17 @@ def filter_user_profile(dataset_config, user_info):
 def load_data(config, pretrained_model):
     start = time.time()
     print("Start: load dataset...")
-    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
+    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
         temp_cs = config['case_sensitive']
         config['case_sensitive'] = True
     datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_split_dataset(config)
-    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence"]:
+    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
         config['case_sensitive'] = temp_cs
     print(f"Finish: load dataset in {time.time()-start}")
 
     # apply filter:
     if 'text' in user_info.column_names and config['user_text_filter'] != "":
-        if config['user_text_filter'] not in ["item_sentence_SBERT"]:
+        if config['user_text_filter'] not in ["item_sentence_SBERT", "item_per_chunk"]:
             user_info = filter_user_profile(config, user_info)
 
     # tokenize when needed:
@@ -124,7 +156,8 @@ def load_data(config, pretrained_model):
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                  # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
                                                  "max_length": config["chunk_size"],
-                                                 "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None
+                                                 "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None,
+                                                 "item_per_chunk": True if config["user_text_filter"] == "item_per_chunk" else False
                                                  })
             user_info = user_info.remove_columns(['text'])
         if 'text' in item_info.column_names:
@@ -750,10 +783,10 @@ def load_split_dataset(config):
                 df[field] = df[field].fillna('')
 
         # concat and move the user/item text fields to user and item info:
-        if "user_review_choice" not in config:
+        if "user_item_text_choice" not in config:
             sort_reviews = "rating_sorted"
         else:
-            sort_reviews = config['user_review_choice']
+            sort_reviews = config['user_item_text_choice']
         # text profile:
         if sp == 'train':
             ## USER:
@@ -778,7 +811,10 @@ def load_split_dataset(config):
                     pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
                     temp = temp[temp['rating'] >= pos_threshold]
                 # before sorting them based on rating, etc., let's append each row's field together (e.g. title. genres. review.)
-                temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
+                if config['user_text_filter'] == "item_per_chunk":
+                    temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1) + "<ENDOFITEM>"
+                else:
+                    temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
 
                 if config['user_text_filter'] in ["item_sentence_SBERT"]:
                     # first we sort the items based on the ratings, tie-breaker
@@ -792,11 +828,6 @@ def load_split_dataset(config):
                     temp['sentences_text'] = temp.apply(lambda row: sentencize(row['text'], sent_splitter,
                                                                                config['case_sensitive'],
                                                                                config['normalize_negation']), axis=1)
-                    # temp = temp.map(sentencize_function, fn_kwargs={
-                    #     'case_sensitive': config['case_sensitive'],  # TODO set this to true?
-                    #     'normalize_negation': config['normalize_negation'],
-                    #     'sentencizer': sent_splitter
-                    # }, batched=True)
                     temp = temp.drop(columns=['text'])
                     temp = temp.drop(columns=user_text_fields)
 
@@ -838,21 +869,21 @@ def load_split_dataset(config):
                     print(f"user text matching with item done!")
                 else:
                     if sort_reviews == "nothing":
-                        temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                        temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text']
                     else:
                         if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
                             # joined the text of user books(title, genre, review):  TODO before here need to do the thing for sorting each of these, and also consider cutting it.
                             if tie_breaker is None:
                                 temp = temp.sort_values('rating', ascending=False).groupby(
-                                    INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                                    INTERNAL_USER_ID_FIELD)['text']
                             elif tie_breaker == "avg_rating":
                                 temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
-                                    INTERNAL_USER_ID_FIELD)['text'].apply('. '.join).reset_index()
+                                    INTERNAL_USER_ID_FIELD)['text']
                             else:
                                 raise ValueError("Not implemented!")
                         else:
                             raise ValueError("Not implemented!")
-
+                    temp = temp.apply('. '.join).reset_index()
                     user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
                     user_info['text'] = user_info['text'].fillna('')
 
