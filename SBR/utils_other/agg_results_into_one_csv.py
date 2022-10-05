@@ -34,13 +34,20 @@ def main(exp_dir, evalset, file_suffix):
             header = next(reader)
         except Exception:
             print(f"empty file: {join(exp_dir, folder_name, result_file_name)}")
+        
+        valid_neg = ""
+        if "f-random_100_f-random_100" in folder_name or "f-random_100_f-genres_100" in folder_name:
+            valid_neg = "random"
+        elif "f-genres_100_f-genres_100" in folder_name or "f-genres_100_f-random_100" in folder_name:
+            valid_neg = "genres"
 
         if folder_name.startswith("False") or folder_name.startswith("True"):
-            if "random_100_1_1_" in folder_name:
+            if "_100_1_1_" in folder_name:
                 ch = 1
-            elif "random_100_5_5_" in folder_name:
+            elif "_100_5_5_" in folder_name:
                 ch = 5
             else:
+                print(folder_name)
                 raise ValueError("num chunks not found in fname")
             sortby = ""
             for filter in ["tf-idf_1", "tf-idf_2", "tf-idf_3", "tf-idf_1-2-3", "idf_1_unique", "idf_2_unique",
@@ -48,10 +55,20 @@ def main(exp_dir, evalset, file_suffix):
                 if filter in folder_name:
                     sortby = filter
                     break
+            
+            #TODO remove this, when resolved
+            late_agg = False
+            if folder_name.endswith("_l"):
+                late_agg = True
+                folder_name = folder_name[:-2]
+            elif folder_name.endswith("_lca"):
+                late_agg = True
+                folder_name = folder_name[:-4]
+
 
             item_text = ""
             item_text_part = folder_name[folder_name.rindex("_"):]
-            if item_text_part == "_item.title-item.category-item-description":
+            if item_text_part == "_item.title-item.category-item.description":
                 item_text = "tcd"
             elif item_text_part == "_item.title-item.genres-item.description":
                 item_text = "tgd"
@@ -73,15 +90,13 @@ def main(exp_dir, evalset, file_suffix):
                 profile.append('s')
             if "interaction.review" in folder_name:
                 profile.append('r')
-            if "interaction.reviewText" in folder_name:
-                profile.append('r')
             profile = ''.join(profile)
             if folder_name.startswith("True"):
-                model_config = f"CF-BERT_{ch}CH_{sortby}"
+                model_config = f"CF-BERT_{ch}CH_{sortby} v-{valid_neg}"
             else:
-                model_config = f"BERT_{ch}CH_{sortby}"
+                model_config = f"BERT_{ch}CH_{sortby} v-{valid_neg}"
         else:
-            model_config = f"CF-{folder_name[:folder_name.index('_')]}"
+            model_config = f"CF-{folder_name[:folder_name.index('_')]} v-{valid_neg}"
             profile = ''
             item_text = ''
         book_limit = 'all books'
