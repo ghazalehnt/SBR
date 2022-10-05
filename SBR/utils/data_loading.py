@@ -16,8 +16,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
-from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf
-from filter_user_profile import filter_user_profile_random_sentences
+from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf, filter_user_profile_random_sentences
 
 goodreads_rating_mapping = {
     'did not like it': 1,
