@@ -57,7 +57,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
         # TODO in the future this can be removed, but now since the exp_dir of both chunk agg at precompute, and and model are the same this is added:
         if config['model']['name'] == "VanillaClassifier_precalc_agg_chunks":
-            exp_dir += "_lca" # late chunk agg
+            exp_dir += "_l" # late chunk agg
         config["experiment_dir"] = exp_dir
         # check if the exp dir exists, the config file is the same as given.
         if os.path.exists(join(exp_dir, "config.json")):
@@ -92,6 +92,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
+    print("Data load done!")
 
     prec_path = None
     if 'pretrained_model' in config['model']:
@@ -103,12 +104,15 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
     model = get_model(config['model'], users, items,
                       1 if config['dataset']['binary_interactions'] else None, padding_token, device, prec_path,
                       config['dataset']) # todo else num-ratings
+    print("Get model Done!")
+
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,
                                 users=users, items=items,
                                 dataset_eval_neg_sampling=
                                 {"validation": config["dataset"]["validation_neg_sampling_strategy"],
                                  "test": config["dataset"]["test_neg_sampling_strategy"]})
+    print("Get trainer Done!")
 
     if op == "train":
         trainer.fit(train_dataloader, valid_dataloader)
@@ -145,6 +149,5 @@ if __name__ == '__main__':
         main(op=args.op, result_folder=args.result_folder,
              given_neg_files={"validation": args.testtime_validation_neg_strategy,
                               "test": args.testtime_test_neg_strategy})
-
 
 

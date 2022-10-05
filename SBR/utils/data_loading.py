@@ -155,8 +155,8 @@ def load_data(config, pretrained_model):
     train_collate_fn = None
     valid_collate_fn = None
     test_collate_fn = None
+    start = time.time()
     if config['training_neg_sampling_strategy'] == "random":
-        start = time.time()
         print("Start: used_item copy and train collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
         train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info,
@@ -177,12 +177,14 @@ def load_data(config, pretrained_model):
         cur_used_items = user_used_items['train'].copy()
         for user_id, u_items in user_used_items['validation'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-        print(f"Mid: used_item copy in {time.time() - start}")
         valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
                                                       padding_token=padding_token)
         print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
     elif config['validation_neg_sampling_strategy'].startswith("f:"):
+        start = time.time()
+        print("Start: used_item copy and validation collate_fn initialize...")
         valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
+        print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
         # start = time.time()
         # print("Start: load negative samples and validation collate_fn initialize...")
         # negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:] + ".csv"))
@@ -201,12 +203,14 @@ def load_data(config, pretrained_model):
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
         for user_id, u_items in user_used_items['test'].items():
             cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-        print(f"Mid: used_item copy in {time.time() - start}")
         test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items,
                                                      padding_token=padding_token)
         print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
     elif config['test_neg_sampling_strategy'].startswith("f:"):
+        start = time.time()
+        print("Start: used_item copy and test collate_fn initialize...")
         test_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
+        print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
         # start = time.time()
         # print("Start: load negative samples and test collate_fn initialize...")
         # negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
@@ -437,18 +441,22 @@ class CollateNegSamplesGenresOpt(object):
         self.user_info = user_info.to_pandas()
         self.item_info = item_info.to_pandas()
         self.genres_field = 'category' if 'category' in self.item_info.columns else 'genres'
+        print("start parsing item genres")
         genres_item = defaultdict(set)
         item_genres = defaultdict(list)
         for item, genres in zip(self.item_info[INTERNAL_ITEM_ID_FIELD], self.item_info[self.genres_field]):
             for g in [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]:
                 genres_item[g].add(item)
                 item_genres[item].append(g)
+        print("finish parsing item genres")
+        print("start creating item candidates")
         self.item_candidates = defaultdict(list)
         for item, genres in item_genres.items():
             for g in genres:
                 self.item_candidates[item].extend(list(genres_item[g]-set([item])))
         for item in self.item_candidates:
             self.item_candidates[item] = Counter(self.item_candidates[item])
+        print("finish creating item candidates")
 
         self.padding_token = padding_token
 
