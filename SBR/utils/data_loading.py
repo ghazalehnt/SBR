@@ -173,9 +173,7 @@ def load_data(config, pretrained_model):
     if 'random' in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
                     config['test_neg_sampling_strategy']] or \
             "genres" in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
-                    config['test_neg_sampling_strategy']] or \
-            "genres_g" in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
-                         config['test_neg_sampling_strategy']]:
+                    config['test_neg_sampling_strategy']]:
         start = time.time()
         print("Start: get user used items...")
         user_used_items = get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit)
@@ -200,7 +198,7 @@ def load_data(config, pretrained_model):
         print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
     elif config['training_neg_sampling_strategy'] == "":
         train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
-    elif config['training_neg_sampling_strategy'] in ["genres", "genres_g"]:
+    elif config['training_neg_sampling_strategy'] in ["genres"]:
         print("Start: used_item copy and train collate_fn initialize...")
         cur_used_items = user_used_items['train'].copy()
         train_collate_fn = CollateNegSamplesGenresOpt(config['training_neg_sampling_strategy'],
@@ -495,20 +493,8 @@ class CollateNegSamplesGenresOpt(object):
             for item in self.item_candidates:
                 self.item_candidates[item] = Counter(self.item_candidates[item])
             print("finish creating item candidates")
-        elif strategy == "genres_g":
-            print("start creating user candidates")
-            # have to create the entire list of candidates for user in advance then only sample from it
-            self.user_candidates = defaultdict(list)
-            for user_id, user_pos_items in used_items.items():
-                for item_id in user_pos_items:
-                    for g in item_genres[item_id]:
-                        self.user_candidates[user_id].extend(genres_item[g] - user_pos_items)
-            for user_id in self.user_candidates:
-                self.user_candidates[user_id] = Counter(self.user_candidates[user_id])
-            print("finish creating user candidates")
         self.strategy = strategy
         self.padding_token = padding_token
-
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
@@ -524,19 +510,6 @@ class CollateNegSamplesGenresOpt(object):
                 samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
                                 for sampled_item_id in sampled_item_ids])
                 user_samples[user_id].update(set(sampled_item_ids))
-        elif self.strategy == "genres_g":
-            user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
-            for user_id in user_counter.keys():
-                num_pos = user_counter[user_id]
-                num_user_neg_samples = min(len(self.user_candidates[user_id]), num_pos * self.num_neg_samples)
-                sum_weights = sum(self.user_candidates[user_id].values())
-                sampled_item_ids = np.random.choice(list(self.user_candidates[user_id].keys()),
-                                                    num_user_neg_samples,
-                                                    p=[c / sum_weights for c in self.user_candidates[user_id].values()],
-                                                    replace=False)
-
-                samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
-                                for sampled_item_id in sampled_item_ids])
         batch_df = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index().drop(columns=['index'])
 
         # todo make this somehow that each of them could have text and better code
@@ -669,7 +642,7 @@ def load_split_dataset(config):
             tie_breaker = config['review_tie_breaker']
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
             keep_fields.extend([tie_breaker])
-    if config["training_neg_sampling_strategy"] in ["genres", "genres_g"]:
+    if config["training_neg_sampling_strategy"] in ["genres"]:
         if config["name"] == "Amazon":
             keep_fields.append("category")
         elif config["name"] == "CGR":
