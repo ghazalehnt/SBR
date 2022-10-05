@@ -437,10 +437,18 @@ class CollateNegSamplesGenresOpt(object):
         self.user_info = user_info.to_pandas()
         self.item_info = item_info.to_pandas()
         self.genres_field = 'category' if 'category' in self.item_info.columns else 'genres'
-        self.genres_item = defaultdict(set)
+        genres_item = defaultdict(set)
+        item_genres = defaultdict(list)
         for item, genres in zip(self.item_info[INTERNAL_ITEM_ID_FIELD], self.item_info[self.genres_field]):
             for g in [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]:
-                self.genres_item[g].add(item)
+                genres_item[g].add(item)
+                item_genres[item].append(g)
+        self.item_candidates = defaultdict(list)
+        for item, genres in item_genres.items():
+            for g in genres:
+                self.item_candidates[item].extend(list(genres_item[g]-set([item])))
+        for item in self.item_candidates:
+            self.item_candidates[item] = Counter(self.item_candidates[item])
 
         self.padding_token = padding_token
 
@@ -450,13 +458,14 @@ class CollateNegSamplesGenresOpt(object):
         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
         samples = []
         user_samples = defaultdict(set)
-        batch_df = batch_df.merge(self.item_info[[self.genres_field, INTERNAL_ITEM_ID_FIELD]], on=INTERNAL_ITEM_ID_FIELD)
-        for user_id, item_id, genres in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD], batch_df[self.genres_field]):
-            genres = [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]
-            candids = []
-            for g in genres:
-                candids.extend(list((self.genres_item[g]-set(self.used_items[user_id]))-user_samples[user_id]))
-            candids = Counter(candids)
+        for user_id, item_id in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD]):
+            candids = {k:v for k, v in self.item_candidates[item_id].items() if (k not in self.used_items[user_id] and k not in user_samples[user_id])}
+
+            # genres = self.item_genres[item_id]
+            # candids = []
+            # for g in genres:
+            #     candids.extend(list((self.genres_item[g]-set(self.used_items[user_id]))-user_samples[user_id]))
+            # candids = Counter(candids)
             # here I choose negative samples randomly, as each item has unique set of genre, however since items
             # have more than one genre, from which we may have in our item genres, we do it as such:
             # for eval negatives I do the sampling differently, as I have all pos items and their genres, there
