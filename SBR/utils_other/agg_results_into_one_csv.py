@@ -55,16 +55,6 @@ def main(exp_dir, evalset, file_suffix):
                 if filter in folder_name:
                     sortby = filter
                     break
-            
-            #TODO remove this, when resolved
-            late_agg = False
-            if folder_name.endswith("_l"):
-                late_agg = True
-                folder_name = folder_name[:-2]
-            elif folder_name.endswith("_lca"):
-                late_agg = True
-                folder_name = folder_name[:-4]
-
 
             item_text = ""
             item_text_part = folder_name[folder_name.rindex("_"):]
@@ -92,11 +82,11 @@ def main(exp_dir, evalset, file_suffix):
                 profile.append('r')
             profile = ''.join(profile)
             if folder_name.startswith("True"):
-                model_config = f"CF-BERT_{ch}CH_{sortby} v-{valid_neg}"
+                model_config = f"CF-BERT_{ch}CH_{sortby}"
             else:
-                model_config = f"BERT_{ch}CH_{sortby} v-{valid_neg}"
+                model_config = f"BERT_{ch}CH_{sortby}"
         else:
-            model_config = f"CF-{folder_name[:folder_name.index('_')]} v-{valid_neg}"
+            model_config = f"CF-{folder_name[:folder_name.index('_')]}"
             profile = ''
             item_text = ''
         book_limit = 'all books'
