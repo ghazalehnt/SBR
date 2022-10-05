@@ -70,8 +70,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
                         f"cf{config['use_CF']}_" \
                         f"ch{dataset_config['max_num_chunks_user']}_" \
                         f"{'-'.join(dataset_config['user_text'])}_" \
-                        f"{dataset_config['user_review_choice']}_" \
-                        f"{dataset_config['review_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                        f"{dataset_config['user_item_text_choice']}_" \
+                        f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
                         f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
                         f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                         f".pkl"
@@ -106,8 +106,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculated(torch.nn.Modu
             item_rep = self.transform_i(item_rep)
         elif hasattr(self, 'transform_u_1'):
             user_rep = torch.nn.functional.relu(self.transform_u_1(user_rep))
-            item_rep = torch.nn.functional.relu(self.transform_i_1(item_rep))
             user_rep = self.transform_u_2(user_rep)
+            item_rep = torch.nn.functional.relu(self.transform_i_1(item_rep))
             item_rep = self.transform_i_2(item_rep)
         if hasattr(self, 'classifier'):
             result = self.classifier(torch.concat([user_rep, item_rep], dim=1))
