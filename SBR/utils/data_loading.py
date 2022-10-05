@@ -138,8 +138,11 @@ def load_data(config, pretrained_model):
 
     user_used_items = None
     if 'random' in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
-                    config['test_neg_sampling_strategy']] or "genres" in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
-                    config['test_neg_sampling_strategy']]:
+                    config['test_neg_sampling_strategy']] or \
+            "genres" in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
+                    config['test_neg_sampling_strategy']] or \
+            "genres_g" in [config['training_neg_sampling_strategy'], config['validation_neg_sampling_strategy'],
+                         config['test_neg_sampling_strategy']]:
         start = time.time()
         print("Start: get user used items...")
         user_used_items = get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit)
@@ -633,7 +636,7 @@ def load_split_dataset(config):
             tie_breaker = config['review_tie_breaker']
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
             keep_fields.extend([tie_breaker])
-    if config["training_neg_sampling_strategy"] == "genres":
+    if config["training_neg_sampling_strategy"] in ["genres", "genres_g"]:
         if config["name"] == "Amazon":
             keep_fields.append("category")
         elif config["name"] == "CGR":
