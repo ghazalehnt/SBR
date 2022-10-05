@@ -83,8 +83,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                     f"tb{config['model']['tune_BERT']}_" \
                     f"cf{config['model']['use_CF']}_" \
                     f"{'-'.join(config['dataset']['user_text'])}_" \
-                    f"{config['dataset']['user_review_choice']}_" \
-                    f"{config['dataset']['review_tie_breaker'] if config['dataset']['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                    f"{config['dataset']['user_item_text_choice']}_" \
+                    f"{config['dataset']['user_item_text_tie_breaker'] if config['dataset']['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
                     f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
                     f"{'_i'+'-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                     f".pkl"
@@ -180,8 +180,7 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
             else:
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
             outputs.append(temp)
-        rep = torch.stack(outputs)  # TODO or just the output?
-        reps.append(rep)
+        reps.append(outputs)
     return reps #torch.concat(reps) with this it combines different chunks of differen items into one big matrix
 
 
