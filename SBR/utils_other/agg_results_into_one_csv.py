@@ -34,7 +34,18 @@ def main(exp_dir, evalset, file_suffix):
             header = next(reader)
         except Exception:
             print(f"empty file: {join(exp_dir, folder_name, result_file_name)}")
-        
+
+        lr = ""
+        if "0.0004_1e-08" in folder_name:
+            lr = "0.0004"
+        elif "0.004_1e-08" in folder_name:
+            lr = "0.004"
+        bs = ""
+        if "1e-08_256" in folder_name:
+            bs = "256"
+        elif "1e-08_128" in folder_name:
+            bs = "128"
+
         valid_neg = ""
         if "f-random_100_f-random_100" in folder_name or "f-random_100_f-genres_100" in folder_name:
             valid_neg = "random"
@@ -51,7 +62,7 @@ def main(exp_dir, evalset, file_suffix):
                 raise ValueError("num chunks not found in fname")
             sortby = ""
             for filter in ["tf-idf_1", "tf-idf_2", "tf-idf_3", "tf-idf_1-2-3", "idf_1_unique", "idf_2_unique",
-                           "idf_3_unique", "idf_1-2-3_unique", "idf_sentence", "item_sentence_SBERT",
+                               "idf_3_unique", "idf_1-2-3_unique", "idf_sentence", "item_sentence_SBERT",
                            "random_sentence", "item_per_chunk"]:
                 if filter in folder_name:
                     sortby = filter
@@ -100,9 +111,11 @@ def main(exp_dir, evalset, file_suffix):
         for line in reader:
             if line[0] not in group_rows:
                 group_rows[line[0]] = []
-            group_rows[line[0]].append([model_config, profile, item_text, book_limit, line[0]] + [str(round_half_up(float(m)*100, 4)) for m in line[1:]])
+            group_rows[line[0]].append([model_config, profile, item_text, book_limit, line[0]]
+                                       + [str(round_half_up(float(m)*100, 4)) for m in line[1:]]
+                                       + [lr, bs])
 
-    header = ["model config", "user profile", "item text", "book limit"] + header
+    header = ["model config", "user profile", "item text", "book limit"] + header + ["lr", "bs"]
     with open(join(args.dir, f"{evalset}_results_{file_suffix}.csv"), 'w') as outfile:
         print(join(args.dir, f"{evalset}_results_{file_suffix}.csv"))
         writer = csv.writer(outfile)
