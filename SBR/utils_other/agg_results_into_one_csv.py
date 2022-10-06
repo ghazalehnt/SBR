@@ -12,12 +12,12 @@ def round_half_up(n, decimals=0):
 # False_200_200_dot_product_0.0004_1e-08_256_4096_random_4_f:validation_neg_random_100_f:test_neg_random_100_1_1_512
 # _max_pool_mean_last_tf-idf_2_False_True__item.category__item.title-item.category-item-description
 def main(exp_dir, evalset, file_suffix):
-    if evalset == 'test':
-        result_file_name = f"results_test_{file_suffix}.csv"
-    elif evalset == 'valid':
-        result_file_name = f"results_valid_{file_suffix}.csv"
-    else:
+    if evalset not in ["test", "valid"]:
         raise ValueError("set given wrong!")
+
+    result_file_name = f"results_{evalset}_{file_suffix}" \
+                       f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
+                       f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
 
     group_rows = {}
     for folder_name in sorted(listdir(exp_dir)):
@@ -40,11 +40,16 @@ def main(exp_dir, evalset, file_suffix):
             lr = "0.0004"
         elif "0.004_1e-08" in folder_name:
             lr = "0.004"
+        if use_LR is not None and lr != use_LR:
+            continue
+
         bs = ""
         if "1e-08_256" in folder_name:
             bs = "256"
         elif "1e-08_128" in folder_name:
             bs = "128"
+        if use_BS is not None and bs != use_BS:
+            continue
 
         valid_neg = ""
         if "f-random_100_f-random_100" in folder_name or "f-random_100_f-genres_100" in folder_name:
@@ -131,5 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('--file_suffix', '-f', type=str, default=None, help='suffix of eval file')
     parser.add_argument('--set', '-s', type=str, default='test', help='valid/test')
     args, _ = parser.parse_known_args()
+    use_BS = "128"
+    use_LR = "0.004"
 
     main(args.dir, args.set, args.file_suffix)
