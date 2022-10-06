@@ -247,7 +247,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 if __name__ == "__main__":
     # hard coded
     calc_cl_metric = False
-    csv_metric_header = ["P_1", "Rprec", "ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
+    csv_metric_header = ["P_1", "recip_rank", "ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "Rprec"]
     BERTMODEL = "bert-base-uncased"  # TODO hard coded
 
     parser = argparse.ArgumentParser()
