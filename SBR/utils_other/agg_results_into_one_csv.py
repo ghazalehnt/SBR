@@ -15,9 +15,7 @@ def main(exp_dir, evalset, file_suffix):
     if evalset not in ["test", "valid"]:
         raise ValueError("set given wrong!")
 
-    result_file_name = f"results_{evalset}_{file_suffix}" \
-                       f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
-                       f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
+    result_file_name = f"results_{evalset}_{file_suffix}.csv"
 
     group_rows = {}
     for folder_name in sorted(listdir(exp_dir)):
@@ -121,8 +119,11 @@ def main(exp_dir, evalset, file_suffix):
                                        + [lr, bs])
 
     header = ["model config", "user profile", "item text", "book limit"] + header + ["lr", "bs"]
-    with open(join(args.dir, f"{evalset}_results_{file_suffix}.csv"), 'w') as outfile:
-        print(join(args.dir, f"{evalset}_results_{file_suffix}.csv"))
+    outf = f"{evalset}_results_{file_suffix}" \
+           f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
+           f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
+    with open(join(args.dir, outf), 'w') as outfile:
+        print(join(args.dir, outf))
         writer = csv.writer(outfile)
         writer.writerow(header)
         for rows in group_rows.values():
