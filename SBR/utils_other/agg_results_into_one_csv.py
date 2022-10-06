@@ -51,7 +51,8 @@ def main(exp_dir, evalset, file_suffix):
                 raise ValueError("num chunks not found in fname")
             sortby = ""
             for filter in ["tf-idf_1", "tf-idf_2", "tf-idf_3", "tf-idf_1-2-3", "idf_1_unique", "idf_2_unique",
-                           "idf_3_unique", "idf_1-2-3_unique", "idf_sentence", "item_sentence_SBERT"]:
+                           "idf_3_unique", "idf_1-2-3_unique", "idf_sentence", "item_sentence_SBERT",
+                           "random_sentence", "item_per_chunk"]:
                 if filter in folder_name:
                     sortby = filter
                     break
