@@ -38,6 +38,8 @@ def main(exp_dir, evalset, file_suffix):
             lr = "0.0004"
         elif "0.004_1e-08" in folder_name:
             lr = "0.004"
+        elif "0.04_1e-08" in folder_name:
+            lr = "0.04"
         if use_LR is not None and lr != use_LR:
             continue
 
@@ -46,6 +48,8 @@ def main(exp_dir, evalset, file_suffix):
             bs = "256"
         elif "1e-08_128" in folder_name:
             bs = "128"
+        elif "1e-08_64" in folder_name:
+            bs = "64"
         if use_BS is not None and bs != use_BS:
             continue
 
@@ -141,5 +145,5 @@ if __name__ == '__main__':
     args, _ = parser.parse_known_args()
     use_BS = args.bs
     use_LR = args.lr
-    
+
     main(args.dir, args.set, args.file_suffix)
