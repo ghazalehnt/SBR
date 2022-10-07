@@ -145,7 +145,8 @@ if __name__ == '__main__':
             raise ValueError(f"OP==train does not accept test-time eval neg strategies.")
         main(op=args.op, config_file=args.config_file, given_user_text_filter=args.user_text_filter,
              given_limit_training_data=args.limit_training_data,
-             given_lr=float(args.trainer_lr), given_tbs=int(args.train_batch_size))
+             given_lr=float(args.trainer_lr) if args.trainer_lr is not None else args.trainer_lr,
+             given_tbs=int(args.train_batch_size) if args.train_batch_size is not None else args.train_batch_size)
     elif args.op == "test":
         if not os.path.exists(join(args.result_folder, "config.json")):
             raise ValueError(f"Result folder does not exist: {args.config_file}")

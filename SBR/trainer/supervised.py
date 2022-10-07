@@ -7,7 +7,6 @@ from ray import tune
 from torch.optim import Adam, SGD
 from tqdm import tqdm
 import numpy as np
-from transformers import get_scheduler
 
 from SBR.utils.metrics import calculate_metrics, log_results
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
@@ -55,16 +54,10 @@ class SupervisedTrainer:
         else:
             raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
 
-        self.scaler = torch.cuda.amp.GradScaler(enabled=config['use_amp'])
-        self.use_amp = config['use_amp']
-        self.scheduler_type = config['scheduler_type']
-        self.scheduler_num_warmup_steps = config['scheduler_num_warmup_steps']
-
         self.epochs = config['epochs']
         self.start_epoch = 0
         self.best_epoch = 0
         self.best_saved_valid_metric = np.inf if self.valid_metric == "valid_loss" else -np.inf
-        self.lr_scheduler_state_dict = None
         if exists(self.best_model_path):
             checkpoint = torch.load(self.best_model_path, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -74,9 +67,6 @@ class SupervisedTrainer:
             self.best_saved_valid_metric = checkpoint['best_valid_metric']
             self.model.to(device)
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
-            if 'lr_scheduler_state_dict' in checkpoint:  # todo this IF can be removed later, as I added it at some point runs after that point have it
-                self.lr_scheduler_state_dict = checkpoint['lr_scheduler_state_dict']
             print("last checkpoint restored")
 
         self.model.to(device)
@@ -87,14 +77,6 @@ class SupervisedTrainer:
 
         remaining_epochs = self.epochs - self.start_epoch
         num_training_steps = remaining_epochs * len(train_dataloader)
-        lr_scheduler = get_scheduler(
-            self.scheduler_type,
-            optimizer=self.optimizer,
-            num_warmup_steps=self.scheduler_num_warmup_steps,
-            num_training_steps=num_training_steps
-        )
-        if self.lr_scheduler_state_dict is not None:
-            lr_scheduler.load_state_dict(self.lr_scheduler_state_dict)
 
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
@@ -114,18 +96,13 @@ class SupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 self.optimizer.zero_grad()
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
-                    output = self.model(batch)
-                    if self.loss_fn._get_name() == "MSELoss":
-                        output = torch.sigmoid(output)
-                    loss = self.loss_fn(output, label)
+                output = self.model(batch)
+                if self.loss_fn._get_name() == "MSELoss":
+                    output = torch.sigmoid(output)
+                loss = self.loss_fn(output, label)
 
-                # loss.backward()
-                # self.optimizer.step()
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                lr_scheduler.step()
+                loss.backward()
+                self.optimizer.step()
                 train_loss += loss
                 total_count += label.size(0)
 
@@ -143,9 +120,8 @@ class SupervisedTrainer:
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
-            self.logger.add_scalar('epoch_metrics/lr', lr_scheduler.get_last_lr()[0], epoch)
 
-            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, self.use_amp)
+            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
             print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
             outputs = torch.sigmoid(outputs)
             results = calculate_metrics(ground_truth, outputs, users, items,
@@ -164,8 +140,6 @@ class SupervisedTrainer:
                         'best_valid_metric': self.best_saved_valid_metric,
                         'model_state_dict': self.model.state_dict(),
                         'optimizer_state_dict': self.optimizer.state_dict(),
-                        'scaler_state_dict': self.scaler.state_dict(),
-                        'lr_scheduler_state_dict': lr_scheduler.state_dict()
                         }
                     torch.save(checkpoint, self.best_model_path)
                 early_stopping_cnt = 0
@@ -212,7 +186,7 @@ class SupervisedTrainer:
             self.logger.add_scalar(f'final_results/{k}', v)
         print(f"\nTest results - best epoch {self.best_epoch}: {results}")
 
-    def predict(self, eval_dataloader, use_amp=False):
+    def predict(self, eval_dataloader):
         # bring models to evaluation mode
         self.model.eval()
 
@@ -231,9 +205,8 @@ class SupervisedTrainer:
                 label = batch.pop("label").float()  # setting the type to torch.float32
                 prepare_time = time.perf_counter() - start_time
 
-                with torch.cuda.amp.autocast(enabled=use_amp):
-                    output = self.model(batch)
-                    loss = self.loss_fn(output, label)
+                output = self.model(batch)
+                loss = self.loss_fn(output, label)
                 eval_loss += loss
                 total_count += label.size(0)  # TODO remove if not used
                 process_time = time.perf_counter() - start_time - prepare_time
