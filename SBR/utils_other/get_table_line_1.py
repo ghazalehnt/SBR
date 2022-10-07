@@ -9,13 +9,18 @@ def main(res_file, given_user_group, given_metric):
     print(res_file)
     print(given_user_group)
     print(given_metric)
+    name_mapping = {"BERT_1CH_": "BERT-aggr1",
+                    "BERT_5CH_": "BERT-aggr5",
+                    "BERT_1CH_idf_sentence": "w-sent",
+                    "BERT_1CH_item_sentence_SBERT": "s-sent",
+                    "BERT_1CH_tf-idf_3": "w-phrase"}
     lines = defaultdict(lambda: defaultdict())
     for model, user_text, item_text, group, metric in zip(res['model config'], res['user profile'], res['item text'], res['group'], res[given_metric]):
         if given_user_group not in group:
             continue
         if model.startswith("CF"):
-            print(f"{given_user_group}-> {model} & {metric} & & & \\ \hline")
-        elif model in ["BERT_1CH_", "BERT_5CH_", "BERT_1CH_item_sentence_SBERT", "BERT_1CH_idf_sentence", "BERT_1CH_tf-idf_3"]:
+            print(f"CF & {metric} & & & \\\\ \hline % {model}")
+        elif model in name_mapping.keys():
             if item_text in ["tc", "tg"]:
                 if user_text in ["tc", "tg"]:
                     lines[model][1] = metric
@@ -26,8 +31,8 @@ def main(res_file, given_user_group, given_metric):
                     lines[model][2] = metric
                 elif user_text in ["tcsr", "tgr"]:
                     lines[model][4] = metric
-    for model in lines.keys():
-        print(f"{given_user_group}-> {model} & {lines[model][1]} & {lines[model][2]} & {lines[model][3]} & {lines[model][4]} \\ \hline")
+    for model in name_mapping.keys():
+        print(f"{name_mapping[model]} & {lines[model][1]} & {lines[model][2]} & {lines[model][3]} & {lines[model][4]} \\\\ \hline % {model}")
 
 
 if __name__ == '__main__':
