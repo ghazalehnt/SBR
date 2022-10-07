@@ -136,8 +136,10 @@ if __name__ == '__main__':
     parser.add_argument('--dir', '-d', type=str, default=None, help='experiments dir')
     parser.add_argument('--file_suffix', '-f', type=str, default=None, help='suffix of eval file')
     parser.add_argument('--set', '-s', type=str, default='test', help='valid/test')
+    parser.add_argument('--bs', '-b', type=str, default=None, help='bs')
+    parser.add_argument('--lr', '-l', type=str, default=None, help='lr')
     args, _ = parser.parse_known_args()
-    use_BS = "128"
-    use_LR = "0.004"
-
+    use_BS = args.bs
+    use_LR = args.lr
+    
     main(args.dir, args.set, args.file_suffix)
