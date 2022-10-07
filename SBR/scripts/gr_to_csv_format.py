@@ -30,7 +30,7 @@ def main(interaction_input_file, item_meta_input_file, item_genres_input_file, o
     item_info = item_info.drop_duplicates(subset=['book_id'])
     item_info = item_info.fillna('')
     item_info = item_info.replace(r'\n', ' ', regex=True)
-    item_info["authors"] = item_info["authors"].apply(lambda x: sorted([a['author_id'] for a in x]))
+    item_info["authors"] = item_info["authors"].apply(lambda x: ",".join(sorted([a['author_id'].strip() for a in x])))
 
     data = []
     with gzip.open(item_genres_input_file) as f:
