@@ -64,7 +64,7 @@ if __name__ == "__main__":
     all_authors = set()
     if INTERACTION_FILE.startswith("amazon_reviews_books"):
         item_tie_breaks = defaultdict(lambda: {0: math.inf, 1: math.inf, 2: math.inf, 3: math.inf})
-    elif INTERACTION_FILE.startswith("goodreads_crawled"):
+    elif INTERACTION_FILE.startswith("goodreads_"):
         item_tie_breaks = defaultdict(lambda: 0)
     else:
         raise NotImplementedError("todo")
@@ -137,6 +137,8 @@ if __name__ == "__main__":
             if rating_threshold is not None:
                 if INTERACTION_FILE.startswith("goodreads_crawled"):
                     rating = rating_mapping[line[RATING_IDX_INTER]]
+                elif INTERACTION_FILE.startswith("goodreads_ucsd"):
+                    rating = int(line[RATING_IDX_INTER])
                 elif INTERACTION_FILE.startswith("amazon_reviews_books"):
                     rating = int(float(line[RATING_IDX_INTER]))
                 else:
@@ -168,6 +170,10 @@ if __name__ == "__main__":
                                 reverse=False)  # main sort is rating, bigger the better. but we *-1 to be coherent with other tie breakers which is the rank, smaller better.
                 elif INTERACTION_FILE.startswith("goodreads_crawled"):
                     inters = sorted(inters, key=lambda x: (rating_mapping[x[RATING_IDX_INTER]],
+                                                           item_tie_breaks[x[ITEM_ID_IDX_INTER]]),
+                                    reverse=True)  # for both rating and avg-rating bigger better
+                elif INTERACTION_FILE.startswith("goodreads_ucsd"):
+                    inters = sorted(inters, key=lambda x: (int(x[RATING_IDX_INTER]),
                                                            item_tie_breaks[x[ITEM_ID_IDX_INTER]]),
                                     reverse=True)  # for both rating and avg-rating bigger better
                 interactions.append(inters[0])
