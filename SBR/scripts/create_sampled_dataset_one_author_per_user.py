@@ -35,15 +35,15 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
-    DATASET_PATH = ""
-    INTERACTION_FILE = "goodreads_crawled.interactions"
-    ITEM_FILE = "goodreads_crawled.items"
-    USER_FILE = "goodreads_crawled.users"
+    DATASET_PATH = "/GW/PSR/work/datasets/goodreads_ucsd_csv_format/"
+    INTERACTION_FILE = "goodreads_ucsd.interactions"
+    ITEM_FILE = "goodreads_ucsd.items"
+    USER_FILE = "goodreads_ucsd.users"
     USER_ID_FIELD = "user_id"
     ITEM_ID_FIELD = "item_id"
     RATING_FIELD = "rating"
-    AUTHOR_FIELD = "author"
-    TIE_BREAK_FIELD = "avg_rating"
+    AUTHOR_FIELD = "authors"
+    TIE_BREAK_FIELD = "average_rating"
 
     # DATASET_PATH = ""
     # INTERACTION_FILE = "amazon_reviews_books.interactions"
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     all_authors = set()
     if INTERACTION_FILE.startswith("amazon_reviews_books"):
         item_tie_breaks = defaultdict(lambda: {0: math.inf, 1: math.inf, 2: math.inf, 3: math.inf})
-    elif INTERACTION_FILE.startswith("train"): # TODO
+    elif INTERACTION_FILE.startswith("goodreads_crawled"):
         item_tie_breaks = defaultdict(lambda: 0)
     else:
         raise NotImplementedError("todo")
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                 else:
                     # print(tie_brk_line)
                     pass
-            elif INTERACTION_FILE.startswith("train"):
+            elif INTERACTION_FILE.startswith("goodreads_crawled"):
                 if tie_brk_line in [""]:
                     pass
                 else:
@@ -135,7 +135,7 @@ if __name__ == "__main__":
                 no_author_inters_cnt += 1
                 continue
             if rating_threshold is not None:
-                if INTERACTION_FILE.startswith("train"):
+                if INTERACTION_FILE.startswith("goodreads_crawled"):
                     rating = rating_mapping[line[RATING_IDX_INTER]]
                 elif INTERACTION_FILE.startswith("amazon_reviews_books"):
                     rating = int(float(line[RATING_IDX_INTER]))
@@ -166,7 +166,7 @@ if __name__ == "__main__":
                                                            item_tie_breaks[x[ITEM_ID_IDX_INTER]][2],
                                                            item_tie_breaks[x[ITEM_ID_IDX_INTER]][3]),
                                 reverse=False)  # main sort is rating, bigger the better. but we *-1 to be coherent with other tie breakers which is the rank, smaller better.
-                elif INTERACTION_FILE.startswith("train"):
+                elif INTERACTION_FILE.startswith("goodreads_crawled"):
                     inters = sorted(inters, key=lambda x: (rating_mapping[x[RATING_IDX_INTER]],
                                                            item_tie_breaks[x[ITEM_ID_IDX_INTER]]),
                                     reverse=True)  # for both rating and avg-rating bigger better
