@@ -35,7 +35,7 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
-    DATASET_PATH = "/GW/PSR/work/datasets/goodreads_ucsd_csv_format/"
+    DATASET_PATH = ""
     INTERACTION_FILE = "goodreads_ucsd.interactions"
     ITEM_FILE = "goodreads_ucsd.items"
     USER_FILE = "goodreads_ucsd.users"
