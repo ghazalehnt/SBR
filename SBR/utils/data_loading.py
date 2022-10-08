@@ -644,7 +644,7 @@ def load_split_dataset(config):
     if config["training_neg_sampling_strategy"] in ["genres"]:
         if config["name"] == "Amazon":
             keep_fields.append("category")
-        elif config["name"] == "CGR":
+        elif config["name"] in ["CGR", "GR_UCSD"]:
             keep_fields.append("genres")
         else:
             raise NotImplementedError()
@@ -720,6 +720,8 @@ def load_split_dataset(config):
             if config["name"] == "CGR":
                 for k, v in goodreads_rating_mapping.items():
                     df['rating'] = df['rating'].replace(k, v)
+            elif config["name"] == "GR_UCSD":
+                df['rating'] = df['rating'].astype(int)
             elif config["name"] == "Amazon":
                 df['rating'] = df['rating'].astype(float).astype(int)
             else:
@@ -730,6 +732,8 @@ def load_split_dataset(config):
             if config["name"] == "CGR":
                 for k, v in goodreads_rating_mapping.items():
                     df['rating'] = df['rating'].replace(k, v)
+            elif config["name"] == "GR_UCSD":
+                df['rating'] = df['rating'].astype(int)
             elif config["name"] == "Amazon":
                 df['rating'] = df['rating'].astype(float).astype(int)
             else:

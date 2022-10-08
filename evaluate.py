@@ -64,6 +64,8 @@ def group_users(config, thresholds, min_user_review_len=None, review_field=None)
     split_datasets = load_dataset("csv", data_files=sp_files)
     if config['dataset']['name'] == "CGR":
         split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
+    elif config['dataset']['name'] == "GR_UCSD":
+        split_datasets = split_datasets.map(lambda x: {'rating': int(x['rating'])})
     elif config['dataset']["name"] == "Amazon":
         split_datasets = split_datasets.map(lambda x: {'rating': int(float(x['rating']))})
     else:
