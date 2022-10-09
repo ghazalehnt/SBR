@@ -116,7 +116,7 @@ class SupervisedTrainer:
                 self.optimizer.zero_grad()
                 output = self.model(batch)
                 with open(join(self.train_output_log, f"train_sigmoid_output_{epoch}.log"), "w") as f:
-                    f.write(str(torch.sigmoid(outputs)))
+                    f.write("\n".join([str(float(v)) for v in torch.sigmoid(outputs)]))
                 if self.loss_fn._get_name() == "MSELoss":
                     output = torch.sigmoid(output)
                 loss = self.loss_fn(output, label)
@@ -144,7 +144,7 @@ class SupervisedTrainer:
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
             outputs = torch.sigmoid(outputs)
             with open(join(self.train_output_log, f"valid_sigmoid_output_{epoch}.log"), "w") as f:
-                f.write(str(outputs))
+                f.write("\n".join([str(float(v)) for v in outputs]))
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
             results["loss"] = valid_loss.item()
