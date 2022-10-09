@@ -1,4 +1,6 @@
 import operator
+import os
+import random
 import time
 from os.path import exists, join
 
@@ -35,6 +37,10 @@ class SupervisedTrainer:
             neg_name = neg_name[len("f:"):]
         self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
                                  "predicted": join(exp_dir, f'test_predicted_{neg_name}.json')}
+
+        self.train_output_log = join(exp_dir, "outputs")
+        os.makedirs(self.train_output_log, exist_ok=True)
+
         self.users = users
         self.items = items
 
@@ -75,12 +81,20 @@ class SupervisedTrainer:
         early_stopping_cnt = 0
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
 
+        # #TODO not sure about this
+        # _, _, trloss, _, _ = self.predict(train_dataloader)
+        # print(f"Train loss before training: {trloss:.8f}")
+        #
         outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
         outputs = torch.sigmoid(outputs)
         results = calculate_metrics(ground_truth, outputs, users, items,
                                     self.relevance_level, prediction_threshold=0.5, ranking_only=True)
         results = {f"valid_{k}": v for k, v in results.items()}
         print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+        # random.seed(42)
+        # np.random.seed(42)
+        # torch.manual_seed(42)
+        # torch.cuda.manual_seed(42)
 
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
@@ -101,6 +115,8 @@ class SupervisedTrainer:
 
                 self.optimizer.zero_grad()
                 output = self.model(batch)
+                with open(join(self.train_output_log, f"train_sigmoid_output_{epoch}.log"), "w") as f:
+                    f.write(str(torch.sigmoid(outputs)))
                 if self.loss_fn._get_name() == "MSELoss":
                     output = torch.sigmoid(output)
                 loss = self.loss_fn(output, label)
@@ -127,6 +143,8 @@ class SupervisedTrainer:
 
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
             outputs = torch.sigmoid(outputs)
+            with open(join(self.train_output_log, f"valid_sigmoid_output_{epoch}.log"), "w") as f:
+                f.write(str(outputs))
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
             results["loss"] = valid_loss.item()
