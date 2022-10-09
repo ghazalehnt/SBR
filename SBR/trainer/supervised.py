@@ -75,6 +75,13 @@ class SupervisedTrainer:
         early_stopping_cnt = 0
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
 
+        outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+        outputs = torch.sigmoid(outputs)
+        results = calculate_metrics(ground_truth, outputs, users, items,
+                                    self.relevance_level, prediction_threshold=0.5, ranking_only=True)
+        results = {f"valid_{k}": v for k, v in results.items()}
+        print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
                 print(f"Early stopping after {self.patience} epochs not improving!")
