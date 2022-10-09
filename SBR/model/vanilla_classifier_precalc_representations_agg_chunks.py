@@ -26,12 +26,12 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if "use_random_reps" in config and config["use_random_reps"] == True:
             self.chunk_user_reps = {}
             for c in range(max_num_chunks_user):
-                self.chunk_user_reps[c] = torch.nn.Embedding(n_users, 768)
+                self.chunk_user_reps[c] = torch.nn.Embedding(n_users, 768, device=device)
                 self.chunk_user_reps[c].requires_grad_(False)
 
             self.chunk_item_reps = {}
             for c in range(max_num_chunks_item):
-                self.chunk_item_reps[c] = torch.nn.Embedding(n_items, 768)
+                self.chunk_item_reps[c] = torch.nn.Embedding(n_items, 768, device=device)
                 self.chunk_item_reps[c].requires_grad_(False)
         else:
             user_rep_file = f"user_representation_" \
