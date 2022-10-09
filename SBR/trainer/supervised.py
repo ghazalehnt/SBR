@@ -46,8 +46,8 @@ class SupervisedTrainer:
 
         if config['loss_fn'] == "BCE":
             self.loss_fn = torch.nn.BCEWithLogitsLoss()  # use BCEWithLogitsLoss and do not apply the sigmoid beforehand
-        elif config['loss_fn'] == "MSE":
-            self.loss_fn = torch.nn.MSELoss()
+        elif config['loss_fn'] == "MRL":
+            self.loss_fn = torch.nn.MarginRankingLoss()
         # elif config["loss_fn"] == "CE":  ## todo do we need this???
             # self.loss_fn = torch.nn.CrossEntropyLoss
         else:
@@ -86,7 +86,6 @@ class SupervisedTrainer:
         # print(f"Train loss before training: {trloss:.8f}")
         #
         outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-        outputs = torch.sigmoid(outputs)
         results = calculate_metrics(ground_truth, outputs, users, items,
                                     self.relevance_level, prediction_threshold=0.5, ranking_only=True)
         results = {f"valid_{k}": v for k, v in results.items()}
@@ -117,11 +116,18 @@ class SupervisedTrainer:
 
                 self.optimizer.zero_grad()
                 output = self.model(batch)
-                if self.loss_fn._get_name() == "MSELoss":
-                    output = torch.sigmoid(output)
-                loss = self.loss_fn(output, label)
-                tr_outputs.extend(list(torch.sigmoid(output)))
-                tr_labels.extend(label)
+                if self.loss_fn._get_name() == "MarginRankingLoss":
+                    output = torch.sigmoid(output)  # TODO ? sigmoid or not
+                    pos_l = label[label == 1]
+                    pos_out = output[:pos_l.shape[0]].squeeze()
+                    neg_out = output[pos_l.shape[0]:].squeeze()
+                    loss = self.loss_fn(pos_out, neg_out, pos_l)
+                    tr_outputs.extend(list(output))
+                    tr_labels.extend(label)
+                else:
+                    loss = self.loss_fn(output, label)
+                    tr_outputs.extend(list(torch.sigmoid(output)))
+                    tr_labels.extend(label)
 
                 loss.backward()
                 self.optimizer.step()
@@ -146,12 +152,11 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-            outputs = torch.sigmoid(outputs)
             with open(join(self.train_output_log, f"valid_sigmoid_output_{epoch}.log"), "w") as f:
                 f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
-            results["loss"] = valid_loss.item()
+            results["loss"] = valid_loss
             results = {f"valid_{k}": v for k, v in results.items()}
             for k, v in results.items():
                 self.logger.add_scalar(f'epoch_metrics/{k}', v, epoch)
@@ -191,22 +196,20 @@ class SupervisedTrainer:
         print("best model loaded!")
 
         outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
-        outputs = torch.sigmoid(outputs)
         log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
-        results["loss"] = valid_loss.item()
+        results["loss"] = valid_loss
         results = {f"validation_{k}": v for k, v in results.items()}
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/{k}', v)
         print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
 
         outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
-        outputs = torch.sigmoid(outputs)
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
-        results["loss"] = test_loss.item()
+        results["loss"] = test_loss
         results = {f"test_{k}": v for k, v in results.items()}
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/{k}', v)
@@ -232,8 +235,12 @@ class SupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 output = self.model(batch)
-                loss = self.loss_fn(output, label)
-                eval_loss += loss
+                if self.loss_fn._get_name() == "MarginRankingLoss":
+                    loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
+                else:
+                    loss = self.loss_fn(output, label)
+                output = torch.sigmoid(output)
+                eval_loss += loss.item()
                 total_count += label.size(0)  # TODO remove if not used
                 process_time = time.perf_counter() - start_time - prepare_time
                 proc_compute_efficiency = process_time / (process_time + prepare_time)
