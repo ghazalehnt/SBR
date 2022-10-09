@@ -107,6 +107,8 @@ class SupervisedTrainer:
             train_loss, total_count = 0, 0
 
             # for loop going through dataset
+            tr_outputs = []
+            tr_labels = []
             for batch_idx, batch in pbar:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -115,11 +117,11 @@ class SupervisedTrainer:
 
                 self.optimizer.zero_grad()
                 output = self.model(batch)
-                with open(join(self.train_output_log, f"train_sigmoid_output_{epoch}.log"), "w") as f:
-                    f.write("\n".join([str(float(v)) for v in torch.sigmoid(outputs)]))
                 if self.loss_fn._get_name() == "MSELoss":
                     output = torch.sigmoid(output)
                 loss = self.loss_fn(output, label)
+                tr_outputs.extend(list(torch.sigmoid(output)))
+                tr_labels.extend(label)
 
                 loss.backward()
                 self.optimizer.step()
@@ -135,6 +137,8 @@ class SupervisedTrainer:
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.perf_counter()
             train_loss /= total_count
+            with open(join(self.train_output_log, f"train_sigmoid_output_{epoch}.log"), "w") as f:
+                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
             print(f"Train loss epoch {epoch}: {train_loss:.15f}")
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
