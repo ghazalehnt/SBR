@@ -23,61 +23,72 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         max_num_chunks_user = dataset_config['max_num_chunks_user']
         max_num_chunks_item = dataset_config['max_num_chunks_item']
 
-        user_rep_file = f"user_representation_" \
-                        f"{config['agg_strategy']}_" \
-                        f"id{config['append_id']}_" \
-                        f"tb{config['tune_BERT']}_" \
-                        f"cf{config['use_CF']}_" \
-                        f"{'-'.join(dataset_config['user_text'])}_" \
-                        f"{dataset_config['user_item_text_choice']}_" \
-                        f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
-                        f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
-                        f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
-                        f".pkl"
-        if os.path.exists(os.path.join(prec_dir, user_rep_file)):
-            user_chunk_reps = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
+        if "use_random_reps" in config and config["use_random_reps"] == True:
+            self.chunk_user_reps = {}
+            for c in range(max_num_chunks_user):
+                self.chunk_user_reps[c] = torch.nn.Embedding(n_users, 768)
+                self.chunk_user_reps[c].requires_grad_(False)
+
+            self.chunk_item_reps = {}
+            for c in range(max_num_chunks_item):
+                self.chunk_item_reps[c] = torch.nn.Embedding(n_items, 768)
+                self.chunk_item_reps[c].requires_grad_(False)
         else:
-            raise ValueError(f"Precalculated user embedding does not exist! {os.path.join(prec_dir, user_rep_file)}")
+            user_rep_file = f"user_representation_" \
+                            f"{config['agg_strategy']}_" \
+                            f"id{config['append_id']}_" \
+                            f"tb{config['tune_BERT']}_" \
+                            f"cf{config['use_CF']}_" \
+                            f"{'-'.join(dataset_config['user_text'])}_" \
+                            f"{dataset_config['user_item_text_choice']}_" \
+                            f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                            f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
+                            f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
+                            f".pkl"
+            if os.path.exists(os.path.join(prec_dir, user_rep_file)):
+                user_chunk_reps = torch.load(os.path.join(prec_dir, user_rep_file), map_location=device)
+            else:
+                raise ValueError(f"Precalculated user embedding does not exist! {os.path.join(prec_dir, user_rep_file)}")
 
-        self.chunk_user_reps = {}
-        for c in range(max_num_chunks_user):
-            ch_rep = []
-            for user_chunks in user_chunk_reps:
-                if c < len(user_chunks):
-                    ch_rep.append(user_chunks[c])
-                else:
-                    if self.chunk_agg_strategy == "max_pool":
-                        # ch_rep.append(-1 * torch.inf * torch.ones((1, 768)))
-                        # ch_rep.append(torch.zeros((1, 768)))
-                        ch_rep.append(user_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
+            self.chunk_user_reps = {}
+            for c in range(max_num_chunks_user):
+                ch_rep = []
+                for user_chunks in user_chunk_reps:
+                    if c < len(user_chunks):
+                        ch_rep.append(user_chunks[c])
                     else:
-                        raise NotImplementedError()
-            self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=config['freeze_prec_reps']) # TODO? or concat? stach -> n*1*768 , concatn*768
+                        if self.chunk_agg_strategy == "max_pool":
+                            # ch_rep.append(-1 * torch.inf * torch.ones((1, 768)))
+                            # ch_rep.append(torch.zeros((1, 768)))
+                            ch_rep.append(user_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
+                        else:
+                            raise NotImplementedError()
+                self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=config['freeze_prec_reps']) # TODO? or concat? stach -> n*1*768 , concatn*768
 
-        item_rep_file = f"item_representation_" \
-                        f"{config['agg_strategy']}_" \
-                        f"id{config['append_id']}_" \
-                        f"tb{config['tune_BERT']}_" \
-                        f"cf{config['use_CF']}_" \
-                        f"{'-'.join(dataset_config['item_text'])}" \
-                        f".pkl"
-        if os.path.exists(os.path.join(prec_dir, item_rep_file)):
-            item_chunks_reps = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
-        else:
-            raise ValueError(f"Precalculated item embedding does not exist! {os.path.join(prec_dir, item_rep_file)}")
+            item_rep_file = f"item_representation_" \
+                            f"{config['agg_strategy']}_" \
+                            f"id{config['append_id']}_" \
+                            f"tb{config['tune_BERT']}_" \
+                            f"cf{config['use_CF']}_" \
+                            f"{'-'.join(dataset_config['item_text'])}" \
+                            f".pkl"
+            if os.path.exists(os.path.join(prec_dir, item_rep_file)):
+                item_chunks_reps = torch.load(os.path.join(prec_dir, item_rep_file), map_location=device)
+            else:
+                raise ValueError(f"Precalculated item embedding does not exist! {os.path.join(prec_dir, item_rep_file)}")
 
-        self.chunk_item_reps = {}
-        for c in range(max_num_chunks_item):
-            ch_rep = []
-            for item_chunks in item_chunks_reps:
-                if c < len(item_chunks):
-                    ch_rep.append(item_chunks[c])
-                else:
-                    if self.chunk_agg_strategy == "max_pool":
-                        ch_rep.append(item_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
+            self.chunk_item_reps = {}
+            for c in range(max_num_chunks_item):
+                ch_rep = []
+                for item_chunks in item_chunks_reps:
+                    if c < len(item_chunks):
+                        ch_rep.append(item_chunks[c])
                     else:
-                        raise NotImplementedError()
-            self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=config)  # TODO? or concat? stach -> n*1*768 , concatn*768
+                        if self.chunk_agg_strategy == "max_pool":
+                            ch_rep.append(item_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
+                        else:
+                            raise NotImplementedError()
+                self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=config['freeze_prec_reps'])  # TODO? or concat? stach -> n*1*768 , concatn*768
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
