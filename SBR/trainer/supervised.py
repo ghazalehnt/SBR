@@ -75,9 +75,6 @@ class SupervisedTrainer:
         early_stopping_cnt = 0
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
 
-        remaining_epochs = self.epochs - self.start_epoch
-        num_training_steps = remaining_epochs * len(train_dataloader)
-
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
                 print(f"Early stopping after {self.patience} epochs not improving!")
@@ -111,18 +108,17 @@ class SupervisedTrainer:
                 compute_efficiency = process_time / (process_time + prepare_time)
                 pbar.set_description(
                     f'Compute efficiency: {compute_efficiency:.4f}, '
-                    f'loss: {loss.item():.4f},  epoch: {epoch}/{self.epochs}'
+                    f'loss: {loss.item():.8f},  epoch: {epoch}/{self.epochs}'
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.perf_counter()
             train_loss /= total_count
-            print(f"Train loss epoch {epoch}: {train_loss:.5f}")
+            print(f"Train loss epoch {epoch}: {train_loss:.15f}")
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-            print(f"Valid loss epoch {epoch}: {valid_loss:.4f}")
             outputs = torch.sigmoid(outputs)
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
@@ -130,6 +126,7 @@ class SupervisedTrainer:
             results = {f"valid_{k}": v for k, v in results.items()}
             for k, v in results.items():
                 self.logger.add_scalar(f'epoch_metrics/{k}', v, epoch)
+            print(f"Valid loss epoch {epoch}: {valid_loss:.15f} - {self.valid_metric} = {results[self.valid_metric]:.6f}\n")
 
             if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
                 self.best_saved_valid_metric = results[self.valid_metric]
@@ -212,18 +209,17 @@ class SupervisedTrainer:
                 process_time = time.perf_counter() - start_time - prepare_time
                 proc_compute_efficiency = process_time / (process_time + prepare_time)
 
-                ## TODO maybe later: having the qid names userid+itemid corresponding to the outputs and metrics
                 ## for debugging. it needs access to actual user_id and item_id
                 ground_truth.extend(label.squeeze().tolist())
                 outputs.extend(output.squeeze().tolist())
                 user_ids.extend(batch[
-                                    INTERNAL_USER_ID_FIELD].squeeze().tolist())  # TODO internal? or external? maybe have an external one
+                                    INTERNAL_USER_ID_FIELD].squeeze().tolist())
                 item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
                 postprocess_time = time.perf_counter() - start_time - prepare_time - process_time
 
                 pbar.set_description(
                     f'Compute efficiency: {proc_compute_efficiency:.4f}, '
-                    f'loss: {loss.item():.4f},  prep: {prepare_time:.4f},'
+                    f'loss: {loss.item():.8f},  prep: {prepare_time:.4f},'
                     f'process: {process_time:.4f}, post: {postprocess_time:.4f}')
                 start_time = time.perf_counter()
 
