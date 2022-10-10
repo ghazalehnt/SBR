@@ -117,7 +117,7 @@ class SupervisedTrainer:
                 self.optimizer.zero_grad()
                 output = self.model(batch)
                 if self.loss_fn._get_name() == "MarginRankingLoss":
-                    output = torch.sigmoid(output)  # TODO ? sigmoid or not
+                    # output = torch.sigmoid(output)  # no sigmoid when using MRL
                     pos_l = label[label == 1]
                     pos_out = output[:pos_l.shape[0]].squeeze()
                     neg_out = output[pos_l.shape[0]:].squeeze()
@@ -239,7 +239,7 @@ class SupervisedTrainer:
                     loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
                 else:
                     loss = self.loss_fn(output, label)
-                output = torch.sigmoid(output)
+                    output = torch.sigmoid(output)
                 eval_loss += loss.item()
                 total_count += label.size(0)  # TODO remove if not used
                 process_time = time.perf_counter() - start_time - prepare_time
