@@ -84,7 +84,7 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                     f"cf{config['model']['use_CF']}_" \
                     f"{'-'.join(config['dataset']['user_text'])}_" \
                     f"{config['dataset']['user_item_text_choice']}_" \
-                    f"{config['dataset']['user_item_text_tie_breaker'] if config['dataset']['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                    f"{config['dataset']['user_item_text_tie_breaker'] if config['dataset']['user_text_filter'] in ['', 'item_sentence_SBERT'] else ''}_" \
                     f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
                     f"{'_i'+'-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                     f".pkl"
@@ -181,7 +181,7 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
             outputs.append(temp)
         reps.append(outputs)
-    return reps #torch.concat(reps) with this it combines different chunks of differen items into one big matrix
+    return reps
 
 
 if __name__ == '__main__':

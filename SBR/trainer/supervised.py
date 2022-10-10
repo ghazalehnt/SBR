@@ -145,7 +145,7 @@ class SupervisedTrainer:
             train_loss /= total_count
             with open(join(self.train_output_log, f"train_sigmoid_output_{epoch}.log"), "w") as f:
                 f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
-            print(f"Train loss epoch {epoch}: {train_loss:.15f}")
+            print(f"Train loss epoch {epoch}: {train_loss}")
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
@@ -160,7 +160,7 @@ class SupervisedTrainer:
             results = {f"valid_{k}": v for k, v in results.items()}
             for k, v in results.items():
                 self.logger.add_scalar(f'epoch_metrics/{k}', v, epoch)
-            print(f"Valid loss epoch {epoch}: {valid_loss:.15f} - {self.valid_metric} = {results[self.valid_metric]:.6f}\n")
+            print(f"Valid loss epoch {epoch}: {valid_loss} - {self.valid_metric} = {results[self.valid_metric]:.6f}\n")
 
             if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
                 self.best_saved_valid_metric = results[self.valid_metric]

@@ -41,7 +41,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                             f"cf{config['use_CF']}_" \
                             f"{'-'.join(dataset_config['user_text'])}_" \
                             f"{dataset_config['user_item_text_choice']}_" \
-                            f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] not in ['', 'item_sentence_SBERT'] else ''}_" \
+                            f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] in ['', 'item_sentence_SBERT'] else ''}_" \
                             f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
                             f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                             f".pkl"
