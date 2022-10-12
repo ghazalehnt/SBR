@@ -6,8 +6,6 @@ import random
 from collections import Counter, defaultdict
 import pandas as pd
 
-from datasets import load_dataset
-
 ITEM_ID_FIELD = "item_id"
 USER_ID_FIELD = "user_id"
 
@@ -18,18 +16,17 @@ def round_half_up(n, decimals=0):
 
 
 def load_data(dataset_path):
-    sp_files = {"train": os.path.join(dataset_path, "train.csv"),
-                "validation": os.path.join(dataset_path, "validation.csv"),
-                "test": os.path.join(dataset_path, "test.csv")}
-    split_datasets = load_dataset("csv", data_files=sp_files)
-    return split_datasets
+    ret = defaultdict()
+    for sp in ["train", "validation", "test"]:
+        ret[sp] = pd.read_csv(os.path.join(dataset_path, f"{sp}.csv"), dtype=str)
+    return ret
 
 
 def get_items_by_genre(dataset_path, genre_field):
     item_file = os.path.join(dataset_path, "items.csv")
     items_by_genre = defaultdict(list)
     item_genres = defaultdict(list)
-    items = pd.read_csv(item_file)
+    items = pd.read_csv(item_file, dtype=str)
     items[genre_field] = items[genre_field].fillna("")
     # some book do not  have any genre, these are considered as same genre! as we don't want to loose them in neg sampling
     for item_id, genres in zip(items[ITEM_ID_FIELD], items[genre_field]):

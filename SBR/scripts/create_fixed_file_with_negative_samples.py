@@ -3,17 +3,15 @@ import csv
 import os
 import random
 import time
-from collections import Counter
-
-from datasets import load_dataset
+from collections import Counter, defaultdict
+import pandas as pd
 
 
 def load_data(dataset_path):
-    sp_files = {"train": os.path.join(dataset_path, "train.csv"),
-                "validation": os.path.join(dataset_path, "validation.csv"),
-                "test": os.path.join(dataset_path, "test.csv")}
-    split_datasets = load_dataset("csv", data_files=sp_files)
-    return split_datasets
+    ret = defaultdict()
+    for sp in ["train", "validation", "test"]:
+        ret[sp] = pd.read_csv(os.path.join(dataset_path, f"{sp}.csv"), dtype=str)
+    return ret
 
 
 def get_user_used_items(datasets):
@@ -58,7 +56,7 @@ def neg_sampling(data, used_items, strategy, num_neg_samples):
 
 
 def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
-    all_items = []
+    all_items = []  # ????
     for items in used_items.values():
         all_items.extend(items)
     all_items = list(set(all_items))
@@ -68,7 +66,7 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
     start_time = time.time()
     for user_id in user_counter.keys():
         num_pos = user_counter[user_id]
-        max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)
+        max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)  # what is this ? why all items are created from used items? not really all items? robably not that big of a diff but still
         if max_num_user_neg_samples < num_pos * num_neg_samples:
             print(f"WARN: user {user_id} needed {num_pos * num_neg_samples} samples,"
                   f"but all_items are {len(all_items)}")

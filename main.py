@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
+from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
@@ -96,16 +97,8 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
     print("Data load done!")
 
-    prec_path = None
-    if 'pretrained_model' in config['model']:
-        prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
-                                 f"size{config['dataset']['chunk_size']}_"
-                                 f"cs-{config['dataset']['case_sensitive']}_"
-                                 f"nn-{config['dataset']['normalize_negation']}_"
-                                 f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
     model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, prec_path,
-                      config['dataset']) # todo else num-ratings
+                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, config['dataset'])
     print("Get model Done!")
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,

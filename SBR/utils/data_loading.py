@@ -70,8 +70,6 @@ def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks, it
         # this creates new examples, is it something we want? IDK maybe
         # for key, values in examples.items():
         #     result[key] = [values[i] for i in sample_map]
-        # # todo here maybe have a max chunk thing?
-        # Instead we could have a field having all chunks:
         examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
         examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
         for i, j in zip(sample_map, range(len(result['input_ids']))):
@@ -127,13 +125,13 @@ def filter_user_profile(dataset_config, user_info):
     return Dataset.from_pandas(user_info, preserve_index=False)
 
 
-def load_data(config, pretrained_model):
+def load_data(config, pretrained_model, for_precalc=False):
     start = time.time()
     print("Start: load dataset...")
     if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
         temp_cs = config['case_sensitive']
         config['case_sensitive'] = True
-    datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_split_dataset(config)
+    datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_split_dataset(config, for_precalc)
     if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
         config['case_sensitive'] = temp_cs
     print(f"Finish: load dataset in {time.time()-start}")
@@ -168,157 +166,93 @@ def load_data(config, pretrained_model):
                                                  })
             item_info = item_info.remove_columns(['text'])
 
-    user_used_items = None
-    start = time.time()
-    print("Start: get user used items...")
-    user_used_items = get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit)
-    print(f"Finish: get user used items in {time.time()-start}")
-
-    # previously we loaded the "textual profiles" when training into each batch...
-    # now, we are going to create representations at initialization... and won't need that anymore.
-    # todo: change1:
-    # we are doing the check inside collatefns with padding token is None or not
-    if config['text_in_batch'] is False:  # for now: means that we do pre calculation
-        padding_token = None  # this causes the collate functions to
-
-    train_collate_fn = None
-    valid_collate_fn = None
-    test_collate_fn = None
-    start = time.time()
-    if config['training_neg_sampling_strategy'] == "random":
-        print("Start: used_item copy and train collate_fn initialize...")
-        cur_used_items = user_used_items['train'].copy()
-        train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info,
-                                                      item_info, padding_token=padding_token)
-        print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
-    elif config['training_neg_sampling_strategy'] == "":
-        train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
-    elif config['training_neg_sampling_strategy'] in ["genres"]:
-        print("Start: used_item copy and train collate_fn initialize...")
-        cur_used_items = user_used_items['train'].copy()
-        train_collate_fn = CollateNegSamplesGenresOpt(config['training_neg_sampling_strategy'],
-                                                      config['training_neg_samples'], cur_used_items, user_info,
-                                                      item_info, padding_token=padding_token)
-        print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
-    elif config['training_neg_sampling_strategy'] == "randomc":
-        print("Start: used_item copy and train collate_fn initialize...")
-        cur_used_items = user_used_items['train'].copy()
-        train_collate_fn = CollateNegSamplesRandomOptOrdered(config['training_neg_samples'],
-                                                                  cur_used_items, user_info,
-                                                                  item_info, padding_token=padding_token)
-        print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
-
-
-    if config['validation_neg_sampling_strategy'] == "random":
+    if not for_precalc:
+        user_used_items = None
         start = time.time()
-        print("Start: used_item copy and validation collate_fn initialize...")
-        cur_used_items = user_used_items['train'].copy()
-        for user_id, u_items in user_used_items['validation'].items():
-            cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-        valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
-                                                      padding_token=padding_token)
-        print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
-    elif config['validation_neg_sampling_strategy'].startswith("f:"):
+        print("Start: get user used items...")
+        user_used_items = get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit)
+        print(f"Finish: get user used items in {time.time() - start}")
+
+        # when we need text for the training. we sort of check it if the passed padding_token is not none in collate_fns, so this is set here now:
+        if config['text_in_batch'] is False:
+            padding_token = None  # this causes the collate functions to
+
+        train_collate_fn = None
+        valid_collate_fn = None
+        test_collate_fn = None
         start = time.time()
-        print("Start: used_item copy and validation collate_fn initialize...")
-        valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
-        print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
-        # start = time.time()
-        # print("Start: load negative samples and validation collate_fn initialize...")
-        # negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:] + ".csv"))
-        # negs = negs.merge(user_info.to_pandas()[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
-        # negs = negs.merge(item_info.to_pandas()[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
-        # negs = negs.drop(columns=["user_id", "item_id"])
-        # print(f"Mid: negative samples loaded in {time.time() - start}")
-        # valid_collate_fn = CollateNegSamplesFixed(negs, user_info, item_info, tokenizer.pad_token_id)
-        # print(f"Finish: load negative samples and validation collate_fn initialize in {time.time() - start}")
+        if config['training_neg_sampling_strategy'] == "random":
+            print("Start: used_item copy and train collate_fn initialize...")
+            cur_used_items = user_used_items['train'].copy()
+            train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'], cur_used_items, user_info,
+                                                          item_info, padding_token=padding_token)
+            print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
+        elif config['training_neg_sampling_strategy'] == "":
+            train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
+        elif config['training_neg_sampling_strategy'] in ["genres"]:
+            print("Start: used_item copy and train collate_fn initialize...")
+            cur_used_items = user_used_items['train'].copy()
+            train_collate_fn = CollateNegSamplesGenresOpt(config['training_neg_sampling_strategy'],
+                                                          config['training_neg_samples'], cur_used_items, user_info,
+                                                          item_info, padding_token=padding_token)
+            print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
+        elif config['training_neg_sampling_strategy'] == "randomc":
+            print("Start: used_item copy and train collate_fn initialize...")
+            cur_used_items = user_used_items['train'].copy()
+            train_collate_fn = CollateNegSamplesRandomOptOrdered(config['training_neg_samples'],
+                                                                 cur_used_items, user_info,
+                                                                 item_info, padding_token=padding_token)
+            print(f"Finish: used_item copy and train collate_fn initialize {time.time() - start}")
 
-    if config['test_neg_sampling_strategy'] == "random":
-        start = time.time()
-        print("Start: used_item copy and test collate_fn initialize...")
-        cur_used_items = user_used_items['train'].copy()
-        for user_id, u_items in user_used_items['validation'].items():
-            cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-        for user_id, u_items in user_used_items['test'].items():
-            cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-        test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items,
-                                                     padding_token=padding_token)
-        print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
-    elif config['test_neg_sampling_strategy'].startswith("f:"):
-        start = time.time()
-        print("Start: used_item copy and test collate_fn initialize...")
-        test_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
-        print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
-        # start = time.time()
-        # print("Start: load negative samples and test collate_fn initialize...")
-        # negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"))
-        # negs = negs.merge(user_info.to_pandas()[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
-        # negs = negs.merge(item_info.to_pandas()[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
-        # negs = negs.drop(columns=["user_id", "item_id"])
-        # print(f"Mid: negative samples loaded in {time.time() - start}")
-        # test_collate_fn = CollateNegSamplesFixed(negs, user_info, item_info, tokenizer.pad_token_id)
-        # print(f"Finish: load negative samples and test collate_fn initialize in {time.time() - start}")
+        if config['validation_neg_sampling_strategy'] == "random":
+            start = time.time()
+            print("Start: used_item copy and validation collate_fn initialize...")
+            cur_used_items = user_used_items['train'].copy()
+            for user_id, u_items in user_used_items['validation'].items():
+                cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+            valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
+                                                          padding_token=padding_token)
+            print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
+        elif config['validation_neg_sampling_strategy'].startswith("f:"):
+            start = time.time()
+            print("Start: used_item copy and validation collate_fn initialize...")
+            valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
+            print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
 
+        if config['test_neg_sampling_strategy'] == "random":
+            start = time.time()
+            print("Start: used_item copy and test collate_fn initialize...")
+            cur_used_items = user_used_items['train'].copy()
+            for user_id, u_items in user_used_items['validation'].items():
+                cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+            for user_id, u_items in user_used_items['test'].items():
+                cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+            test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items,
+                                                         padding_token=padding_token)
+            print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
+        elif config['test_neg_sampling_strategy'].startswith("f:"):
+            start = time.time()
+            print("Start: used_item copy and test collate_fn initialize...")
+            test_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
+            print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
 
+        train_dataloader = DataLoader(datasets['train'],
+                                      batch_size=config['train_batch_size'],
+                                      shuffle=True,
+                                      collate_fn=train_collate_fn,
+                                      num_workers=config['dataloader_num_workers']
+                                      )
+        validation_dataloader = DataLoader(datasets['validation'],
+                                           batch_size=config['eval_batch_size'],
+                                           collate_fn=valid_collate_fn,
+                                           num_workers=config['dataloader_num_workers'])
+        test_dataloader = DataLoader(datasets['test'],
+                                     batch_size=config['eval_batch_size'],
+                                     collate_fn=test_collate_fn,
+                                     num_workers=config['dataloader_num_workers'])
+        return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level'], return_padding_token
+    return None, None, None, user_info, item_info, config['relevance_level'], return_padding_token
 
-    # here goes the dataloaders from dataset objects returned above
-    #### TODO tokenizer felan ina???
-
-    # sampling negs: for training it is only train items,  for validation: train+valid, for test: train+valid+test
-
-    train_dataloader = DataLoader(datasets['train'],
-                                  batch_size=config['train_batch_size'],
-                                  shuffle=True,
-                                  collate_fn=train_collate_fn,
-                                  num_workers=config['dataloader_num_workers']
-                                  ### sampler? how negative sampling is implemented into this? or should we do it outside?
-                                  ### when creating the datasets?
-                                  )
-    validation_dataloader = DataLoader(datasets['validation'],
-                                       batch_size=config['eval_batch_size'],
-                                       collate_fn=valid_collate_fn,
-                                       num_workers=config['dataloader_num_workers'])
-    test_dataloader = DataLoader(datasets['test'],
-                                 batch_size=config['eval_batch_size'],
-                                 collate_fn=test_collate_fn,
-                                 num_workers=config['dataloader_num_workers'])
-
-    return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level'], return_padding_token
-
-
-# class CollateNegSamples(object):
-#     def __init__(self, strategy, num_neg_samples, used_items):
-#         self.strategy = strategy
-#         self.num_neg_samples = num_neg_samples
-#         self.used_items = used_items
-#         all_items = []
-#         for items in self.used_items.values():
-#             all_items.extend(items)
-#         self.all_items = set(all_items)
-#
-#     def __call__(self, batch):
-#         # TODO maybe change the sampling to like the fixed one... counter...
-#         batch_df = pd.DataFrame(batch)
-#         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
-#         samples = []
-#         for user_id in user_counter.keys():
-#             num_pos = user_counter[user_id]
-#             num_user_neg_samples = num_pos * self.num_neg_samples
-#             potential_items = self.all_items - self.used_items[user_id]
-#             if len(potential_items) < num_user_neg_samples:
-#                 print(f"WARNING: as there were not enough potential items to sample for user {user_id} with "
-#                       f"{num_pos} positives needing {num_user_neg_samples} negs,"
-#                       f"we reduced the number of user negative samples to potential items {len(potential_items)}"
-#                       f"HOWEVER, bear in mind that this is problematic, since the negatives here are the positives in valid and test!")
-#                 num_user_neg_samples = len(potential_items)
-#             if self.strategy == 'random':
-#                 for sampled_item in random.sample(potential_items, num_user_neg_samples):
-#                     samples.append({'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item})
-#         temp = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index()
-#         ret = {}
-#         for col in temp.columns:
-#             ret[col] = torch.tensor(temp[col])
-#         return ret
 
 class CollateOriginalDataPad(object):
     def __init__(self, user_info, item_info, padding_token=None):
@@ -377,8 +311,9 @@ class CollateRepresentationBuilder(object):
             if col in ret:
                 continue
             if col in ["user_id", "item_id"]:
-                continue
-            ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
+                ret[col] = batch_df[col]
+            else:
+                ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
         return ret
 
 
@@ -432,7 +367,7 @@ class CollateNegSamplesRandomOpt(object):
                             for sampled_item_id in user_samples])
         batch_df = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index().drop(columns=['index'])
 
-        # todo make this somehow that each of them could have text and better code
+        # todo test again when needed, as this is not used in our methods at the moment with the precomputing
         if self.padding_token is not None:
             # user:
             temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
@@ -632,55 +567,12 @@ class CollateNegSamplesGenresOpt(object):
                 ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
         return ret
 
-# class CollateNegSamplesFixed(object):
-#     def __init__(self, samples, user_info=None, item_info=None, padding_token=None):
-#         self.samples_grouped = samples.groupby(by=[INTERNAL_USER_ID_FIELD])
-#         self.user_info = user_info.to_pandas()
-#         self.item_info = item_info.to_pandas()
-#         self.padding_token = padding_token
-#
-#     def __call__(self, batch):
-#         batch_df = pd.DataFrame(batch)
-#         data = [batch_df]
-#         for user_id in set(batch_df[INTERNAL_USER_ID_FIELD]):
-#             data.append(self.samples_grouped.get_group(user_id))
-#         batch_df = pd.concat(data).reset_index().drop(columns=['index'])
-#         # user:
-#         temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
-#             .reset_index().drop(columns=['index'])
-#         temp_user = pd.concat([batch_df, temp_user], axis=1)
-#         temp_user = temp_user.rename(columns={"chunks_input_ids": "user_chunks_input_ids",
-#                                               "chunks_attention_mask": "user_chunks_attention_mask"})
-#         # item:
-#         temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD]][['chunks_input_ids', 'chunks_attention_mask']] \
-#             .reset_index().drop(columns=['index'])
-#         temp_item = pd.concat([batch_df, temp_item], axis=1)
-#         temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
-#                                               "chunks_attention_mask": "item_chunks_attention_mask"})
-#         temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
-#
-#         # pad ,  the resulting tensor is num-chunks * batch * tokens -> bcs later we want to do batchwise
-#         ret = {}
-#         for col in ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
-#                     "item_chunks_attention_mask"]:
-#             # instances = [pad_sequence([torch.tensor(t) for t in instance], padding_value=self.padding_token) for
-#             #              instance in temp[col]]
-#             instances = [torch.tensor([list(t) for t in instance]) for instance in temp[col]]
-#             ret[col] = pad_sequence(instances, padding_value=self.padding_token).type(torch.int64)
-#         for col in temp.columns:
-#             if col in ret:
-#                 continue
-#             ret[col] = torch.tensor(temp[col]).unsqueeze(1)
-#         return ret
-
 
 def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
     used_items = {}
     for split in datasets.keys():
-        used_items[split] = {}
-        for user_iid, item_iid in zip(datasets[split]['internal_user_id'], datasets[split]['internal_item_id']):
-            if user_iid not in used_items[split]:
-                used_items[split][user_iid] = set()
+        used_items[split] = defaultdict(set)
+        for user_iid, item_iid in zip(datasets[split][INTERNAL_USER_ID_FIELD], datasets[split][INTERNAL_ITEM_ID_FIELD]):
             used_items[split][user_iid].add(item_iid)
 
     for user, books in filtered_out_user_item_pairs_by_limit.items():
@@ -689,7 +581,7 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
     return used_items
 
 
-def load_split_dataset(config):
+def load_split_dataset(config, for_precalc=False):
     user_text_fields = config['user_text']
     item_text_fields = config['item_text']
     if config['text_in_batch'] is False:
@@ -697,16 +589,11 @@ def load_split_dataset(config):
         item_text_fields = []
 
     # read users and items, create internal ids for them to be used
-
-    # remove_fields = user_info.columns
-    # print(f"user fields: {remove_fields}")
     keep_fields = ["user_id"]
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if "user." in field])
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
     keep_fields = list(set(keep_fields))
-    # remove_fields = list(set(remove_fields) - set(keep_fields))
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
-    # user_info = user_info.drop(columns=remove_fields)
     user_info = user_info.sort_values("user_id").reset_index(drop=True) # this is crucial, as the precomputing is done with internal ids
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
     user_info = user_info.fillna('')
@@ -714,18 +601,18 @@ def load_split_dataset(config):
         columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
                  "user." in field})
 
-
-    # print(f"item fields: {item_info.columns}")
     keep_fields = ["item_id"]
     keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
     keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if "item." in field])
     keep_fields = list(set(keep_fields))
     tie_breaker = None
-    if 'review_tie_breaker' in config:
-        if config['review_tie_breaker'].startswith("item."):
-            tie_breaker = config['review_tie_breaker']
+    if config['user_item_text_tie_breaker'] != "":
+        if config['user_item_text_tie_breaker'].startswith("item."):
+            tie_breaker = config['user_item_text_tie_breaker']
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
             keep_fields.extend([tie_breaker])
+        else:
+            raise ValueError(f"tie-breaker value: {config['user_item_text_tie_breaker']}")
     if config["training_neg_sampling_strategy"] in ["genres"]:
         if config["name"] == "Amazon":
             keep_fields.append("category")
@@ -733,25 +620,19 @@ def load_split_dataset(config):
             keep_fields.append("genres")
         else:
             raise NotImplementedError()
-        # item_info = item_info  TODO: what was this here for?
-    # remove_fields = item_info.columns
-    # remove_fields = list(set(remove_fields) - set(keep_fields))
-    # item_info = item_info.drop(columns=remove_fields)
     item_info = pd.read_csv(join(config['dataset_path'], "items.csv"), usecols=keep_fields, low_memory=False, dtype=str)
     if tie_breaker is not None:
         if tie_breaker == "avg_rating":
             item_info[tie_breaker] = item_info[tie_breaker].astype(float)
-        elif tie_breaker == "rank":
-            raise NotImplementedError("rank type to int")
+        else:
+            raise NotImplementedError(f"tie-break {tie_breaker} not implemented")
         item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
     item_info = item_info.sort_values("item_id").reset_index(drop=True)  # this is crucial, as the precomputing is done with internal ids
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
     item_info = item_info.fillna('')
-    # TODO add wrong genre removal, i.e. "like"
     item_info = item_info.rename(
         columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
                  "item." in field})
-    # TODO maybe move these preprocessing to another step? of creating the dataset?
     if config["name"] == "Amazon":
         if 'item.category' in item_info.columns:
             item_info['item.category'] = item_info['item.category'].apply(
@@ -759,7 +640,6 @@ def load_split_dataset(config):
         if 'item.description' in item_info.columns:
             item_info['item.description'] = item_info['item.description'].apply(
                 lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
-        # TODO rank one from str with , to int or something for tie breaker!
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
@@ -797,11 +677,8 @@ def load_split_dataset(config):
             df = df.drop(columns=['user_item_ids'])
 
         if config['binary_interactions']:
-            # if binary prediction (interaction): set label for all rated/unrated/highrated/lowrated to 1.
-            # TODO alternatively you can only consider interactions which have high ratings... filter out the rest...
+            # if binary prediction (interaction): set label for all interactions to 1.
             df['label'] = np.ones(df.shape[0])
-            # df = df.drop(columns=['rating']) # todo we are not removing this now, bcs maybe we need it next when choosing the reviews
-            df['rating'] = df['rating'].fillna(-1)
             if config["name"] == "CGR":
                 for k, v in goodreads_rating_mapping.items():
                     df['rating'] = df['rating'].replace(k, v)
@@ -824,7 +701,7 @@ def load_split_dataset(config):
             else:
                 raise NotImplementedError(f"dataset {config['name']} not implemented!")
             df['label'] = df['rating']
-            # df = df.rename(columns={"rating": "label"})  # todo we are not removing this now, bcs maybe we need it next
+        df['rating'] = df['rating'].fillna(-1)
 
         # replace user_id with internal_user_id (same for item_id)
         df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
@@ -838,16 +715,12 @@ def load_split_dataset(config):
             columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
                      "interaction." in field})
 
-        # TODO preprocessing? removing html tags? ....
         for field in user_text_fields:
             if "interaction." in field:
                 df[field] = df[field].fillna('')
 
         # concat and move the user/item text fields to user and item info:
-        if "user_item_text_choice" not in config:
-            sort_reviews = "rating_sorted"
-        else:
-            sort_reviews = config['user_item_text_choice']
+        sort_reviews = config['user_item_text_choice']
         # text profile:
         if sp == 'train':
             ## USER:
@@ -901,6 +774,8 @@ def load_split_dataset(config):
                     user_texts = []
                     for user_idx in list(user_info.index):
                         user = user_info.loc[user_idx][INTERNAL_USER_ID_FIELD]
+                        if user != user_idx:
+                            raise ValueError("user id and index does not match!")
                         user_items = []
                         user_item_temp = temp[temp[INTERNAL_USER_ID_FIELD] == user]
                         for item_id, sents in zip(user_item_temp[INTERNAL_ITEM_ID_FIELD], user_item_temp['sentences_text']):
@@ -912,7 +787,6 @@ def load_split_dataset(config):
                             item_text = '. '.join(list(item[item_text_fields]))
                             scores = util.dot_score(sbert.encode(item_text), sbert.encode(sents))
                             user_items.append([sent for score, sent in sorted(zip(scores[0], sents), reverse=True)])
-                        # print(len(user_items))
                         user_text = []
                         cnts = {i: 0 for i in range(len(user_items))}
                         while True:
@@ -933,7 +807,7 @@ def load_split_dataset(config):
                         temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text']
                     else:
                         if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
-                            # joined the text of user books(title, genre, review):  TODO before here need to do the thing for sorting each of these, and also consider cutting it.
+
                             if tie_breaker is None:
                                 temp = temp.sort_values('rating', ascending=False).groupby(
                                     INTERNAL_USER_ID_FIELD)['text']
@@ -1015,8 +889,7 @@ def load_split_dataset(config):
         item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
-    # I would load them here.
-    if config['validation_neg_sampling_strategy'].startswith("f:"):
+    if not for_precalc and config['validation_neg_sampling_strategy'].startswith("f:"):
         negs = pd.read_csv(join(config['dataset_path'], config['validation_neg_sampling_strategy'][2:]+".csv"), dtype=str)
         negs['label'] = negs['label'].astype(int)
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
@@ -1025,7 +898,7 @@ def load_split_dataset(config):
         split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
-    if config['test_neg_sampling_strategy'].startswith("f:"):
+    if not for_precalc and config['test_neg_sampling_strategy'].startswith("f:"):
         negs = pd.read_csv(join(config['dataset_path'], config['test_neg_sampling_strategy'][2:] + ".csv"), dtype=str)
         negs['label'] = negs['label'].astype(int)
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")

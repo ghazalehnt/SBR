@@ -7,11 +7,11 @@ import csv
 import json
 import os
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 
 import transformers
-from datasets import load_dataset
 import numpy as np
+import pandas as pd
 
 from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, calculate_cl_macro
 
@@ -58,10 +58,10 @@ def get_metrics(ground_truth, prediction_scores, calc_cl_metrics=True):
 
 def group_users(config, thresholds, min_user_review_len=None, review_field=None):
     # here we have some users who only exist in training set
-    sp_files = {"train": os.path.join(config['dataset']['dataset_path'], "train.csv"),
-                "validation": os.path.join(config['dataset']['dataset_path'], "validation.csv"),
-                "test": os.path.join(config['dataset']['dataset_path'], "test.csv")}
-    split_datasets = load_dataset("csv", data_files=sp_files)
+    split_datasets = defaultdict()
+    for sp in ["train", "validation", "test"]:
+        split_datasets[sp] = pd.read_csv(os.path.join(config['dataset']['dataset_path'], f"{sp}.csv"), dtype=str)
+
     if config['dataset']['name'] == "CGR":
         split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
     elif config['dataset']['name'] == "GR_UCSD":

@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import time
+from collections import defaultdict
 
 import torch
 import numpy as np
@@ -39,9 +40,10 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
     if 'chunk_agg_strategy' in config['model']:
         raise ValueError('chunk_agg_strategy should not ne set')
 
-    train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
+    _, _, _, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
-                  config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
+                  config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
+                  True)
 
     prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
                              f"size{config['dataset']['chunk_size']}_"
@@ -92,7 +94,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size, agg_strategy,
-                                         config['dataset']['dataloader_num_workers'], INTERNAL_USER_ID_FIELD,
+                                         config['dataset']['dataloader_num_workers'],
+                                         INTERNAL_USER_ID_FIELD, "user_id",
                                          user_id_embedding if config['model']['append_id'] else None,
                                          user_embedding_CF if config['model']['use_CF'] else None)
         torch.save(weights, os.path.join(prec_path, user_rep_file))
@@ -110,7 +113,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size, agg_strategy,
-                                         config['dataset']['dataloader_num_workers'], INTERNAL_ITEM_ID_FIELD,
+                                         config['dataset']['dataloader_num_workers'],
+                                         INTERNAL_ITEM_ID_FIELD, "item_id",
                                          item_id_embedding if config['model']['append_id'] else None,
                                          item_embedding_CF if config['model']['use_CF'] else None)
         torch.save(weights, os.path.join(prec_path, item_rep_file))
@@ -118,14 +122,16 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
 
 
 def create_representations(bert, bert_embeddings, info, padding_token, device, batch_size, agg_strategy,
-                           num_workers, id_field, id_embedding=None, embedding_CF=None):
+                           num_workers, id_field, external_id_field, id_embedding=None, embedding_CF=None):
     collate_fn = CollateRepresentationBuilder(padding_token=padding_token)
     dataloader = DataLoader(info, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers)
     pbar = tqdm(enumerate(dataloader), total=len(dataloader))
-    reps = []
+    reps = defaultdict()
+    # reps = []
     for batch_idx, batch in pbar:
         # go over chunks:
         outputs = []
+        ex_id = batch[external_id_field].values[0]
         ids = batch[id_field].to(device)
         for input_ids, att_mask in zip(batch['chunks_input_ids'], batch['chunks_attention_mask']):
             input_ids = input_ids.to(device)
@@ -176,11 +182,12 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 tokens_embeddings = tokens_embeddings * mask
                 sum_tokons = torch.sum(tokens_embeddings, dim=1)
                 # summed_mask = torch.clamp(mask.sum(1), min=1e-9)  -> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
-                temp = sum_tokons / mask.sum(1)
+                temp = sum_tokons / att_mask.sum(1) # divide by how many tokens (1s) are in the att_mask
             else:
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
             outputs.append(temp)
-        reps.append(outputs)
+        reps[ex_id] = outputs
+        # reps.append(outputs)
     return reps
 
 
