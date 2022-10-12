@@ -144,7 +144,7 @@ def load_data(config, pretrained_model, for_precalc=False):
     # tokenize when needed:
     return_padding_token = None
     padding_token = None
-    if pretrained_model is not None:
+    if pretrained_model is not None and config["load_tokenized_text_in_batch"] is True:
         tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model)
         padding_token = tokenizer.pad_token_id
         return_padding_token = tokenizer.pad_token_id
@@ -174,7 +174,7 @@ def load_data(config, pretrained_model, for_precalc=False):
         print(f"Finish: get user used items in {time.time() - start}")
 
         # when we need text for the training. we sort of check it if the passed padding_token is not none in collate_fns, so this is set here now:
-        if config['text_in_batch'] is False:
+        if config['load_tokenized_text_in_batch'] is False:
             padding_token = None  # this causes the collate functions to
 
         train_collate_fn = None
@@ -584,7 +584,7 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
 def load_split_dataset(config, for_precalc=False):
     user_text_fields = config['user_text']
     item_text_fields = config['item_text']
-    if config['text_in_batch'] is False:
+    if config['load_user_item_text'] is False:
         user_text_fields = []
         item_text_fields = []
 

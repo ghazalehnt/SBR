@@ -31,12 +31,14 @@ class SupervisedTrainer:
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
-                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json')}
+                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json'),
+                                       "log": join(exp_dir, f'best_valid_{neg_name}_log.txt')}
         neg_name = dataset_eval_neg_sampling['test']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
-                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}.json')}
+                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}.json'),
+                                 "log": join(exp_dir, f'test_{neg_name}_log.txt')}
 
         self.train_output_log = join(exp_dir, "outputs")
         os.makedirs(self.train_output_log, exist_ok=True)
@@ -251,8 +253,8 @@ class SupervisedTrainer:
                 user_ids.extend(batch[
                                     INTERNAL_USER_ID_FIELD].squeeze().tolist())
                 item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
-                postprocess_time = time.perf_counter() - start_time - prepare_time - process_time
 
+                postprocess_time = time.perf_counter() - start_time - prepare_time - process_time
                 pbar.set_description(
                     f'Compute efficiency: {proc_compute_efficiency:.4f}, '
                     f'loss: {loss.item():.8f},  prep: {prepare_time:.4f},'
