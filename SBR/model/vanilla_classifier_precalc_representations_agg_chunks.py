@@ -17,9 +17,9 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         self.transform_u_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
         self.transform_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
 
-        self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
-        self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
-        self.bias = torch.nn.Parameter(torch.zeros(1))
+        # self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
+        # self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
+        # self.bias = torch.nn.Parameter(torch.zeros(1))
 
         self.chunk_agg_strategy = model_config['chunk_agg_strategy']
         max_num_chunks_user = dataset_config['max_num_chunks_user']
@@ -160,8 +160,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         # item_reps = torch.concat(item_reps)  ## TODO check
 
         result = torch.sum(torch.mul(user_reps, item_reps), dim=1)
-        result = result + self.item_bias[item_ids] + self.user_bias[user_ids]
-        result = result + self.bias
+        # result = result + self.item_bias[item_ids] + self.user_bias[user_ids]
+        # result = result + self.bias
         result = result.unsqueeze(1)
         return result  # do not apply sigmoid and use BCEWithLogitsLoss
 
