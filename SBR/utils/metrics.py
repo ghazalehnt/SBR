@@ -6,7 +6,7 @@ import pytrec_eval
 import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score
 
-from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 ranking_metrics = [
     "P_1",  # min number of pos interaction for users in test is 1, so P@higher than 1 may penalty even if it shouldn't
@@ -116,8 +116,8 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
     ex_items = external_items.to_pandas().set_index(INTERNAL_ITEM_ID_FIELD)
     item_ids = ex_items.loc[internal_items_ids].item_id.values
 
-    gt = {str(u): {} for u in set(user_ids)}
-    pd = {str(u): {} for u in set(user_ids)}
+    gt = {str(u): {} for u in sorted(set(user_ids))}
+    pd = {str(u): {} for u in sorted(set(user_ids))}
     for i in range(len(ground_truth)):
         gt[str(user_ids[i])][str(item_ids[i])] = int(ground_truth[i])
         pd[str(user_ids[i])][str(item_ids[i])] = float(prediction_scores[i])
@@ -126,8 +126,8 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
     if 'text' in ex_users.columns:
         with open(output_path["log"], "w") as f:
             for user_id in gt.keys():
-                f.write(f"user:{user_id} - text:{ex_users[ex_users['user_id'] == user_id]['text'].values[0]}\n\n")
-                for item_id, pd_score in sorted(pd[user_id].items(), key=lambda x:x[1]):
-                    f.write(f"item:{item_id} - label:{gt[user_id][item_id]} - score:{pd_score} - text:{ex_items[ex_items['item_id'] == item_id]['text'].values[0]}\n")
+                f.write(f"user:{user_id} - text:{ex_users[ex_users['user_id'] == user_id]['text'].values[0]}\n\n\n")
+                for item_id, pd_score in sorted(pd[user_id].items(), key=lambda x:x[1], reverse=True):
+                    f.write(f"item:{item_id} - label:{gt[user_id][item_id]} - score:{pd_score} - text:{ex_items[ex_items['item_id'] == item_id]['text'].values[0]}\n\n")
                 f.write("-----------------------------\n")
 
