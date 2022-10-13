@@ -62,14 +62,16 @@ def group_users(config, thresholds, min_user_review_len=None, review_field=None)
     for sp in ["train", "validation", "test"]:
         split_datasets[sp] = pd.read_csv(os.path.join(config['dataset']['dataset_path'], f"{sp}.csv"), dtype=str)
 
-    if config['dataset']['name'] == "CGR":
-        split_datasets = split_datasets.map(lambda x: {'rating': goodreads_rating_mapping[x['rating']]})
-    elif config['dataset']['name'] == "GR_UCSD":
-        split_datasets = split_datasets.map(lambda x: {'rating': int(x['rating'])})
-    elif config['dataset']["name"] == "Amazon":
-        split_datasets = split_datasets.map(lambda x: {'rating': int(float(x['rating']))})
-    else:
-        raise NotImplementedError(f"dataset {config['name']} not implemented!")
+        if config['dataset']["name"] == "CGR":
+            for k, v in goodreads_rating_mapping.items():
+                split_datasets[sp]['rating'] = split_datasets[sp]['rating'].replace(k, v)
+        elif config['dataset']["name"] == "GR_UCSD":
+            split_datasets[sp]['rating'] = split_datasets[sp]['rating'].astype(int)
+        elif config['dataset']["name"] == "Amazon":
+            split_datasets[sp]['rating'] = split_datasets[sp]['rating'].astype(float).astype(int)
+        else:
+            raise NotImplementedError(f"dataset {config['dataset']['name']} not implemented!")
+
     if not config['dataset']['binary_interactions']:
         # if predicting rating: remove the not-rated entries and map rating text to int
         split_datasets = split_datasets.filter(lambda x: x['rating'] is not None)
