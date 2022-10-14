@@ -6,26 +6,34 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torch.nn.Module):
-    def __init__(self, model_config, users, items, device, dataset_config):
+    def __init__(self, model_config, users, items, device, dataset_config,
+                 use_ffn=False, use_item_bias=False, use_user_bias=False):
         super(VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks, self).__init__()
         bert_embedding_dim = 768
         n_users = users.shape[0]
         n_items = items.shape[0]
 
-        self.transform_u_1 = torch.nn.Linear(bert_embedding_dim, model_config['k1'])
-        self.transform_i_1 = torch.nn.Linear(bert_embedding_dim, model_config['k1'])
-        self.transform_u_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
-        self.transform_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
+        self.use_ffn = use_ffn
+        self.use_item_bias = use_item_bias
+        self.use_user_bias = use_user_bias
 
-        # self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
-        # self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
-        # self.bias = torch.nn.Parameter(torch.zeros(1))
+        if self.use_ffn:
+            self.transform_u_1 = torch.nn.Linear(bert_embedding_dim, model_config['k1'])
+            self.transform_i_1 = torch.nn.Linear(bert_embedding_dim, model_config['k1'])
+            self.transform_u_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
+            self.transform_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
+
+        if self.use_item_bias:
+            self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
+
+        if self.use_user_bias:
+            self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
 
         self.chunk_agg_strategy = model_config['chunk_agg_strategy']
         max_num_chunks_user = dataset_config['max_num_chunks_user']
         max_num_chunks_item = dataset_config['max_num_chunks_item']
 
-        if "use_random_reps" in model_config and model_config["use_random_reps"] == True:
+        if "use_random_reps" in model_config and model_config["use_random_reps"] is True:
             self.chunk_user_reps = {}
             for c in range(max_num_chunks_user):
                 self.chunk_user_reps[c] = torch.nn.Embedding(n_users, 768, device=device)
@@ -78,7 +86,6 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 raise ValueError(
                     f"Precalculated item embedding does not exist! {os.path.join(prec_path, item_rep_file)}")
 
-
             self.chunk_user_reps = {}
             for c in range(max_num_chunks_user):
                 ch_rep = []
@@ -87,9 +94,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                         ch_rep.append(user_chunks[c])
                     else:
                         if self.chunk_agg_strategy == "max_pool":
-                            # ch_rep.append(-1 * torch.inf * torch.ones((1, 768)))
-                            # ch_rep.append(torch.zeros((1, 768)))
-                            ch_rep.append(user_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
+                            ch_rep.append(user_chunks[0])  # if user has fewer than c chunks, add its chunk0
                         else:
                             raise NotImplementedError()
                 self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps']) # TODO? or concat? stach -> n*1*768 , concatn*768
@@ -102,7 +107,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                         ch_rep.append(item_chunks[c])
                     else:
                         if self.chunk_agg_strategy == "max_pool":
-                            ch_rep.append(item_chunks[0])  # todo add the chunk0 or last chunk when no more chunks
+                            ch_rep.append(item_chunks[0])  # if item has fewer than c chunks, add its chunk0
                         else:
                             raise NotImplementedError()
                 self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'])  # TODO? or concat? stach -> n*1*768 , concatn*768
@@ -116,52 +121,26 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         user_reps = []
         for c in range(len(self.chunk_user_reps.keys())):
             user_ch_rep = self.chunk_user_reps[c](user_ids)
-            user_ch_rep = torch.nn.functional.relu(self.transform_u_1(user_ch_rep))
-            user_ch_rep = self.transform_u_2(user_ch_rep)
+            if self.use_ffn:
+                user_ch_rep = torch.nn.functional.relu(self.transform_u_1(user_ch_rep))
+                user_ch_rep = self.transform_u_2(user_ch_rep)
             user_reps.append(user_ch_rep)
         user_reps = torch.stack(user_reps).max(dim=0).values
 
         item_reps = []
         for c in range(len(self.chunk_item_reps.keys())):
             item_ch_rep = self.chunk_item_reps[c](item_ids)
-            item_ch_rep = torch.nn.functional.relu(self.transform_i_1(item_ch_rep))
-            item_ch_rep = self.transform_i_2(item_ch_rep)
+            if self.use_ffn:
+                item_ch_rep = torch.nn.functional.relu(self.transform_i_1(item_ch_rep))
+                item_ch_rep = self.transform_i_2(item_ch_rep)
             item_reps.append(item_ch_rep)
         item_reps = torch.stack(item_reps).max(dim=0).values
 
-        # TODO change later: this is slow
-        # user_reps = []
-        # for u in user_ids:
-        #     outputs = []
-        #     for c in range(0, min(len(self.user_chunks_reps[u]), self.max_num_chunks_user)):
-        #         ch_rep = self.user_chunks_reps[u][c]
-        #         ch_rep = torch.nn.functional.relu(self.transform_u_1(ch_rep))
-        #         ch_rep = self.transform_u_2(ch_rep)
-        #         outputs.append(ch_rep)
-        #     if self.chunk_agg_strategy == "max_pool":
-        #         rep = torch.stack(outputs).max(dim=0).values
-        #     else:
-        #         raise NotImplementedError()
-        #     user_reps.append(rep)
-        # user_reps = torch.concat(user_reps) ## TODO check
-        # item_reps = []
-        # for i in item_ids:
-        #     outputs = []
-        #     for c in range(0, min(len(self.item_chunks_reps[i]), self.max_num_chunks_item)):
-        #         ch_rep = self.item_chunks_reps[i][c]
-        #         ch_rep = torch.nn.functional.relu(self.transform_i_1(ch_rep))
-        #         ch_rep = self.transform_i_2(ch_rep)
-        #         outputs.append(ch_rep)
-        #     if self.chunk_agg_strategy == "max_pool":
-        #         rep = torch.stack(outputs).max(dim=0).values
-        #     else:
-        #         raise NotImplementedError()
-        #     item_reps.append(rep)
-        # item_reps = torch.concat(item_reps)  ## TODO check
-
         result = torch.sum(torch.mul(user_reps, item_reps), dim=1)
-        # result = result + self.item_bias[item_ids] + self.user_bias[user_ids]
-        # result = result + self.bias
+        if self.use_item_bias:
+            result = result + self.item_bias[item_ids]
+        if self.use_user_bias:
+            result = result + self.user_bias[user_ids]
         result = result.unsqueeze(1)
-        return result  # do not apply sigmoid and use BCEWithLogitsLoss
+        return result  # do not apply sigmoid here, later in the trainer if we wanted we would
 
