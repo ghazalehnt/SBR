@@ -622,7 +622,7 @@ def load_split_dataset(config, for_precalc=False):
             raise NotImplementedError()
     item_info = pd.read_csv(join(config['dataset_path'], "items.csv"), usecols=keep_fields, low_memory=False, dtype=str)
     if tie_breaker is not None:
-        if tie_breaker == "avg_rating":
+        if tie_breaker in ["avg_rating", "average_rating"]:
             item_info[tie_breaker] = item_info[tie_breaker].astype(float)
         else:
             raise NotImplementedError(f"tie-break {tie_breaker} not implemented")
@@ -733,7 +733,7 @@ def load_split_dataset(config, for_precalc=False):
             if len(user_item_inter_text_fields) > 0:
                 user_item_merge_fields = [INTERNAL_ITEM_ID_FIELD]
                 user_item_merge_fields.extend(user_item_text_fields)
-                if tie_breaker == 'avg_rating':
+                if tie_breaker in ["avg_rating", "average_rating"]:
                     user_item_merge_fields.append(tie_breaker)
 
                 user_inter_merge_fields = [INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']
@@ -811,7 +811,7 @@ def load_split_dataset(config, for_precalc=False):
                             if tie_breaker is None:
                                 temp = temp.sort_values('rating', ascending=False).groupby(
                                     INTERNAL_USER_ID_FIELD)['text']
-                            elif tie_breaker == "avg_rating":
+                            elif tie_breaker in ["avg_rating", "average_rating"]:
                                 temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
                                     INTERNAL_USER_ID_FIELD)['text']
                             else:
