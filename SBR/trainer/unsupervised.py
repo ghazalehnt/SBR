@@ -36,10 +36,6 @@ class UnSupervisedTrainer:
         self.items = items
 
         self.sig_output = config["sigmoid_output"]
-        if config['loss_fn'] == "MRL":
-            self.loss_fn = torch.nn.MarginRankingLoss()
-        else:
-            raise ValueError(f"loss_fn {config['loss_fn']} is not implemented!")
 
         self.model.to(device)
 
