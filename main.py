@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
-from statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.trainer.unsupervised import UnSupervisedTrainer
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
@@ -101,19 +101,27 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                       1 if config['dataset']['binary_interactions'] else None, padding_token, device, config['dataset'])
     print("Get model Done!")
 
-    trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
+    if config['trainer']['optimizer'] == "":
+        trainer = UnSupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger,
+                                    exp_dir=exp_dir,
+                                    relevance_level=relevance_level,
+                                    users=users, items=items,
+                                    dataset_eval_neg_sampling=
+                                    {"validation": config["dataset"]["validation_neg_sampling_strategy"],
+                                     "test": config["dataset"]["test_neg_sampling_strategy"]})
+        trainer.evaluate(test_dataloader, valid_dataloader)
+    else:
+        trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=test_only, relevance_level=relevance_level,
                                 users=users, items=items,
                                 dataset_eval_neg_sampling=
                                 {"validation": config["dataset"]["validation_neg_sampling_strategy"],
                                  "test": config["dataset"]["test_neg_sampling_strategy"]})
-    print("Get trainer Done!")
-
-    if op == "train":
-        trainer.fit(train_dataloader, valid_dataloader)
-        trainer.evaluate(test_dataloader, valid_dataloader)
-    elif op == "test":
-        trainer.evaluate(test_dataloader, valid_dataloader)
+        if op == "train":
+            trainer.fit(train_dataloader, valid_dataloader)
+            trainer.evaluate(test_dataloader, valid_dataloader)
+        elif op == "test":
+            trainer.evaluate(test_dataloader, valid_dataloader)
 
 
 if __name__ == '__main__':
