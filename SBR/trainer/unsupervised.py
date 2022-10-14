@@ -35,33 +35,28 @@ class UnSupervisedTrainer:
         self.users = users
         self.items = items
 
-        if config['loss_fn'] == "BCE":
-            self.loss_fn = torch.nn.BCEWithLogitsLoss()  # use BCEWithLogitsLoss and do not apply the sigmoid beforehand
-        elif config['loss_fn'] == "MRL":
+        self.sig_output = config["sigmoid_output"]
+        if config['loss_fn'] == "MRL":
             self.loss_fn = torch.nn.MarginRankingLoss()
-        # elif config["loss_fn"] == "CE":  ## todo do we need this???
-            # self.loss_fn = torch.nn.CrossEntropyLoss
         else:
             raise ValueError(f"loss_fn {config['loss_fn']} is not implemented!")
 
         self.model.to(device)
 
     def evaluate(self, test_dataloader, valid_dataloader):
-        outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
+        outputs, ground_truth, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
         log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
-        results["loss"] = valid_loss
         results = {f"validation_{k}": v for k, v in results.items()}
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/{k}', v)
         print(f"\nValidation results: {results}")
 
-        outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
+        outputs, ground_truth, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
         results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
-        results["loss"] = test_loss
         results = {f"test_{k}": v for k, v in results.items()}
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/{k}', v)
@@ -75,7 +70,6 @@ class UnSupervisedTrainer:
         ground_truth = []
         user_ids = []
         item_ids = []
-        eval_loss, total_count = 0, 0
         pbar = tqdm(enumerate(eval_dataloader), total=len(eval_dataloader), disable=False)
 
         start_time = time.perf_counter()
@@ -87,13 +81,9 @@ class UnSupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 output = self.model(batch)
-                if self.loss_fn._get_name() == "MarginRankingLoss":
-                    loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
-                else:
-                    loss = self.loss_fn(output, label)
+                if self.sig_output:
                     output = torch.sigmoid(output)
-                eval_loss += loss.item()
-                total_count += label.size(0)  # TODO remove if not used
+
                 process_time = time.perf_counter() - start_time - prepare_time
                 proc_compute_efficiency = process_time / (process_time + prepare_time)
 
@@ -107,11 +97,10 @@ class UnSupervisedTrainer:
                 postprocess_time = time.perf_counter() - start_time - prepare_time - process_time
                 pbar.set_description(
                     f'Compute efficiency: {proc_compute_efficiency:.4f}, '
-                    f'loss: {loss.item():.8f},  prep: {prepare_time:.4f},'
+                    f'prep: {prepare_time:.4f},'
                     f'process: {process_time:.4f}, post: {postprocess_time:.4f}')
                 start_time = time.perf_counter()
 
-            eval_loss /= total_count
         ground_truth = torch.tensor(ground_truth)
         outputs = torch.tensor(outputs)
-        return outputs, ground_truth, eval_loss, user_ids, item_ids
+        return outputs, ground_truth, user_ids, item_ids
