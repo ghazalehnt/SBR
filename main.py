@@ -97,8 +97,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
     print("Data load done!")
 
-    model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None, padding_token, device, config['dataset'])
+    model = get_model(config['model'], users, items, device, config['dataset'])
     print("Get model Done!")
 
     if config['trainer']['optimizer'] == "":
