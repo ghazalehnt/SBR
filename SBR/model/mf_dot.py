@@ -30,8 +30,8 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
         output = torch.sum(torch.mul(user_embeds, item_embeds), dim=1)
         # 2: taking the diagonal of matrixmul of user and item embeds:
         #output = torch.diag(torch.matmul(user_embeds, item_embeds.T))
-        if self.item_user_bias:
+        if self.use_item_bias:
             output = output + self.item_bias[items]
-        if self.user_user_bias:
+        if self.use_user_bias:
             output = output + self.user_bias[users]
         return output.unsqueeze(1)  # do not apply sigmoid and use BCEWithLogitsLoss
