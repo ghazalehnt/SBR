@@ -606,7 +606,7 @@ def load_split_dataset(config, for_precalc=False):
     keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if "item." in field])
     keep_fields = list(set(keep_fields))
     tie_breaker = None
-    if config['user_item_text_tie_breaker'] != "":
+    if len(user_text_fields) > 0 and config['user_item_text_tie_breaker'] != "":
         if config['user_item_text_tie_breaker'].startswith("item."):
             tie_breaker = config['user_item_text_tie_breaker']
             tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
@@ -720,7 +720,9 @@ def load_split_dataset(config, for_precalc=False):
                 df[field] = df[field].fillna('')
 
         # concat and move the user/item text fields to user and item info:
-        sort_reviews = config['user_item_text_choice']
+        sort_reviews = ""
+        if len(user_text_fields) > 0:
+            sort_reviews = config['user_item_text_choice']
         # text profile:
         if sp == 'train':
             ## USER:
