@@ -5,7 +5,17 @@ from SBR.model.vanilla_classifier_precalc_representations_agg_chunks import \
 
 def get_model(config, user_info, item_info, device=None, dataset_config=None):
     if config['name'] == "MF":
-        model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0])
+        model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
+                                              use_item_bias=False, use_user_bias=False)
+    elif config['name'] == "MF_with_itembias":
+        model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
+                                              use_item_bias=True, use_user_bias=False)
+    elif config['name'] == "MF_with_userbias":
+        model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
+                                              use_item_bias=False, use_user_bias=True)
+    elif config['name'] == "MF_with_itembias_userbias":
+        model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
+                                              use_item_bias=True, use_user_bias=True)
     elif config['name'] == "VanillaBERT_precalc_embed_sim":
         model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
                                                                                       users=user_info,

@@ -4,14 +4,19 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
 class MatrixFactorizatoinDotProduct(torch.nn.Module):
-    def __init__(self, config, n_users, n_items):
+    def __init__(self, config, n_users, n_items, use_item_bias=False, use_user_bias=False):
         super(MatrixFactorizatoinDotProduct, self).__init__()
 
         self.user_embedding = torch.nn.Embedding(n_users, config["embedding_dim"])
         self.item_embedding = torch.nn.Embedding(n_items, config["embedding_dim"])
-        self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
-        self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
-        self.bias = torch.nn.Parameter(torch.zeros(1))
+
+        self.use_item_bias = use_item_bias
+        self.use_user_bias = use_user_bias
+
+        if self.use_user_bias:
+            self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
+        if self.use_item_bias:
+            self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
 
     def forward(self, batch):
         users = batch[INTERNAL_USER_ID_FIELD].squeeze()
@@ -25,6 +30,8 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
         output = torch.sum(torch.mul(user_embeds, item_embeds), dim=1)
         # 2: taking the diagonal of matrixmul of user and item embeds:
         #output = torch.diag(torch.matmul(user_embeds, item_embeds.T))
-        output = output + self.item_bias[items] + self.user_bias[users]
-        output = output + self.bias
+        if self.item_user_bias:
+            output = output + self.item_bias[items]
+        if self.user_user_bias:
+            output = output + self.user_bias[users]
         return output.unsqueeze(1)  # do not apply sigmoid and use BCEWithLogitsLoss
