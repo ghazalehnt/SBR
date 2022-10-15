@@ -45,8 +45,11 @@ class SupervisedTrainer:
 
         self.users = users
         self.items = items
+        self.sig_output = config["sigmoid_output"]
 
         if config['loss_fn'] == "BCE":
+            if self.sig_output is False:
+                raise ValueError("cannot have BCE with no sigmoid")
             self.loss_fn = torch.nn.BCEWithLogitsLoss()  # use BCEWithLogitsLoss and do not apply the sigmoid beforehand
         elif config['loss_fn'] == "MRL":
             self.loss_fn = torch.nn.MarginRankingLoss()
@@ -118,17 +121,23 @@ class SupervisedTrainer:
 
                 self.optimizer.zero_grad()
                 output = self.model(batch)
-                if self.loss_fn._get_name() == "MarginRankingLoss":
-                    # output = torch.sigmoid(output)  # no sigmoid when using MRL
-                    pos_l = label[label == 1]
-                    pos_out = output[:pos_l.shape[0]].squeeze()
-                    neg_out = output[pos_l.shape[0]:].squeeze()
-                    loss = self.loss_fn(pos_out, neg_out, pos_l)
-                    tr_outputs.extend(list(output))
+                if self.loss_fn._get_name() == "BCEWithLogitsLoss":
+                    # not applying sigmoid before loss bc it is already applied in the loss
+                    loss = self.loss_fn(output, label)
+                    # just apply sigmoid for logging
+                    tr_outputs.extend(list(torch.sigmoid(output)))
                     tr_labels.extend(label)
                 else:
-                    loss = self.loss_fn(output, label)
-                    tr_outputs.extend(list(torch.sigmoid(output)))
+                    if self.sig_output:
+                        output = torch.sigmoid(output)
+                    if self.loss_fn._get_name() == "MarginRankingLoss":
+                        pos_l = label[label == 1]
+                        pos_out = output[:pos_l.shape[0]].squeeze()
+                        neg_out = output[pos_l.shape[0]:].squeeze()
+                        loss = self.loss_fn(pos_out, neg_out, pos_l)
+                    else:
+                        loss = self.loss_fn(output, label)
+                    tr_outputs.extend(list(output))
                     tr_labels.extend(label)
 
                 loss.backward()
@@ -145,7 +154,7 @@ class SupervisedTrainer:
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.perf_counter()
             train_loss /= total_count
-            with open(join(self.train_output_log, f"train_sigmoid_output_{epoch}.log"), "w") as f:
+            with open(join(self.train_output_log, f"train_output_{epoch}.log"), "w") as f:
                 f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
             print(f"Train loss epoch {epoch}: {train_loss}")
 
@@ -154,7 +163,7 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-            with open(join(self.train_output_log, f"valid_sigmoid_output_{epoch}.log"), "w") as f:
+            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
                 f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
@@ -237,11 +246,18 @@ class SupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 output = self.model(batch)
-                if self.loss_fn._get_name() == "MarginRankingLoss":
-                    loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
-                else:
+                if self.loss_fn._get_name() == "BCEWithLogitsLoss":
+                    # not applying sigmoid before loss bc it is already applied in the loss
                     loss = self.loss_fn(output, label)
+                    # just apply sigmoid for logging
                     output = torch.sigmoid(output)
+                else:
+                    if self.sig_output:
+                        output = torch.sigmoid(output)
+                    if self.loss_fn._get_name() == "MarginRankingLoss":
+                        loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
+                    else:
+                        loss = self.loss_fn(output, label)
                 eval_loss += loss.item()
                 total_count += label.size(0)  # TODO remove if not used
                 process_time = time.perf_counter() - start_time - prepare_time
