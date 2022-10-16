@@ -633,6 +633,10 @@ def load_split_dataset(config, for_precalc=False):
     item_info = item_info.rename(
         columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
                  "item." in field})
+    if 'item.genres' in item_info.columns:
+        item_info['item.genres'] = item_info['item.genres'].apply(
+            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for
+                                 g in x.split(",")]))
     if config["name"] == "Amazon":
         if 'item.category' in item_info.columns:
             item_info['item.category'] = item_info['item.category'].apply(
