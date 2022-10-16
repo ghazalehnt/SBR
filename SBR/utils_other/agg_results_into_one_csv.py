@@ -119,8 +119,13 @@ def main(exp_dir, evalset, file_suffix):
                 model_config = f"CF-BERT_{ch}CH_{sortby}"
             else:
                 model_config = f"BERT_{ch}CH_{sortby}"
-        else:
-            model_config = f"CF-{folder_name[:folder_name.index('_')]}"
+        elif folder_name.startswith("MF"):
+            if folder_name.startswith("MF_with_itembias"):
+                folder_name = folder_name[folder_name.index('MF_with_itembias_')+len('MF_with_itembias_'):]
+                model_config = f"MF_with_itembias_{folder_name[:folder_name.index('_')]}"
+            elif folder_name.startswith("MF"):
+                folder_name = folder_name[folder_name.index('MF_') + len('MF_'):]
+                model_config = f"MF_{folder_name[:folder_name.index('_')]}"
             profile = ''
             item_text = ''
         book_limit = 'all books'
@@ -129,6 +134,8 @@ def main(exp_dir, evalset, file_suffix):
             book_pick_strategy = temp[temp.index("_")+1:]
             num_books = temp[:temp.index("_")]
             book_limit = f"max {num_books} - {book_pick_strategy}"
+        else:
+            raise ValueError(folder_name)
 
         for line in reader:
             if line[0] not in group_rows:
