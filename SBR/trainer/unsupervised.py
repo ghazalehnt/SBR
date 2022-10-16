@@ -20,8 +20,8 @@ class UnSupervisedTrainer:
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
-                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json'),
-                                       "log": join(exp_dir, f'best_valid_{neg_name}_log.txt')}
+                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json'),}
+#                                       "log": join(exp_dir, f'best_valid_{neg_name}_log.txt')}
         neg_name = dataset_eval_neg_sampling['test']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
