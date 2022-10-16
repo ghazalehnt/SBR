@@ -55,6 +55,8 @@ class SupervisedTrainer:
             self.loss_fn = torch.nn.MarginRankingLoss()
         # elif config["loss_fn"] == "CE":  ## todo do we need this???
             # self.loss_fn = torch.nn.CrossEntropyLoss
+        elif config['loss_fn'] == "MSE":
+            self.loss_fn = torch.nn.MSELoss()
         else:
             raise ValueError(f"loss_fn {config['loss_fn']} is not implemented!")
 
