@@ -1,5 +1,6 @@
 import argparse
 import csv
+import json
 import math
 from os import listdir
 from os.path import join, exists
@@ -21,46 +22,17 @@ def main(exp_dir, evalset, file_suffix):
     for folder_name in sorted(listdir(exp_dir)):
         if folder_name.endswith("csv"):
             continue
-
-        lr = ""
-        if "4e-05_1e-08" in folder_name:
-            lr = "0.00004"
-        elif "0.0004_1e-08" in folder_name:
-            lr = "0.0004"
-        elif "0.004_1e-08" in folder_name:
-            lr = "0.004"
-        elif "0.04_1e-08" in folder_name:
-            lr = "0.04"
-        elif "0.4_1e-08" in folder_name:
-            lr = "0.4"
-        elif "0.01_1e-08" in folder_name:
-            lr = "0.01"
-        elif "0.001_1e-08" in folder_name:
-            lr = "0.001"
-        elif "0.1_1e-08" in folder_name:
-            lr = "0.1"
+        config = json.load(open(join(exp_dir, folder_name, "config.json"), 'r'))
+        lr = config['trainer']['lr'] if 'lr' in config['trainer'] else ''
+        bs = config['dataset']['train_batch_size'] if 'train_batch_size' in config['dataset'] else ''
         if use_LR is not None and lr != use_LR:
             continue
-
-        bs = ""
-        if "1e-08_256" in folder_name:
-            bs = "256"
-        elif "1e-08_128" in folder_name:
-            bs = "128"
-        elif "1e-08_64" in folder_name:
-            bs = "64"
-        elif "1e-08_512" in folder_name:
-            bs = "512"
-        elif "1e-08_32" in folder_name:
-            bs = "32"
         if use_BS is not None and bs != use_BS:
             continue
 
         if not exists(join(exp_dir, folder_name, result_file_name)):
             print(f"no results found for: {folder_name}")
             continue
-#        print(folder_name)
-
         res_file = open(join(exp_dir, folder_name, result_file_name), 'r')
         try:
             reader = csv.reader(res_file)
@@ -68,85 +40,58 @@ def main(exp_dir, evalset, file_suffix):
         except Exception:
             print(f"empty file: {join(exp_dir, folder_name, result_file_name)}")
 
-        valid_neg = ""
-        if "f-random_100_f-random_100" in folder_name or "f-random_100_f-genres_100" in folder_name:
-            valid_neg = "random"
-        elif "f-genres_100_f-genres_100" in folder_name or "f-genres_100_f-random_100" in folder_name:
-            valid_neg = "genres"
-
-        if folder_name.startswith("False") or folder_name.startswith("True"):
-            if "_100_1_1_" in folder_name:
-                ch = 1
-            elif "_100_5_5_" in folder_name:
-                ch = 5
-            else:
-                print(folder_name)
-                raise ValueError("num chunks not found in fname")
-            sortby = ""
-            for filter in ["tf-idf_1", "tf-idf_2", "tf-idf_3", "tf-idf_1-2-3", "idf_1_unique", "idf_2_unique",
-                               "idf_3_unique", "idf_1-2-3_unique", "idf_sentence", "item_sentence_SBERT",
-                           "random_sentence", "item_per_chunk"]:
-                if filter in folder_name:
-                    sortby = filter
-                    break
-
+        model_name = config["model"]["name"]
+        if model_name.startswith("MF"):
+            model_config = f"{model_name}_{config['model']['embedding_dim']}_{'sig' if config['trainer']['sigmoid_output'] is True else 'no-sig'}"
+            trainer = f"{config['trainer']['optimizer']}_{config['trainer']['loss_fn']}"
+        elif model_name.startswith("VanillaBERT"):
             item_text = ""
-            item_text_part = folder_name[folder_name.rindex("_"):]
-            if item_text_part == "_item.title-item.category-item.description":
-                item_text = "tcd"
-            elif item_text_part == "_item.title-item.genres-item.description":
-                item_text = "tgd"
-            elif item_text_part == "_item.title-item.category":
-                item_text = "tc"
-            elif item_text_part == "_item.title-item.genres":
-                item_text = "tg"
-            if item_text != "":
-                folder_name = folder_name[:folder_name.rindex("_")]
+            if "item.title" in config['dataset']['item_text']:
+                item_text += "t"
+            if "item.category" in config['dataset']['item_text']:
+                item_text += "c"
+            if "item.genres" in config['dataset']['item_text']:
+                item_text += "g"
+            if "item.description" in config['dataset']['item_text']:
+                item_text += "d"
 
-            profile = []
-            if "item.title" in folder_name:
-                profile.append('t')
-            if "item.genres" in folder_name:
-                profile.append('g')
-            if "item.category" in folder_name:
-                profile.append('c')
-            if "interaction.summary" in folder_name:
-                profile.append('s')
-            if "interaction.review" in folder_name:
-                profile.append('r')
-            profile = ''.join(profile)
-            if folder_name.startswith("True"):
-                model_config = f"CF-BERT_{ch}CH_{sortby}"
+            user_text = ""
+            if "item.title" in config['dataset']['user_text']:
+                user_text += "t"
+            if "item.category" in config['dataset']['user_text']:
+                user_text += "c"
+            if "item.genres" in config['dataset']['user_text']:
+                user_text += "g"
+            if "interaction.summary" in config['dataset']['user_text']:
+                user_text += "s"
+            if "interaction.review" in config['dataset']['user_text']:
+                user_text += "r"
+
+            ch = config['dataset']['max_num_chunks_user']
+            sortby = config['dataset']['user_text_filter']
+            if model_name == "VanillaBERT_precalc_embed_sim":
+                model_config = f"emb-sim_"
+                trainer = ""
             else:
-                model_config = f"BERT_{ch}CH_{sortby}"
-        elif folder_name.startswith("MF"):
-            if folder_name.startswith("MF_with_itembias"):
-                folder_name = folder_name[folder_name.index('MF_with_itembias_')+len('MF_with_itembias_'):]
-                model_config = f"MF_with_itembias_{folder_name[:folder_name.index('_')]}"
-            elif folder_name.startswith("MF"):
-                folder_name = folder_name[folder_name.index('MF_') + len('MF_'):]
-                model_config = f"MF_{folder_name[:folder_name.index('_')]}"
-            profile = ''
-            item_text = ''
-        else:
-            raise ValueError(folder_name)
-        book_limit = 'all books'
-        if 'max_book' in folder_name:
-            temp = folder_name[folder_name.index("max_book_")+len("max_book_"):]
-            book_pick_strategy = temp[temp.index("_")+1:]
-            num_books = temp[:temp.index("_")]
-            book_limit = f"max {num_books} - {book_pick_strategy}"
-
-
+                trainer = f"{config['trainer']['optimizer']}_{config['trainer']['loss_fn']}"
+                if model_name == "VanillaBERT_precalc_with_ffn":
+                    model_config = f"ffn-dp_"
+                elif model_name == "VanillaBERT_precalc_with_itembias":
+                    model_config = f"itembias-dp_"
+                elif model_name == "VanillaBERT_precalc_with_ffn_itembias":
+                    model_config = f"ffn-itembias-dp_"
+            if config['model']['use_CF'] is True:
+                model_config += "CF_"
+            model_config += f"BERT_{ch}CH_{sortby}_{'sig' if config['trainer']['sigmoid_output'] is True else 'no-sig'}"
 
         for line in reader:
             if line[0] not in group_rows:
                 group_rows[line[0]] = []
-            group_rows[line[0]].append([model_config, profile, item_text, book_limit, line[0]]
+            group_rows[line[0]].append([model_config, user_text, item_text, line[0]]
                                        + [str(round_half_up(float(m)*100, 4)) for m in line[1:]]
-                                       + [lr, bs])
+                                       + [lr, bs, trainer])
 
-    header = ["model config", "user profile", "item text", "book limit"] + header + ["lr", "bs"]
+    header = ["model config", "user profile", "item text", "book limit"] + header + ["lr", "bs", trainer]
     outf = f"{evalset}_results_{file_suffix}" \
            f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
            f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
