@@ -128,14 +128,16 @@ def main(exp_dir, evalset, file_suffix):
                 model_config = f"MF_{folder_name[:folder_name.index('_')]}"
             profile = ''
             item_text = ''
+        else:
+            raise ValueError(folder_name)
         book_limit = 'all books'
         if 'max_book' in folder_name:
             temp = folder_name[folder_name.index("max_book_")+len("max_book_"):]
             book_pick_strategy = temp[temp.index("_")+1:]
             num_books = temp[:temp.index("_")]
             book_limit = f"max {num_books} - {book_pick_strategy}"
-        else:
-            raise ValueError(folder_name)
+
+
 
         for line in reader:
             if line[0] not in group_rows:
