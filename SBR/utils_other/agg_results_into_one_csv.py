@@ -21,6 +21,41 @@ def main(exp_dir, evalset, file_suffix):
     for folder_name in sorted(listdir(exp_dir)):
         if folder_name.endswith("csv"):
             continue
+
+        lr = ""
+        if "4e-05_1e-08" in folder_name:
+            lr = "0.00004"
+        elif "0.0004_1e-08" in folder_name:
+            lr = "0.0004"
+        elif "0.004_1e-08" in folder_name:
+            lr = "0.004"
+        elif "0.04_1e-08" in folder_name:
+            lr = "0.04"
+        elif "0.4_1e-08" in folder_name:
+            lr = "0.4"
+        elif "0.01_1e-08" in folder_name:
+            lr = "0.01"
+        elif "0.001_1e-08" in folder_name:
+            lr = "0.001"
+        elif "0.1_1e-08" in folder_name:
+            lr = "0.1"
+        if use_LR is not None and lr != use_LR:
+            continue
+
+        bs = ""
+        if "1e-08_256" in folder_name:
+            bs = "256"
+        elif "1e-08_128" in folder_name:
+            bs = "128"
+        elif "1e-08_64" in folder_name:
+            bs = "64"
+        elif "1e-08_512" in folder_name:
+            bs = "512"
+        elif "1e-08_32" in folder_name:
+            bs = "32"
+        if use_BS is not None and bs != use_BS:
+            continue
+
         if not exists(join(exp_dir, folder_name, result_file_name)):
             print(f"no results found for: {folder_name}")
             continue
@@ -32,26 +67,6 @@ def main(exp_dir, evalset, file_suffix):
             header = next(reader)
         except Exception:
             print(f"empty file: {join(exp_dir, folder_name, result_file_name)}")
-
-        lr = ""
-        if "0.0004_1e-08" in folder_name:
-            lr = "0.0004"
-        elif "0.004_1e-08" in folder_name:
-            lr = "0.004"
-        elif "0.04_1e-08" in folder_name:
-            lr = "0.04"
-        if use_LR is not None and lr != use_LR:
-            continue
-
-        bs = ""
-        if "1e-08_256" in folder_name:
-            bs = "256"
-        elif "1e-08_128" in folder_name:
-            bs = "128"
-        elif "1e-08_64" in folder_name:
-            bs = "64"
-        if use_BS is not None and bs != use_BS:
-            continue
 
         valid_neg = ""
         if "f-random_100_f-random_100" in folder_name or "f-random_100_f-genres_100" in folder_name:
