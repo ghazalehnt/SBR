@@ -91,7 +91,7 @@ def main(exp_dir, evalset, file_suffix):
                                        + [str(round_half_up(float(m)*100, 4)) for m in line[1:]]
                                        + [lr, bs, trainer])
 
-    header = ["model config", "user profile", "item text", "book limit"] + header + ["lr", "bs", trainer]
+    header = ["model config", "user profile", "item text"] + header + ["lr", "bs", trainer]
     outf = f"{evalset}_results_{file_suffix}" \
            f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
            f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
