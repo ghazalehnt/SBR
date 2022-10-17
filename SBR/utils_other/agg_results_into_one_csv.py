@@ -67,7 +67,9 @@ def main(exp_dir, evalset, file_suffix):
                 user_text += "g"
             if "interaction.summary" in config['dataset']['user_text']:
                 user_text += "s"
-            if "interaction.review" in config['dataset']['user_text']:
+            if "interaction.review_text" in config['dataset']['user_text']:
+                user_text += "r"
+            if "interaction.reviewText" in config['dataset']['user_text']:
                 user_text += "r"
 
             ch = config['dataset']['max_num_chunks_user']
@@ -94,7 +96,7 @@ def main(exp_dir, evalset, file_suffix):
                                        + [str(round_half_up(float(m)*100, 4)) for m in line[1:]]
                                        + [lr, bs, trainer])
 
-    header = ["model config", "user profile", "item text"] + header + ["lr", "bs", trainer]
+    header = ["model config", "user profile", "item text"] + header + ["lr", "bs", "trainer"]
     outf = f"{evalset}_results_{file_suffix}" \
            f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
            f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
