@@ -22,6 +22,9 @@ def main(exp_dir, evalset, file_suffix):
     for folder_name in sorted(listdir(exp_dir)):
         if folder_name.endswith("csv"):
             continue
+        trainer = ""
+        user_text = ""
+        item_text = ""
         config = json.load(open(join(exp_dir, folder_name, "config.json"), 'r'))
         lr = config['trainer']['lr'] if 'lr' in config['trainer'] else ''
         bs = config['dataset']['train_batch_size'] if 'train_batch_size' in config['dataset'] else ''
