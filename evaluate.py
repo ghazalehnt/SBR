@@ -274,7 +274,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_neg_strategy', type=str, default="random", help='negative sampling strategy')
     parser.add_argument('--valid_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
     parser.add_argument('--eval_unlabeled_pos_w', type=float, default=None, help='instead of 0 for negatives, this is assumed')
-    parser.add_argument('--item_user_set', type=str, default=None, help='path to file the item user set.')
+    parser.add_argument('--user_item_jaccard_index', type=str, default=None, help='path to user eval item jaccard index.')
     args, _ = parser.parse_known_args()
 
     result_folder = args.result_folder
@@ -284,9 +284,9 @@ if __name__ == "__main__":
     test_neg_strategy = args.test_neg_strategy
     valid_neg_strategy = args.valid_neg_strategy
     unlabeled_pos_weight = args.eval_unlabeled_pos_w
-    item_user_set_file = args.item_user_set
+    user_item_jaccard_index_file = args.user_item_jaccard_index
 
-    if unlabeled_pos_weight is not None and item_user_set_file is not None:
+    if unlabeled_pos_weight is not None and user_item_jaccard_index_file is not None:
         raise ValueError("both are given!")
 
     if not os.path.exists(os.path.join(result_folder, "config.json")):
@@ -311,44 +311,42 @@ if __name__ == "__main__":
     test_prediction = json.load(open(os.path.join(result_folder,
                                                   f"test_predicted_test_neg_{test_neg_strategy}{f'_upw{config_unlabeled_pos_weight}' if config_unlabeled_pos_weight is not None else ''}.json")))
     ranking_metrics = None
-    if item_user_set_file is not None:
+    if user_item_jaccard_index_file is not None:
         ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
         csv_metric_header = ranking_metrics
 
         user_pos_train_items = defaultdict()
-        item_user_set = pickle.load(open(item_user_set_file, 'rb'))
-        users = set(valid_ground_truth["ground_truth"].keys()).union(test_ground_truth["ground_truth"].keys())
-        train = pd.read_csv(os.path.join(config['dataset']['dataset_path'], f"train.csv"), dtype=str)
-        for user in users:
-            user_pos_train_items[user] = list(set(train[train["user_id"] == user]["item_id"]))
+        user_item_jaccard_index = pickle.load(open(user_item_jaccard_index_file, 'rb'))
 
-        min_w = 1
+        min_w = 1  # for re-scaling the labels to integer
         for user, items in valid_ground_truth["ground_truth"].items():
             for item, v in items.items():
                 if v == 0:
-                    dist = [jaccard_index(item_user_set[item], item_user_set[pos_item]) for pos_item in
-                            user_pos_train_items[user]]
-                    avgdist = sum(dist)/len(dist)  # the higher the more related to positive, we assign it directly to the label instead of 0 (later convert it)
-                    valid_ground_truth["ground_truth"][user][item] = avgdist
-                    if 0 < avgdist < min_w:
-                        min_w = avgdist
+                    avg_relatedness = user_item_jaccard_index[user][item]
+                    # the higher the more related to positives
+                    # e.g. 0 is good negative, 0.8 is mostlypositive.
+                    # So we directly assign it instead of the label
+                    valid_ground_truth["ground_truth"][user][item] = avg_relatedness
+                    if 0 < avg_relatedness < min_w:
+                        min_w = avg_relatedness
         convertor = 1 / min_w
-        valid_ground_truth["ground_truth"] = {u: {k: round(convertor * v) for k, v in items.items()} for u, items in valid_ground_truth["ground_truth"].items()}
+        valid_ground_truth["ground_truth"] = {u: {k: round(convertor * v) for k, v in items.items()} for u, items in
+                                              valid_ground_truth["ground_truth"].items()}
 
         min_w = 1
         for user, items in test_ground_truth["ground_truth"].items():
             for item, v in items.items():
                 if v == 0:
-                    dist = [jaccard_index(item_user_set[item], item_user_set[pos_item]) for pos_item in
-                            user_pos_train_items[user]]
-                    avgdist = sum(dist) / len(
-                        dist)  # the higher the more related to positive, we assign it directly to the label instead of 0 (later convert it)
-                    test_ground_truth["ground_truth"][user][item] = avgdist
-                    if 0 < avgdist < min_w:
-                        min_w = avgdist
+                    avg_relatedness = user_item_jaccard_index[user][item]
+                    # the higher the more related to positives
+                    # e.g. 0 is good negative, 0.8 is mostlypositive.
+                    # So we directly assign it instead of the label
+                    test_ground_truth["ground_truth"][user][item] = avg_relatedness
+                    if 0 < avg_relatedness < min_w:
+                        min_w = avg_relatedness
         convertor = 1 / min_w
         test_ground_truth["ground_truth"] = {u: {k: round(convertor * v) for k, v in items.items()} for u, items in
-                                              test_ground_truth["ground_truth"].items()}
+                                             test_ground_truth["ground_truth"].items()}
 
     if unlabeled_pos_weight is not None:
         convertor = 1/unlabeled_pos_weight
@@ -363,6 +361,6 @@ if __name__ == "__main__":
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
          thrs, r_len, r_field, test_neg_strategy, valid_neg_strategy, ranking_metrics, unlabeled_pos_weight, 
-         True if item_user_set_file is not None else False)
+         True if user_item_jaccard_index_file is not None else False)
 
 
