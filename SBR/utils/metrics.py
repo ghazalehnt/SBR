@@ -42,28 +42,38 @@ def calculate_metrics(ground_truth, prediction_scores, users, items,
 
 
 def calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level):
+    global ranking_metrics
     # qid= user1:{ item1:1 } ...
     gt = {str(u): {} for u in set(users)}
     pd = {str(u): {} for u in set(users)}
+    # TODO: so I had to convert the weighted GT to int, as the pyeval package does not accept it otherwise
+    convertor = 1
+    if min(ground_truth) > 0:
+        convertor = 1 / min(ground_truth)
+        # for now just calculate ndcg, as the rest would be different with the weighted label
+        ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
     for i in range(len(ground_truth)):
-        gt[str(users[i])][str(items[i])] = int(ground_truth[i])
+        gt[str(users[i])][str(items[i])] = round(convertor * ground_truth[i])
         pd[str(users[i])][str(items[i])] = float(prediction_scores[i])
     return calculate_ranking_metrics(gt, pd, relevance_level)
 
 
-def calculate_ranking_metrics(gt, pd, relevance_level):
+def calculate_ranking_metrics(gt, pd, relevance_level, given_ranking_metrics=None):
     '''
 
     :param gt: dict of user -> item -> true score (relevance)
     :param pd: dict of user -> item -> predicted score
     :param relevance_level:
+    :param given_ranking_metrics:
     :return: metric scores
     '''
-    evaluator = pytrec_eval.RelevanceEvaluator(gt, ranking_metrics, relevance_level=int(relevance_level))
+    if given_ranking_metrics is None:
+        given_ranking_metrics = ranking_metrics
+    evaluator = pytrec_eval.RelevanceEvaluator(gt, given_ranking_metrics, relevance_level=int(relevance_level))
     per_user_scores = evaluator.evaluate(pd)
-    scores = [[metrics_dict.get(m, -1) for m in ranking_metrics] for metrics_dict in per_user_scores.values()]
+    scores = [[metrics_dict.get(m, -1) for m in given_ranking_metrics] for metrics_dict in per_user_scores.values()]
     scores = np.array(scores).mean(axis=0).tolist()
-    scores = dict(zip(ranking_metrics, scores))
+    scores = dict(zip(given_ranking_metrics, scores))
     return scores
 
 
@@ -119,7 +129,7 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
     gt = {str(u): {} for u in sorted(set(user_ids))}
     pd = {str(u): {} for u in sorted(set(user_ids))}
     for i in range(len(ground_truth)):
-        gt[str(user_ids[i])][str(item_ids[i])] = int(ground_truth[i])
+        gt[str(user_ids[i])][str(item_ids[i])] = float(ground_truth[i])
         pd[str(user_ids[i])][str(item_ids[i])] = float(prediction_scores[i])
     json.dump({"predicted": pd}, open(output_path['predicted'], 'w'))
     json.dump({"ground_truth": gt}, open(output_path['ground_truth'], 'w'))
@@ -134,4 +144,3 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
                 for item_id, pd_score in sorted(pd[user_id].items(), key=lambda x:x[1], reverse=True):
                     f.write(f"item:{item_id} - label:{gt[user_id][item_id]} - score:{pd_score} - text:{ex_items[ex_items['item_id'] == item_id]['text'].values[0]}\n\n")
                 f.write("-----------------------------\n")
-
