@@ -123,9 +123,13 @@ def log_results(output_path, ground_truth, prediction_scores, internal_user_ids,
         pd[str(user_ids[i])][str(item_ids[i])] = float(prediction_scores[i])
     json.dump({"predicted": pd}, open(output_path['predicted'], 'w'))
     json.dump({"ground_truth": gt}, open(output_path['ground_truth'], 'w'))
+    cnt = 0
     if 'log' in output_path and 'text' in ex_users.columns:
         with open(output_path["log"], "w") as f:
             for user_id in gt.keys():
+                if cnt == 100:
+                    break
+                cnt += 1
                 f.write(f"user:{user_id} - text:{ex_users[ex_users['user_id'] == user_id]['text'].values[0]}\n\n\n")
                 for item_id, pd_score in sorted(pd[user_id].items(), key=lambda x:x[1], reverse=True):
                     f.write(f"item:{item_id} - label:{gt[user_id][item_id]} - score:{pd_score} - text:{ex_items[ex_items['item_id'] == item_id]['text'].values[0]}\n\n")
