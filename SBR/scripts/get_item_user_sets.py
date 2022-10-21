@@ -10,9 +10,9 @@ def main(interaction_file, user_idx_field, item_idx_field, rating_field, pos_thr
     df = pd.read_csv(interaction_file, usecols=[user_idx_field, item_idx_field, rating_field], dtype=str)
     df[rating_field] = df[rating_field].astype(float).astype(int)
     df = df[df[rating_field] >= pos_thr]
-    item_user_set = defaultdict()
-    for item in set(df[item_idx_field]):
-        item_user_set[item] = list(set(df[df[item_idx_field] == item][user_idx_field]))
+    item_user_set = defaultdict(list)
+    for user, item in zip(df[user_idx_field], df[item_idx_field]):
+        item_user_set[item].append(user)
     pickle.dump(item_user_set, open(outfile, 'wb'))
 
 
