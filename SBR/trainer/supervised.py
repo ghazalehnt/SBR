@@ -38,10 +38,10 @@ class SupervisedTrainer:
             neg_name = neg_name[len("f:"):]
         self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
                                  "predicted": join(exp_dir, f'test_predicted_{neg_name}.json'),
-                                 "log": join(exp_dir, f'test_{neg_name}_log.txt')}
+                                 "log": join(exp_dir, f'test_{neg_name}_log_100users.txt')}
 
-        self.train_output_log = join(exp_dir, "outputs")
-        os.makedirs(self.train_output_log, exist_ok=True)
+#        self.train_output_log = join(exp_dir, "outputs")
+#        os.makedirs(self.train_output_log, exist_ok=True)
 
         self.users = users
         self.items = items
@@ -156,8 +156,8 @@ class SupervisedTrainer:
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.perf_counter()
             train_loss /= total_count
-            with open(join(self.train_output_log, f"train_output_{epoch}.log"), "w") as f:
-                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
+#            with open(join(self.train_output_log, f"train_output_{epoch}.log"), "w") as f:
+#                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
             print(f"Train loss epoch {epoch}: {train_loss}")
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
@@ -165,8 +165,8 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
-                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
+#            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
+#                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
             results = calculate_metrics(ground_truth, outputs, users, items,
                                         self.relevance_level, prediction_threshold=0.5, ranking_only=True)
             results["loss"] = valid_loss
