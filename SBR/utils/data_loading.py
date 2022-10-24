@@ -444,14 +444,12 @@ class CollateNegSamplesRandomOptJaccardWeightedLabels(CollateNegSamplesRandomOpt
             all_items.extend(items)
         self.all_items = list(set(all_items))
         self.user_info = user_info.to_pandas()
-        self.user_info = self.user_info.set_index("user_id")
         self.item_info = item_info.to_pandas()
         self.item_info = self.item_info.set_index("item_id")
         self.padding_token = padding_token
         self.user_training_items = user_training_items
         self.item_user_set = pickle.load(open(item_user_set_file, 'rb'))
-        self.item_user_set = {self.item_info.loc[k][INTERNAL_ITEM_ID_FIELD]: set([self.user_info.loc[u][INTERNAL_USER_ID_FIELD] for u in v]) for k, v in self.item_user_set.items() if k in self.item_info.index}
-        self.user_info = self.user_info.reset_index()
+        self.item_user_set = {self.item_info.loc[k][INTERNAL_ITEM_ID_FIELD]: set(v) for k, v in self.item_user_set.items() if k in self.item_info.index}
         self.item_info = self.item_info.reset_index()
 
     def sample(self, batch_df):
