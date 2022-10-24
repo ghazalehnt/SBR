@@ -5,15 +5,14 @@ from os.path import join
 import pandas as pd
 
 
-def jaccard_index(item_user_set, item1, item2):
-    X = set(item_user_set[item1])
-    Y = item_user_set[item2]
+def jaccard_index(X, Y):
     d = len(X.intersection(Y))/len(X.union(Y))
     return d
 
 
 def main(outfile_item_user_distance, item_user_set_file, train_file, valid_neg_file, test_neg_file):
     item_user_set = pickle.load(open(item_user_set_file, 'rb'))
+    item_user_set = {k: set(v) for k, v in item_user_set.items()}
     train = pd.read_csv(train_file, dtype=str)
 
     user_eval_unlabeled_items = defaultdict(set)
@@ -29,9 +28,9 @@ def main(outfile_item_user_distance, item_user_set_file, train_file, valid_neg_f
         user_items = list(set(train[train["user_id"] == user]["item_id"]))
 
         for unlabeled_item in user_eval_unlabeled_items[user]:
-            dist = [jaccard_index(item_user_set, unlabeled_item, pos_item) for pos_item in user_items]
-            avgdist = sum(dist) / len(dist)
-            item_user_distance[user][unlabeled_item] = avgdist
+            relatedness = [jaccard_index(item_user_set[unlabeled_item], item_user_set[pos_item]) for pos_item in user_items]
+            avg_relatedness = sum(relatedness) / len(relatedness)
+            item_user_distance[user][unlabeled_item] = avg_relatedness
     pickle.dump(item_user_distance, open(outfile_item_user_distance, 'wb'))
 
 
