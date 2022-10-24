@@ -41,21 +41,16 @@ def calculate_metrics(ground_truth, prediction_scores, users, items,
     return result
 
 
-def calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level):
+def calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scores, users, items, relevance_level,
+                                                   given_ranking_metrics=None):
     global ranking_metrics
     # qid= user1:{ item1:1 } ...
     gt = {str(u): {} for u in set(users)}
     pd = {str(u): {} for u in set(users)}
-    # TODO: so I had to convert the weighted GT to int, as the pyeval package does not accept it otherwise
-    convertor = 1
-    if min(ground_truth) > 0:
-        convertor = 1 / min(ground_truth)
-        # for now just calculate ndcg, as the rest would be different with the weighted label
-        ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
     for i in range(len(ground_truth)):
-        gt[str(users[i])][str(items[i])] = round(convertor * ground_truth[i])
+        gt[str(users[i])][str(items[i])] = int(ground_truth[i])
         pd[str(users[i])][str(items[i])] = float(prediction_scores[i])
-    return calculate_ranking_metrics(gt, pd, relevance_level)
+    return calculate_ranking_metrics(gt, pd, relevance_level, given_ranking_metrics)
 
 
 def calculate_ranking_metrics(gt, pd, relevance_level, given_ranking_metrics=None):
