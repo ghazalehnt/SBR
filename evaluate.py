@@ -140,7 +140,7 @@ def jaccard_index(X, Y):
 
 def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
          min_user_review_len=None, review_field=None, test_neg_st=None, valid_neg_st=None, ranking_metrics=None,
-         unlabeled_pos_weight=None, i_i_rel=False):
+         unlabeled_pos_weight=None, i_i_rel=''):
     start = time.time()
     user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds,
                                                                            min_user_review_len, review_field)
@@ -151,15 +151,15 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     if min_user_review_len is not None:
         outfile_name = os.path.join(result_folder,
-                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{f'_iiw' if i_i_rel else ''}.txt")
+                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.txt")
         valid_csv_f = open(os.path.join(result_folder,
-                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{f'_iiw' if i_i_rel else ''}.csv"), "w")
+                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
         test_csv_f = open(os.path.join(result_folder,
-                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{f'_iiw' if i_i_rel else ''}.csv"), "w")
+                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
     else:
-        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{f'_iiw' if i_i_rel else ''}.txt")
-        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{f'_iiw' if i_i_rel else ''}.csv"), "w")
-        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{f'_iiw' if i_i_rel else ''}.csv"), "w")
+        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.txt")
+        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
+        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
 
     print(outfile_name)
     outf = open(outfile_name, 'w')
@@ -263,7 +263,8 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 if __name__ == "__main__":
     # hard coded
     calc_cl_metric = False
-    csv_metric_header = ["P_1", "recip_rank", "ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "Rprec"]
+#    csv_metric_header = ["P_1", "recip_rank", "ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "Rprec"]
+    csv_metric_header = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
     BERTMODEL = "bert-base-uncased"  # TODO hard coded
 
     parser = argparse.ArgumentParser()
@@ -285,6 +286,13 @@ if __name__ == "__main__":
     valid_neg_strategy = args.valid_neg_strategy
     unlabeled_pos_weight = args.eval_unlabeled_pos_w
     user_item_jaccard_index_file = args.user_item_jaccard_index
+
+    file_suffix = ''
+    if user_item_jaccard_index_file is not None:
+        if user_item_jaccard_index_file.endswith("eval_user_item_jaccard_index.pkl"):
+            file_suffix = "_jaccard_weighted"
+        elif user_item_jaccard_index_file.endswith("eval_user_item_jaccard_index_oa.pkl"):
+            file_suffix = "_jaccard_weighted_oa"
 
     if unlabeled_pos_weight is not None and user_item_jaccard_index_file is not None:
         raise ValueError("both are given!")
@@ -348,7 +356,7 @@ if __name__ == "__main__":
         test_ground_truth["ground_truth"] = {u: {k: round(convertor * v) for k, v in items.items()} for u, items in
                                              test_ground_truth["ground_truth"].items()}
 
-    if unlabeled_pos_weight is not None:
+    elif unlabeled_pos_weight is not None:
         convertor = 1/unlabeled_pos_weight
         ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
         csv_metric_header = ranking_metrics
@@ -357,10 +365,18 @@ if __name__ == "__main__":
                                               for u, items in valid_ground_truth["ground_truth"].items()}
         test_ground_truth["ground_truth"] = {u: {k: round(convertor*unlabeled_pos_weight) if v == 0 else round(convertor*v) for k, v in items.items()}
                                              for u, items in test_ground_truth["ground_truth"].items()}
+    else:
+        # the gt was float...
+        valid_ground_truth["ground_truth"] = {u: {k: int(v) for k, v in items.items()}
+                                              for u, items in valid_ground_truth["ground_truth"].items()}
+        test_ground_truth["ground_truth"] = {u: {k: int(v) for k, v in items.items()}
+                                             for u, items in test_ground_truth["ground_truth"].items()}
+
+    
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
          thrs, r_len, r_field, test_neg_strategy, valid_neg_strategy, ranking_metrics, unlabeled_pos_weight, 
-         True if user_item_jaccard_index_file is not None else False)
+         file_suffix)
 
 
