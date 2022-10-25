@@ -14,7 +14,7 @@ import transformers
 import numpy as np
 import pandas as pd
 
-from SBR.utils.metrics import calculate_ranking_metrics, calculate_cl_micro, calculate_cl_macro
+from SBR.utils.metrics import calculate_ranking_metrics #, calculate_cl_micro, calculate_cl_macro
 
 relevance_level = 1
 prediction_threshold = 0.5
@@ -36,25 +36,25 @@ def get_metrics(ground_truth, prediction_scores, calc_cl_metrics=True, ranking_m
     results = calculate_ranking_metrics(gt=ground_truth, pd=prediction_scores, relevance_level=relevance_level,
                                         given_ranking_metrics=ranking_metrics)
     print(f"ranking metrics in {time.time() - start}")
-    if calc_cl_metrics:
-        start = time.time()
-        user_gt = {}
-        user_pd = {}
-        all_gt = []
-        all_pd = []
-        for u in ground_truth.keys():
-            user_gt[u] = []
-            user_pd[u] = []
-            sorted_items = sorted(ground_truth[u].keys())
-            user_gt[u] = [ground_truth[u][i] for i in sorted_items]
-            all_gt.extend(user_gt[u])
-            user_pd[u] = list((np.array([prediction_scores[u][i] for i in sorted_items]) > prediction_threshold).astype(int))
-            all_pd.extend(user_pd[u])
-        temp = calculate_cl_micro(ground_truth=all_gt, predictions=all_pd)
-        results.update(temp)
-        temp = calculate_cl_macro(gt_user=user_gt, pd_user=user_pd)
-        results.update(temp)
-        print(f"cl metrics in {time.time() - start}")
+    # if calc_cl_metrics:
+    #     start = time.time()
+    #     user_gt = {}
+    #     user_pd = {}
+    #     all_gt = []
+    #     all_pd = []
+    #     for u in ground_truth.keys():
+    #         user_gt[u] = []
+    #         user_pd[u] = []
+    #         sorted_items = sorted(ground_truth[u].keys())
+    #         user_gt[u] = [ground_truth[u][i] for i in sorted_items]
+    #         all_gt.extend(user_gt[u])
+    #         user_pd[u] = list((np.array([prediction_scores[u][i] for i in sorted_items]) > prediction_threshold).astype(int))
+    #         all_pd.extend(user_pd[u])
+    #     temp = calculate_cl_micro(ground_truth=all_gt, predictions=all_pd)
+    #     results.update(temp)
+    #     temp = calculate_cl_macro(gt_user=user_gt, pd_user=user_pd)
+    #     results.update(temp)
+    #     print(f"cl metrics in {time.time() - start}")
     return results
 
 
@@ -326,7 +326,6 @@ if __name__ == "__main__":
         user_pos_train_items = defaultdict()
         user_item_jaccard_index = pickle.load(open(user_item_jaccard_index_file, 'rb'))
 
-        min_w = 1  # for re-scaling the labels to integer
         for user, items in valid_ground_truth["ground_truth"].items():
             for item, v in items.items():
                 if v == 0:
@@ -335,13 +334,9 @@ if __name__ == "__main__":
                     # e.g. 0 is good negative, 0.8 is mostlypositive.
                     # So we directly assign it instead of the label
                     valid_ground_truth["ground_truth"][user][item] = avg_relatedness
-                    if 0 < avg_relatedness < min_w:
-                        min_w = avg_relatedness
-        convertor = 1 / min_w
-        valid_ground_truth["ground_truth"] = {u: {k: round(convertor * v) for k, v in items.items()} for u, items in
+        valid_ground_truth["ground_truth"] = {u: {k: v for k, v in items.items()} for u, items in
                                               valid_ground_truth["ground_truth"].items()}
 
-        min_w = 1
         for user, items in test_ground_truth["ground_truth"].items():
             for item, v in items.items():
                 if v == 0:
@@ -350,29 +345,17 @@ if __name__ == "__main__":
                     # e.g. 0 is good negative, 0.8 is mostlypositive.
                     # So we directly assign it instead of the label
                     test_ground_truth["ground_truth"][user][item] = avg_relatedness
-                    if 0 < avg_relatedness < min_w:
-                        min_w = avg_relatedness
-        convertor = 1 / min_w
-        test_ground_truth["ground_truth"] = {u: {k: round(convertor * v) for k, v in items.items()} for u, items in
+        test_ground_truth["ground_truth"] = {u: {k: v for k, v in items.items()} for u, items in
                                              test_ground_truth["ground_truth"].items()}
 
     elif unlabeled_pos_weight is not None:
-        convertor = 1/unlabeled_pos_weight
         ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
         csv_metric_header = ranking_metrics
 
-        valid_ground_truth["ground_truth"] = {u: {k: round(convertor*unlabeled_pos_weight) if v == 0 else round(convertor*v) for k, v in items.items()}
+        valid_ground_truth["ground_truth"] = {u: {k: unlabeled_pos_weight if v == 0 else v for k, v in items.items()}
                                               for u, items in valid_ground_truth["ground_truth"].items()}
-        test_ground_truth["ground_truth"] = {u: {k: round(convertor*unlabeled_pos_weight) if v == 0 else round(convertor*v) for k, v in items.items()}
+        test_ground_truth["ground_truth"] = {u: {k: unlabeled_pos_weight if v == 0 else v for k, v in items.items()}
                                              for u, items in test_ground_truth["ground_truth"].items()}
-    else:
-        # the gt was float...
-        valid_ground_truth["ground_truth"] = {u: {k: int(v) for k, v in items.items()}
-                                              for u, items in valid_ground_truth["ground_truth"].items()}
-        test_ground_truth["ground_truth"] = {u: {k: int(v) for k, v in items.items()}
-                                             for u, items in test_ground_truth["ground_truth"].items()}
-
-    
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],

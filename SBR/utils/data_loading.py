@@ -1029,7 +1029,7 @@ def load_split_dataset(config, for_precalc=False):
                 # e.g. 0 is good negative, 0.8 is mostlypositive.
                 # So we directly assign it instead of the label
                 labels.append(avg_relatedness)
-            negs['labels'] = labels
+            negs['label'] = labels
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
@@ -1062,7 +1062,7 @@ def load_split_dataset(config, for_precalc=False):
                 # e.g. 0 is good negative, 0.8 is mostlypositive.
                 # So we directly assign it instead of the label
                 labels.append(avg_relatedness)
-            negs['labels'] = labels
+            negs['label'] = labels
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
