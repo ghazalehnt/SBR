@@ -274,8 +274,8 @@ if __name__ == "__main__":
     parser.add_argument('--review_field', type=str, default="review", help='review field')
     parser.add_argument('--test_neg_strategy', type=str, default="random", help='negative sampling strategy')
     parser.add_argument('--valid_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
-    parser.add_argument('--eval_unlabeled_pos_w', type=float, default=None, help='instead of 0 for negatives, this is assumed')
-    parser.add_argument('--user_item_jaccard_index', type=str, default=None, help='path to user eval item jaccard index.')
+    parser.add_argument('--eval_unlabeled_pos_w', type=float, default=None, help='instead of 0 for negatives, this is assumed')# as postprocess
+    parser.add_argument('--user_item_jaccard_index', type=str, default=None, help='path to user eval item jaccard index.') # as postprocess
     args, _ = parser.parse_known_args()
 
     result_folder = args.result_folder
