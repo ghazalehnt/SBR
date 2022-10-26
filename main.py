@@ -14,6 +14,18 @@ from SBR.utils.others import get_model
 from SBR.trainer.unsupervised import UnSupervisedTrainer
 
 
+map_user_item_text = {
+    "item.title": "t",
+    "item.category": "c",
+    "item.genres": "g",
+    "item.description": "d",
+    "interaction.summary": "s",
+    "interaction.reviewText": "r",
+    "interaction.review": "r",
+    "interaction.review_text": "r",
+}
+
+
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
          given_neg_files=None, given_lr=None, given_tbs=None):
     random.seed(42)
@@ -56,7 +68,10 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                 temp = temp[temp.index("f:test_neg_")+len("f:test_neg_"):]
                 exp_dir_params.append(f"f-{temp}")
             elif isinstance(config[p1][p2], list):
-                exp_dir_params.append('-'.join(config[p1][p2]))
+                if p2 in ["item_text", "user_text"]:
+                    exp_dir_params.append('-'.join([map_user_item_text[v] for v in config[p1][p2]]))
+                else:
+                    exp_dir_params.append('-'.join(config[p1][p2]))
             else:
                 exp_dir_params.append(str(config[p1][p2]))
         exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
