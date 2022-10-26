@@ -47,6 +47,7 @@ def main(exp_dir, evalset, file_suffix):
         if model_name.startswith("MF"):
             model_config = f"{model_name}_{config['model']['embedding_dim']}_{'sig' if config['trainer']['sigmoid_output'] is True else 'no-sig'}"
             trainer = f"{config['trainer']['optimizer']}_{config['trainer']['loss_fn']}"
+            training_samples = config['dataset']['training_neg_sampling_strategy']
         elif model_name.startswith("VanillaBERT"):
             item_text = ""
             if "item.title" in config['dataset']['item_text']:
@@ -77,8 +78,10 @@ def main(exp_dir, evalset, file_suffix):
             if model_name == "VanillaBERT_precalc_embed_sim":
                 model_config = f"emb-sim_"
                 trainer = ""
+                training_samples = ""
             else:
                 trainer = f"{config['trainer']['optimizer']}_{config['trainer']['loss_fn']}"
+                training_samples = config['dataset']['training_neg_sampling_strategy']
                 if model_name == "VanillaBERT_precalc_with_ffn":
                     model_config = f"ffn-dp_"
                 elif model_name == "VanillaBERT_precalc_with_itembias":
@@ -94,9 +97,9 @@ def main(exp_dir, evalset, file_suffix):
                 group_rows[line[0]] = []
             group_rows[line[0]].append([model_config, user_text, item_text, line[0]]
                                        + [str(round_half_up(float(m)*100, 4)) for m in line[1:]]
-                                       + [lr, bs, trainer])
+                                       + [lr, bs, trainer, training_samples])
 
-    header = ["model config", "user profile", "item text"] + header + ["lr", "bs", "trainer"]
+    header = ["model config", "user profile", "item text"] + header + ["lr", "bs", "trainer", "training samples"]
     outf = f"{evalset}_results_{file_suffix}" \
            f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
            f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
