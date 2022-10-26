@@ -140,7 +140,7 @@ def jaccard_index(X, Y):
 
 def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
          min_user_review_len=None, review_field=None, test_neg_st=None, valid_neg_st=None, ranking_metrics=None,
-         unlabeled_pos_weight=None, i_i_rel=''):
+         unlabeled_pos_weight=None, suffix=''):
     start = time.time()
     user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds,
                                                                            min_user_review_len, review_field)
@@ -151,15 +151,15 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     if min_user_review_len is not None:
         outfile_name = os.path.join(result_folder,
-                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.txt")
+                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}{suffix}.txt")
         valid_csv_f = open(os.path.join(result_folder,
-                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
+                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}{suffix}.csv"), "w")
         test_csv_f = open(os.path.join(result_folder,
-                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
+                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}{suffix}.csv"), "w")
     else:
-        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.txt")
-        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
-        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}{f'_upw{unlabeled_pos_weight}' if unlabeled_pos_weight is not None else ''}{i_i_rel}.csv"), "w")
+        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}{suffix}.txt")
+        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}{suffix}.csv"), "w")
+        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}{suffix}.csv"), "w")
 
     print(outfile_name)
     outf = open(outfile_name, 'w')
@@ -276,6 +276,7 @@ if __name__ == "__main__":
     parser.add_argument('--valid_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
     parser.add_argument('--eval_unlabeled_pos_w', type=float, default=None, help='instead of 0 for negatives, this is assumed')# as postprocess
     parser.add_argument('--user_item_jaccard_index', type=str, default=None, help='path to user eval item jaccard index.') # as postprocess
+    parser.add_argument('--use_unweighted_gt', type=bool, default=None, help='when the model gt file is not the unweighted one but wee need the unweighted') # as postprocess
     args, _ = parser.parse_known_args()
 
     result_folder = args.result_folder
@@ -286,13 +287,18 @@ if __name__ == "__main__":
     valid_neg_strategy = args.valid_neg_strategy
     unlabeled_pos_weight = args.eval_unlabeled_pos_w
     user_item_jaccard_index_file = args.user_item_jaccard_index
+    use_unweighted_gt = args.use_unweighted_gt
 
     file_suffix = ''
+    if use_unweighted_gt is not None and use_unweighted_gt is True:
+        file_suffix = "_unweighted_labels"
     if user_item_jaccard_index_file is not None:
         if user_item_jaccard_index_file.endswith("eval_user_item_jaccard_index.pkl"):
             file_suffix = "_jaccard_weighted"
         elif user_item_jaccard_index_file.endswith("eval_user_item_jaccard_index_oa.pkl"):
             file_suffix = "_jaccard_weighted_oa"
+    if unlabeled_pos_weight is not None:
+        file_suffix = f"_cl{unlabeled_pos_weight}"
 
     if unlabeled_pos_weight is not None and user_item_jaccard_index_file is not None:
         raise ValueError("both are given!")
@@ -310,14 +316,22 @@ if __name__ == "__main__":
     if not os.path.exists(os.path.join(result_folder, f"best_valid_predicted_validation_neg_{valid_neg_strategy}.json")):
         raise ValueError(f"Result file best_valid_predicted_validation_neg_{valid_neg_strategy}.json does not exist: {result_folder}")
 
-    valid_ground_truth = json.load(open(os.path.join(result_folder,
-                                                     f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}{f'_upw{config_unlabeled_pos_weight}' if config_unlabeled_pos_weight is not None else ''}.json")))
+    if use_unweighted_gt:
+        valid_ground_truth = json.load(open(os.path.join(config["dataset"]["dataset_path"],
+                                                         f"valid_ground_truth_validation_neg_{valid_neg_strategy[:valid_neg_strategy.index('-')]}.json")))
+    else:
+        valid_ground_truth = json.load(open(os.path.join(result_folder,
+                                                     f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}.json")))  # TODO we had this also at the end for all files following, is it needed? {f'_upw{config_unlabeled_pos_weight}' if config_unlabeled_pos_weight is not None else ''}
     valid_prediction = json.load(open(os.path.join(result_folder,
-                                                   f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'_upw{config_unlabeled_pos_weight}' if config_unlabeled_pos_weight is not None else ''}.json")))
-    test_ground_truth = json.load(open(os.path.join(result_folder,
-                                                    f"test_ground_truth_test_neg_{test_neg_strategy}{f'_upw{config_unlabeled_pos_weight}' if config_unlabeled_pos_weight is not None else ''}.json")))
+                                                   f"best_valid_predicted_validation_neg_{valid_neg_strategy}.json")))
+    if use_unweighted_gt:
+        test_ground_truth = json.load(open(os.path.join(config["dataset"]["dataset_path"],
+                                                         f"test_ground_truth_test_neg_{test_neg_strategy[:test_neg_strategy.index('-')]}.json")))
+    else:
+        test_ground_truth = json.load(open(os.path.join(result_folder,
+                                                    f"test_ground_truth_test_neg_{test_neg_strategy}.json")))
     test_prediction = json.load(open(os.path.join(result_folder,
-                                                  f"test_predicted_test_neg_{test_neg_strategy}{f'_upw{config_unlabeled_pos_weight}' if config_unlabeled_pos_weight is not None else ''}.json")))
+                                                  f"test_predicted_test_neg_{test_neg_strategy}.json")))
     ranking_metrics = None
     if user_item_jaccard_index_file is not None:
         ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
