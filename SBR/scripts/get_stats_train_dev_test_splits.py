@@ -57,7 +57,7 @@ def read_interactions(dataset_path):
 def get_per_user_interaction_cnt(inters):
     ret = {}
     for line in inters:
-        user_id = line[1]
+        user_id = line[USER_IDX]
         if user_id not in ret:
             ret[user_id] = 0
         ret[user_id] += 1
@@ -67,7 +67,7 @@ def get_per_user_interaction_cnt(inters):
 def get_per_item_interaction_cnt(inters):
     ret = {}
     for line in inters:
-        item_id = line[2]
+        item_id = line[ITEM_IDX]
         if item_id not in ret:
             ret[item_id] = 0
         ret[item_id] += 1
@@ -80,8 +80,8 @@ def get_graph(inters):
     item_nodes = set()
     edges = []
     for line in inters:
-        user_id = f"u_{line[1]}"
-        item_id = f"i_{line[2]}"
+        user_id = f"u_{line[USER_IDX]}"
+        item_id = f"i_{line[ITEM_IDX]}"
         user_nodes.add(user_id)
         item_nodes.add(item_id)
         edges.append((user_id, item_id))
@@ -119,16 +119,18 @@ def user_grp_inter_cnt(split_set, users, user_id_idx):
 
 
 if __name__ == '__main__':
-    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating3_5-folds/example_dataset_totalu10000_su100_sltu100_h1i500_dense"
-    # DATASET_DIR = f"data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_sparse"
+#    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/sampled_dataset_threshold3_totalu10000_su100_ltth4_sltu100_h1i500_sparse/ltth4_ratios0.6-0.2-0.2/"
+#    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating5_5-folds/split_1"
     # DATASET_DIR = 'data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_dense'
     statfile = open(join(DATASET_DIR, "stats.txt"), 'w')
     cold_threshold = 5
 
     train, valid, test, header = read_interactions(DATASET_DIR)
-    cold_users, warm_users = get_user_groups(train, header.index("user_id"), cold_threshold)
-    test_users = set([line[header.index("user_id")] for line in test])
-    valid_users = set([line[header.index("user_id")] for line in valid])
+    USER_IDX = header.index("user_id")
+    ITEM_IDX = header.index("item_id")
+    cold_users, warm_users = get_user_groups(train, USER_IDX, cold_threshold)
+    test_users = set([line[USER_IDX] for line in test])
+    valid_users = set([line[USER_IDX] for line in valid])
 
     per_user = {"train": get_per_user_interaction_cnt(train),
                 "valid": get_per_user_interaction_cnt(valid),
