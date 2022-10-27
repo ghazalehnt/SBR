@@ -6,6 +6,7 @@ from networkx.algorithms import bipartite
 import scipy.stats
 import matplotlib.pyplot as plt
 
+
 def get_histogram(vals):
     hist = {"1-5": 0, "6-10": 0, "11-20": 0, "21-30": 0, "31-40": 0, "41-50": 0, "51-60": 0, "61-70": 0, "71-80": 0,
               "81-90": 0, "91-100": 0, "101-200": 0, "201-500": 0, "501+": 0}
@@ -93,21 +94,35 @@ def get_graph(inters):
     return B, user_nodes
 
 
-def get_user_groups(train_set, user_id_idx, cold_thr=5):
+def get_user_groups(train_set, user_id_idx, thresholds=[5]):
     user_count = {}
     for line in train_set:
         if line[user_id_idx] not in user_count:
             user_count[line[user_id_idx]] = 1
         else:
             user_count[line[user_id_idx]] += 1
-    cold = set()
-    warm = set()
+    groups = {thr: set() for thr in sorted(thresholds)}
+    groups['rest'] = set()
     for user, cnt in user_count.items():
-        if cnt > cold_thr:
-            warm.add(user)
+        added = False
+        for thr in sorted(thresholds):
+            if cnt <= thr:
+                groups[thr].add(user)
+                added = True
+                break
+        if not added:
+            groups['rest'].add(user)
+
+    ret_group = {}
+    last = 1
+    for gr in groups:
+        if gr == 'rest':
+            new_gr = f"{last}+"
         else:
-            cold.add(user)
-    return cold, warm
+            new_gr = f"{last}-{gr}"
+            last = gr + 1
+        ret_group[new_gr] = groups[gr]
+    return ret_group
 
 
 def user_grp_inter_cnt(split_set, users, user_id_idx):
@@ -119,16 +134,15 @@ def user_grp_inter_cnt(split_set, users, user_id_idx):
 
 
 if __name__ == '__main__':
-    DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating3_5-folds/example_dataset_totalu10000_su100_sltu100_h1i500_dense"
-    # DATASET_DIR = f"data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_sparse"
-    # DATASET_DIR = 'data/GR_read_5-folds/example_dataset_totalu10000_su50_sltu20_h1i500_dense'
-    statfile = open(join(DATASET_DIR, "stats.txt"), 'w')
-    cold_threshold = 5
+    # DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating3_5-folds/example_dataset_totalu10000_su100_sltu100_h1i500_dense"
+    USER_ID_FIELD = "user_id"
+    thresholds = [3, 6, 10, 100]
+    statfile = open(join(DATASET_DIR, f"stats_{'-'.join([str(thr) for thr in thresholds])}.txt"), 'w')
 
     train, valid, test, header = read_interactions(DATASET_DIR)
-    cold_users, warm_users = get_user_groups(train, header.index("user_id"), cold_threshold)
-    test_users = set([line[header.index("user_id")] for line in test])
-    valid_users = set([line[header.index("user_id")] for line in valid])
+    user_groups = get_user_groups(train, header.index(USER_ID_FIELD), thresholds)
+    test_users = set([line[header.index(USER_ID_FIELD)] for line in test])
+    valid_users = set([line[header.index(USER_ID_FIELD)] for line in valid])
 
     per_user = {"train": get_per_user_interaction_cnt(train),
                 "valid": get_per_user_interaction_cnt(valid),
@@ -152,7 +166,7 @@ if __name__ == '__main__':
 
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
-    statfile.write(f"TRAIN: num longlong tail users only in train: {len(cold_users) - len(test_users.intersection(cold_users))}\n")
+    statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}\n")
     statfile.write(
         f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}\n")
     G, user_nodes = get_graph(train)
@@ -163,17 +177,19 @@ if __name__ == '__main__':
 
     statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
     statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
-    statfile.write(f"VALID: num warm users={len(valid_users.intersection(warm_users))} with "
-                   f"{user_grp_inter_cnt(valid, valid_users.intersection(warm_users), header.index('user_id'))} interactions\n")
-    statfile.write(f"VALID: num cold users={len(valid_users.intersection(cold_users))} with "
-                   f"{user_grp_inter_cnt(valid, valid_users.intersection(cold_users), header.index('user_id'))} interactions\n\n")
+    statfile.write(f"VALID: num users in groups:\n")
+    for gr in user_groups:
+        statfile.write(f"{gr}: {len(valid_users.intersection(user_groups[gr]))} users and "
+                       f"{user_grp_inter_cnt(valid, valid_users.intersection(user_groups[gr]), header.index(USER_ID_FIELD))}"
+                       f" interactions\n")
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
-    statfile.write(f"TEST: num warm users={len(test_users.intersection(warm_users))} with "
-                   f"{user_grp_inter_cnt(test, test_users.intersection(warm_users), header.index('user_id'))} interactions\n")
-    statfile.write(f"TEST: num cold users={len(test_users.intersection(cold_users))} with "
-                   f"{user_grp_inter_cnt(test, test_users.intersection(cold_users), header.index('user_id'))} interactions\n\n")
+    statfile.write(f"VALID: num users in groups:\n")
+    for gr in user_groups:
+        statfile.write(f"{gr}: {len(test_users.intersection(user_groups[gr]))} users and "
+                       f"{user_grp_inter_cnt(test, test_users.intersection(user_groups[gr]), header.index(USER_ID_FIELD))}"
+                       f" interactions\n")
 
 ### question: in k-fold cross-validation where we create the folds by users,
 ### all users exist in the train set. However, this is not the case for items,
