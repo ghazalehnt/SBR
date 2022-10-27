@@ -58,7 +58,7 @@ def read_interactions(dataset_path):
 def get_per_user_interaction_cnt(inters):
     ret = {}
     for line in inters:
-        user_id = line[1]
+        user_id = line[USER_IDX]
         if user_id not in ret:
             ret[user_id] = 0
         ret[user_id] += 1
@@ -68,7 +68,7 @@ def get_per_user_interaction_cnt(inters):
 def get_per_item_interaction_cnt(inters):
     ret = {}
     for line in inters:
-        item_id = line[2]
+        item_id = line[ITEM_IDX]
         if item_id not in ret:
             ret[item_id] = 0
         ret[item_id] += 1
@@ -81,8 +81,8 @@ def get_graph(inters):
     item_nodes = set()
     edges = []
     for line in inters:
-        user_id = f"u_{line[1]}"
-        item_id = f"i_{line[2]}"
+        user_id = f"u_{line[USER_IDX]}"
+        item_id = f"i_{line[ITEM_IDX]}"
         user_nodes.add(user_id)
         item_nodes.add(item_id)
         edges.append((user_id, item_id))
@@ -94,13 +94,13 @@ def get_graph(inters):
     return B, user_nodes
 
 
-def get_user_groups(train_set, user_id_idx, thresholds=[5]):
+def get_user_groups(train_set, id_idx, thresholds=[5]):
     user_count = {}
     for line in train_set:
-        if line[user_id_idx] not in user_count:
-            user_count[line[user_id_idx]] = 1
+        if line[id_idx] not in user_count:
+            user_count[line[id_idx]] = 1
         else:
-            user_count[line[user_id_idx]] += 1
+            user_count[line[id_idx]] += 1
     groups = {thr: set() for thr in sorted(thresholds)}
     groups['rest'] = set()
     for user, cnt in user_count.items():
@@ -135,14 +135,25 @@ def user_grp_inter_cnt(split_set, users, user_id_idx):
 
 if __name__ == '__main__':
     # DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating3_5-folds/example_dataset_totalu10000_su100_sltu100_h1i500_dense"
+    DATASET_DIR = ""
     USER_ID_FIELD = "user_id"
-    thresholds = [3, 6, 10, 100]
+    ITEM_ID_FIELD = "item_id"
+    thresholds = [5, 50]
     statfile = open(join(DATASET_DIR, f"stats_{'-'.join([str(thr) for thr in thresholds])}.txt"), 'w')
 
     train, valid, test, header = read_interactions(DATASET_DIR)
-    user_groups = get_user_groups(train, header.index(USER_ID_FIELD), thresholds)
-    test_users = set([line[header.index(USER_ID_FIELD)] for line in test])
-    valid_users = set([line[header.index(USER_ID_FIELD)] for line in valid])
+
+    USER_IDX = header.index(USER_ID_FIELD)
+    ITEM_IDX = header.index(ITEM_ID_FIELD)
+
+    user_groups = get_user_groups(train, USER_IDX, thresholds)
+    test_users = set([line[USER_IDX] for line in test])
+    valid_users = set([line[USER_IDX] for line in valid])
+
+    item_groups = get_user_groups(train, ITEM_IDX, thresholds)
+    train_items =  set([line[ITEM_IDX] for line in train])
+    test_items = set([line[ITEM_IDX] for line in test])
+    valid_items = set([line[ITEM_IDX] for line in valid])
 
     per_user = {"train": get_per_user_interaction_cnt(train),
                 "valid": get_per_user_interaction_cnt(valid),
@@ -173,22 +184,46 @@ if __name__ == '__main__':
     statfile.write(f"TRAIN: is graph connected? {nx.is_connected(G)}\n")
     statfile.write(f"TRAIN: number of connected components: {nx.number_connected_components(G)}\n")
     statfile.write(f"TRAIN: density= {bipartite.density(G, user_nodes)}\n")
-    statfile.write(f"TRAIN: sparsity= {1 - bipartite.density(G, user_nodes)}\n\n")
+    statfile.write(f"TRAIN: sparsity= {1 - bipartite.density(G, user_nodes)}\n")
+    for gr in user_groups:
+        statfile.write(f"{gr}: {len(user_groups[gr])} users and "
+                       f"{user_grp_inter_cnt(train, user_groups[gr], USER_IDX)}"
+                       f" interactions\n")
+    for gr in item_groups:
+        statfile.write(f"{gr}: {len(item_groups[gr])} items and "
+                       f"{user_grp_inter_cnt(train, item_groups[gr], ITEM_IDX)}"
+                       f" interactions\n")
+    statfile.write("\n")
 
     statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
     statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
     statfile.write(f"VALID: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(valid_users.intersection(user_groups[gr]))} users and "
-                       f"{user_grp_inter_cnt(valid, valid_users.intersection(user_groups[gr]), header.index(USER_ID_FIELD))}"
+                       f"{user_grp_inter_cnt(valid, valid_users.intersection(user_groups[gr]), USER_IDX)}"
                        f" interactions\n")
+    statfile.write(f"unseen: {len(valid_items - train_items)} items and "
+                   f"{user_grp_inter_cnt(valid, valid_items - train_items, ITEM_IDX)}"
+                   f" interactions\n")
+    for gr in item_groups:
+        statfile.write(f"{gr}: {len(valid_items.intersection(item_groups[gr]))} items and "
+                       f"{user_grp_inter_cnt(test, valid_items.intersection(item_groups[gr]), ITEM_IDX)}"
+                       f" interactions\n")
+    statfile.write("\n")
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
     statfile.write(f"VALID: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(test_users.intersection(user_groups[gr]))} users and "
-                       f"{user_grp_inter_cnt(test, test_users.intersection(user_groups[gr]), header.index(USER_ID_FIELD))}"
+                       f"{user_grp_inter_cnt(test, test_users.intersection(user_groups[gr]), USER_IDX)}"
+                       f" interactions\n")
+    statfile.write(f"unseen: {len(test_items-train_items)} items and "
+                   f"{user_grp_inter_cnt(test, test_items-train_items, ITEM_IDX)}"
+                   f" interactions\n")
+    for gr in item_groups:
+        statfile.write(f"{gr}: {len(test_items.intersection(item_groups[gr]))} items and "
+                       f"{user_grp_inter_cnt(test, test_items.intersection(item_groups[gr]), ITEM_IDX)}"
                        f" interactions\n")
 
 ### question: in k-fold cross-validation where we create the folds by users,
