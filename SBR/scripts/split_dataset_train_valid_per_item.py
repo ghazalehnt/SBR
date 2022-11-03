@@ -53,6 +53,15 @@ if __name__ == "__main__":
     lt_threshold = 4
     ratios = [0.8, 0.2]
 
+    # read items first, to ommit the interactions whose item does not exist in the items meta data: (TODO should do it one level higher when transforming the raw data, but for now here is good)
+    item_metadata_ids = set()
+    with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin:
+        reader = csv.reader(fin)
+        item_header = next(reader)
+        item_id_idx = item_header.index(ITEM_ID_FIELD)
+        for line in reader:
+            item_metadata_ids.add(line[item_id_idx])
+
     per_item_interactions = defaultdict(list)
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
         reader = csv.reader(f)
@@ -60,6 +69,8 @@ if __name__ == "__main__":
         USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
         ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
         for line in reader:
+            if line[ITEM_ID_IDX_INTER] not in item_metadata_ids:
+                continue
             per_item_interactions[line[ITEM_ID_IDX_INTER]].append(line)
 
     train, valid = create_splits(per_item_interactions, ratios, lt_threshold)
