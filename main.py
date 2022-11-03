@@ -36,7 +36,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     test_only = False
-    if op == "train":
+    if op in ["train", "trainonly"]:
         config = json.load(open(config_file, 'r'))
         if given_user_text_filter is not None:
             config['dataset']['user_text_filter'] = given_user_text_filter
@@ -111,6 +111,9 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
     print("Data load done!")
+    # needed for item-item relatedness
+    temp = {ex: internal for ex, internal in zip(items['item_id'], items['internal_item_id'])}
+    json.dump(temp, open(join(exp_dir, "item_internal_ids.json"), 'w'))
 
     model = get_model(config['model'], users, items, device, config['dataset'])
     print("Get model Done!")
@@ -134,6 +137,8 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         if op == "train":
             trainer.fit(train_dataloader, valid_dataloader)
             trainer.evaluate(test_dataloader, valid_dataloader)
+        elif op == "trainonly":
+            trainer.fit(train_dataloader, valid_dataloader)
         elif op == "test":
             trainer.evaluate(test_dataloader, valid_dataloader)
 
@@ -148,10 +153,10 @@ if __name__ == '__main__':
     parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
     parser.add_argument('--trainer_lr', default=None, help='trainer learning rate')
     parser.add_argument('--train_batch_size', default=None, help='train_batch_size')
-    parser.add_argument('--op', type=str, help='operation train/test')
+    parser.add_argument('--op', type=str, help='operation train/test/trainonly')
     args, _ = parser.parse_known_args()
 
-    if args.op == "train":
+    if args.op in ["train", "trainonly"]:
         if not os.path.exists(args.config_file):
             raise ValueError(f"Config file does not exist: {args.config_file}")
         if args.result_folder:
