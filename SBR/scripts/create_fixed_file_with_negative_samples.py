@@ -107,7 +107,10 @@ def main(dataset_path, strategy, num_neg_samples):
 
     used_items = user_used_items['train'].copy()
     for user_id, cur_user_items in user_used_items['validation'].items():
-        used_items[user_id] = used_items[user_id].union(cur_user_items)
+        if user_id in used_items:
+            used_items[user_id] = used_items[user_id].union(cur_user_items)
+        else:
+            used_items[user_id] = set()
     validation_samples = neg_sampling_opt(datasets['validation'], used_items, strategy, num_neg_samples)
     with open(os.path.join(dataset_path, f'validation_neg_{strategy}_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
@@ -116,7 +119,10 @@ def main(dataset_path, strategy, num_neg_samples):
     print("validation done")
 
     for user_id, cur_user_items in user_used_items['test'].items():
-        used_items[user_id] = used_items[user_id].union(cur_user_items)
+        if user_id in used_items:
+            used_items[user_id] = used_items[user_id].union(cur_user_items)
+        else:
+            used_items[user_id] = set()
     test_samples = neg_sampling_opt(datasets['test'], used_items, strategy, num_neg_samples)
     with open(os.path.join(dataset_path, f'test_neg_{strategy}_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
