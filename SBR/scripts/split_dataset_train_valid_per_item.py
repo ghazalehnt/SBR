@@ -14,30 +14,22 @@ CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
 def create_splits(per_item_interactions, ratios, longtail_trainonly_th):
     train = []
-    test = []
     valid = []
-    test_ratio = ratios[1]
-    valid_ratio = ratios[2]/(1-test_ratio)  # e.g. [0.6, 0.2, 0.2] -> 0.2 = 0.25 * 0.8
+    valid_ratio = ratios[1]
     for item in per_item_interactions:
         if len(per_item_interactions[item]) <= longtail_trainonly_th:
             for line in per_item_interactions[item]:
                 train.append(line)
         else:
-            X_train, X_test = train_test_split(per_item_interactions[item],
-                                                                test_size=test_ratio,
+            X_train, X_val = train_test_split(per_item_interactions[item],
+                                                                test_size=valid_ratio,
                                                                 random_state=42)
-
-            X_train, X_val = train_test_split(X_train,
-                                                              test_size=valid_ratio,
-                                                              random_state=42)
             for line in X_train:
                 train.append(line)
-            for line in X_test:
-                test.append(line)
             for line in X_val:
                 valid.append(line)
 
-    return train, valid, test
+    return train, valid
 
 
 if __name__ == "__main__":
@@ -59,7 +51,7 @@ if __name__ == "__main__":
     RATING_FIELD = "overall"
 
     lt_threshold = 4
-    ratios = [0.8, 0.2, 0]
+    ratios = [0.8, 0.2]
 
     per_item_interactions = defaultdict(list)
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
@@ -70,7 +62,7 @@ if __name__ == "__main__":
         for line in reader:
             per_item_interactions[line[ITEM_ID_IDX_INTER]].append(line)
 
-    train, valid, test = create_splits(per_item_interactions, ratios, lt_threshold)
+    train, valid = create_splits(per_item_interactions, ratios, lt_threshold)
 
     out_path = join(DATASET_PATH, f"ltth{lt_threshold}_ratios{'-'.join([str(r) for r in ratios])}_per_item")
     os.makedirs(out_path, exist_ok=True)
@@ -86,10 +78,6 @@ if __name__ == "__main__":
         writer = csv.writer(f)
         writer.writerow(inter_header)
         writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in valid])
-    with open(join(out_path, "test.csv"), 'w') as f:
-        writer = csv.writer(f)
-        writer.writerow(inter_header)
-        writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in test])
 
     # copy user and item files, change header
     with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin, open(join(out_path, "items.csv"), 'w') as fout:
@@ -114,15 +102,10 @@ if __name__ == "__main__":
         for line in reader:
             writer.writerow([re.sub(CLEANR, '', l) for l in line])
 
-    # shutil.copyfile(join(DATASET_PATH, ITEM_FILE), join(out_path, "items.csv"))
-    # shutil.copyfile(join(DATASET_PATH, USER_FILE), join(out_path, "users.csv"))
-
     allusers = set([line[USER_ID_IDX_INTER] for line in train])
-    allusers = allusers.union(set([line[USER_ID_IDX_INTER] for line in test]))
     allusers = allusers.union(set([line[USER_ID_IDX_INTER] for line in valid]))
     print(f"num users: {len(allusers)}")
 
     allitems = set([line[ITEM_ID_IDX_INTER] for line in train])
-    allitems = allitems.union(set([line[ITEM_ID_IDX_INTER] for line in test]))
     allitems = allitems.union(set([line[ITEM_ID_IDX_INTER] for line in valid]))
     print(f"num items: {len(allitems)}")
