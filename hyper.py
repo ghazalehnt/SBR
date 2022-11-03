@@ -16,6 +16,17 @@ from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.supervised import SupervisedTrainer
 
+map_user_item_text = {
+    "item.title": "t",
+    "item.category": "c",
+    "item.genres": "g",
+    "item.description": "d",
+    "interaction.summary": "s",
+    "interaction.reviewText": "r",
+    "interaction.review": "r",
+    "interaction.review_text": "r",
+}
+
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
                       valid_metric, early_stopping_patience=None, save_checkpoint=False):
@@ -39,9 +50,11 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
                 config[l1]['max_num_chunks_item'] = tuning_config[k]
         else:
             config[k] = tuning_config[k]
-    if "<DATA_ROOT_PATH>" in config["dataset"]["dataset_path"]:
+    if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
+        DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
+                                                           config["dataset"]["dataset_path"].index(">") + 1]
         config["dataset"]["dataset_path"] = config["dataset"]["dataset_path"] \
-            .replace("<DATA_ROOT_PATH>", data_root_dir)
+            .replace(DATA_ROOT_PATH, data_root_dir)
     if "<EXP_ROOT_PATH>" in config["experiment_root"]:
         config["experiment_root"] = config["experiment_root"] \
             .replace("<EXP_ROOT_PATH>", exp_root_dir)
@@ -50,8 +63,23 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
     for param in config['params_in_exp_dir']:
         p1 = param[:param.index(".")]
         p2 = param[param.index(".") + 1:]
-        exp_dir_params.append(str(config[p1][p2]))
+        if param == "dataset.validation_neg_sampling_strategy" and config[p1][p2].startswith("f:"):
+            temp = config[p1][p2]
+            temp = temp[temp.index("f:validation_neg_") + len("f:validation_neg_"):]
+            exp_dir_params.append(f"f-{temp}")
+        elif param == "dataset.test_neg_sampling_strategy" and config[p1][p2].startswith("f:"):
+            temp = config[p1][p2]
+            temp = temp[temp.index("f:test_neg_") + len("f:test_neg_"):]
+            exp_dir_params.append(f"f-{temp}")
+        elif isinstance(config[p1][p2], list):
+            if p2 in ["item_text", "user_text"]:
+                exp_dir_params.append('-'.join([map_user_item_text[v] for v in config[p1][p2]]))
+            else:
+                exp_dir_params.append('-'.join(config[p1][p2]))
+        else:
+            exp_dir_params.append(str(config[p1][p2]))
     exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
+
     config["experiment_dir"] = exp_dir
     if early_stopping_patience is not None:
         config['trainer']['early_stopping_patience'] = early_stopping_patience
@@ -87,29 +115,24 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
 
-    prec_path = None
-    if 'pretrained_model' in config['model']:
-        prec_path = join(config['dataset']['dataset_path'], 'precomputed_reps',
-                         f"size{config['dataset']['chunk_size']}_u{config['dataset']['max_num_chunks_user']}-"
-                         f"{'-'.join(config['dataset']['user_text'])}_{config['dataset']['user_review_choice']}_"
-                         f"i{config['dataset']['max_num_chunks_item']}-{'-'.join(config['dataset']['item_text'])}")
-        os.makedirs(prec_path, exist_ok=True)
-    model = get_model(config['model'], users, items,
-                      1 if config['dataset']['binary_interactions'] else None, padding_token, device,
-                      prec_path)  # todo else num-ratings
+    model = get_model(config['model'], users, items, device, config['dataset'])
 
-    trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger,
-                                exp_dir=exp_dir, test_only=False, tuning=True,
-                                relevance_level=relevance_level, users=users, items=items,
+    trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
+                                test_only=False, tuning=True,
+                                relevance_level=relevance_level,
+                                users=users, items=items,
+                                dataset_eval_neg_sampling=
+                                {"validation": config["dataset"]["validation_neg_sampling_strategy"],
+                                 "test": config["dataset"]["test_neg_sampling_strategy"]},
                                 save_checkpoint=save_checkpoint)
     trainer.fit(train_dataloader, valid_dataloader)
 
 
 def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric, max_epochs=50, grace_period=5, num_gpus_per_trial=0,
          num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, save_checkpoint=False,
-         early_stopping_patience=None, num_concurrent=1):
+         early_stopping_patience=None, num_concurrent=1, data_name="GR"):
     exp_root_dir = open("data/paths_vars/EXP_ROOT_PATH").read().strip()
-    data_root_dir = open("data/paths_vars/DATA_ROOT_PATH").read().strip()
+    data_root_dir = open(f"data/paths_vars/DATA_ROOT_PATH_{data_name}").read().strip()
     if "<EXP_ROOT_PATH>" in ray_result_dir:
         ray_result_dir = ray_result_dir.replace("<EXP_ROOT_PATH>", exp_root_dir)
     print(f"ray dir: {ray_result_dir}")
@@ -151,8 +174,6 @@ if __name__ == '__main__':
 #    parser.add_argument('--num_cpu', type=int, help='number of cpus.')
     parser.add_argument('--num_con', type=int, help='number of concurrent.')
 
-
-
     args = parser.parse_args()
     if not exists(args.config_file):
         raise ValueError(f"File: {args.config_file} does not exist!")
@@ -181,4 +202,4 @@ if __name__ == '__main__':
          num_gpus_per_trial=config['num_gpus_per_trial'], num_cpus_per_trial=config["num_cpus_per_trial"],
          num_samples=config['num_samples'], resume=config['resume'], save_checkpoint=config['save_checkpoint'],
          early_stopping_patience=config['early_stopping_patience'] if "early_stopping_patience" in config else None,
-         num_concurrent=args.num_con)
+         num_concurrent=args.num_con, data_name=config['data_name'])
