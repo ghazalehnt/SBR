@@ -24,10 +24,18 @@ map_user_item_text = {
     "interaction.review": "r",
     "interaction.review_text": "r",
 }
+reverse_map_user_item_text = {
+    "tc": ["item.title", "item.category"],
+    "tcd": ["item.title", "item.category", "item.description"],
+    "tg": ["item.title", "item.genres"],
+    "tgd": ["item.title", "item.genres", "item.description"],
+    "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
+    "tgr": ["item.title", "item.genres", "interaction.review_text"]
+}
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
-         given_neg_files=None, given_lr=None, given_tbs=None):
+         given_neg_files=None, given_lr=None, given_tbs=None, given_user_text=None, given_item_text=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -46,6 +54,10 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
             config['trainer']['lr'] = given_lr
         if given_tbs is not None:
             config['dataset']['train_batch_size'] = given_tbs
+        if given_user_text is not None:
+            config['dataset']['user_text'] = reverse_map_user_item_text[given_user_text]
+        if given_item_text is not None:
+            config['dataset']['item_text'] = reverse_map_user_item_text[given_item_text]
         if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
             DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
                              config["dataset"]["dataset_path"].index(">")+1]
@@ -153,6 +165,8 @@ if __name__ == '__main__':
     parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
     parser.add_argument('--trainer_lr', default=None, help='trainer learning rate')
     parser.add_argument('--train_batch_size', default=None, help='train_batch_size')
+    parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
+    parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
     parser.add_argument('--op', type=str, help='operation train/test/trainonly')
     args, _ = parser.parse_known_args()
 
@@ -166,7 +180,8 @@ if __name__ == '__main__':
         main(op=args.op, config_file=args.config_file, given_user_text_filter=args.user_text_filter,
              given_limit_training_data=args.limit_training_data,
              given_lr=float(args.trainer_lr) if args.trainer_lr is not None else args.trainer_lr,
-             given_tbs=int(args.train_batch_size) if args.train_batch_size is not None else args.train_batch_size)
+             given_tbs=int(args.train_batch_size) if args.train_batch_size is not None else args.train_batch_size,
+             given_user_text=args.user_text, given_item_text=args.item_text)
     elif args.op == "test":
         if not os.path.exists(join(args.result_folder, "config.json")):
             raise ValueError(f"Result folder does not exist: {args.config_file}")
