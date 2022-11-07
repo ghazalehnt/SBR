@@ -177,7 +177,8 @@ if __name__ == '__main__':
 
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
-    statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}\n")
+    statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}"
+                   f"with {user_grp_inter_cnt(train, set(per_user['train']) - set(per_user['test']), USER_IDX)} interactions.\n")
     statfile.write(
         f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}\n")
     G, user_nodes = get_graph(train)
