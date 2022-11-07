@@ -12,7 +12,7 @@ csv.field_size_limit(sys.maxsize)
 CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
 
-def create_splits(per_user_interactions, ratios, longtail_trainonly_th):
+def create_splits(per_user_interactions, ratios, longtail_trainonly_th, keep_the_longrail):
     train = []
     test = []
     valid = []
@@ -20,8 +20,9 @@ def create_splits(per_user_interactions, ratios, longtail_trainonly_th):
     valid_ratio = ratios[2]/(1-test_ratio)  # e.g. [0.6, 0.2, 0.2] -> 0.2 = 0.25 * 0.8
     for user in per_user_interactions:
         if len(per_user_interactions[user]) <= longtail_trainonly_th:
-            for line in per_user_interactions[user]:
-                train.append(line)
+            if keep_the_longrail:
+                for line in per_user_interactions[user]:
+                    train.append(line)
         else:
             X_train, X_test = train_test_split(per_user_interactions[user],
                                                                 test_size=test_ratio,
@@ -58,7 +59,8 @@ if __name__ == "__main__":
     ITEM_ID_FIELD = "asin"
     RATING_FIELD = "overall"
 
-    lt_threshold = 4
+    keep_lt_users = False
+    lt_threshold = 2
     ratios = [0.6, 0.2, 0.2]
 
     per_user_interactions = defaultdict(list)
@@ -70,9 +72,9 @@ if __name__ == "__main__":
         for line in reader:
             per_user_interactions[line[USER_ID_IDX_INTER]].append(line)
 
-    train, valid, test = create_splits(per_user_interactions, ratios, lt_threshold)
+    train, valid, test = create_splits(per_user_interactions, ratios, lt_threshold, keep_lt_users)
 
-    out_path = join(DATASET_PATH, f"ltth{lt_threshold}_ratios{'-'.join([str(r) for r in ratios])}")
+    out_path = join(DATASET_PATH, f"ltth{lt_threshold}-{'kept' if keep_lt_users else 'dropped'}_ratios{'-'.join([str(r) for r in ratios])}")
     os.makedirs(out_path, exist_ok=True)
 
     inter_header[USER_ID_IDX_INTER] = "user_id"
