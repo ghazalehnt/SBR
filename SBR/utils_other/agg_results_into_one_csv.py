@@ -89,11 +89,11 @@ def main(exp_dir, evalset):
                     training_samples = config['dataset']['training_neg_sampling_strategy']
                     validation = config['dataset']['validation_neg_sampling_strategy']
                     if model_name == "VanillaBERT_precalc_with_ffn":
-                        model_config = f"ffn-dp_"
+                        model_config = f"ffn{config['model']['k1']}-{config['model']['k2']}-dp_"
                     elif model_name == "VanillaBERT_precalc_with_itembias":
                         model_config = f"itembias-dp_"
                     elif model_name == "VanillaBERT_precalc_with_ffn_itembias":
-                        model_config = f"ffn-itembias-dp_"
+                        model_config = f"ffn{config['model']['k1']}-{config['model']['k2']}-itembias-dp_"
                 if config['model']['use_CF'] is True:
                     model_config += "CF_"
                 model_config += f"BERT_{ch}CH_{sortby}_{'sig' if config['trainer']['sigmoid_output'] is True else 'no-sig'}"
@@ -107,12 +107,12 @@ def main(exp_dir, evalset):
                     if metric in header:
                         IDX = header.index(metric)
                         if line[IDX] != '':
-                            m = str(round_half_up(float(line[IDX])*100, 4))
+                            m = str(round_half_up(float(line[IDX])*100, 2))
                     file_line.append(m)
-                file_line.extend([lr, bs, trainer, training_samples, validation, test])
+                file_line.extend([lr, bs, trainer, training_samples, validation, test, folder_name])
                 group_rows[line[0]].append(file_line)
 
-    header = ["model config", "user profile", "item text", "user group"] + metrics + ["lr", "bs", "trainer", "training", "validation", "test"]
+    header = ["model config", "user profile", "item text", "user group"] + metrics + ["lr", "bs", "trainer", "training", "validation", "test", "path"]
     outf = f"{evalset}_results" \
            f"{f'_bs{use_BS}' if use_BS is not None else ''}" \
            f"{f'_lr{use_LR}' if use_LR is not None else ''}.csv"
