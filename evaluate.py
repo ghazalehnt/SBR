@@ -67,7 +67,8 @@ def group_users(config, thresholds, min_user_review_len=None, review_field=None)
         # don't calc for limited train data as they are not comparable at this point
         if 'limit_training_data' in config['dataset'] and config['dataset']['limit_training_data'] != "":
             return {}, {}, set()
-
+        
+        split_datasets['train'][review_field] = split_datasets['train'][review_field].fillna("")
         keep_users = {}
         tokenizer = transformers.AutoTokenizer.from_pretrained(BERTMODEL)
         user_reviews = {}
