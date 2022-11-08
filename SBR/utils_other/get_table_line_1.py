@@ -19,7 +19,7 @@ def main(res_file, given_user_group, given_metric):
         if given_user_group not in group:
             continue
         if model.startswith("CF"):
-            print(f"CF & {metric} & & & \\\\ \hline % {model}")
+            print(f"{model} & {metric} & & & \\\\ \hline % {model}")
         elif model in name_mapping.keys():
             if item_text in ["tc", "tg"]:
                 if user_text in ["tc", "tg"]:
@@ -32,7 +32,7 @@ def main(res_file, given_user_group, given_metric):
                 elif user_text in ["tcsr", "tgr"]:
                     lines[model][4] = metric
     for model in name_mapping.keys():
-        print(f"{name_mapping[model]} & {lines[model][1]} & {lines[model][2]} & {lines[model][3]} & {lines[model][4]} \\\\ \hline % {model}")
+        print(f"{name_mapping[model]} & {lines[model][1] if 1 in lines[model] else '-'} & {lines[model][2] if 2 in lines[model] else '-'} & {lines[model][3] if 3 in lines[model] else '-'} & {lines[model][4]if 4 in lines[model] else '-'} \\\\ \hline % {model}")
 
 
 if __name__ == '__main__':
