@@ -53,8 +53,12 @@ def calculate_ranking_metrics_macro_avg_over_users(ground_truth, prediction_scor
     gt = {str(u): {} for u in set(users)}
     pd = {str(u): {} for u in set(users)}
     for i in range(len(ground_truth)):
-        gt[str(users[i])][str(items[i])] = float(ground_truth[i])
-        pd[str(users[i])][str(items[i])] = float(prediction_scores[i])
+        if len(items) == 0:
+            gt[str(users[i])][str(i)] = float(ground_truth[i])
+            pd[str(users[i])][str(i)] = float(prediction_scores[i])
+        else:
+            gt[str(users[i])][str(items[i])] = float(ground_truth[i])
+            pd[str(users[i])][str(items[i])] = float(prediction_scores[i])
     return calculate_ranking_metrics(gt, pd, relevance_level, given_ranking_metrics)
 
 
