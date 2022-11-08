@@ -92,11 +92,12 @@ class SupervisedTrainer:
         # _, _, trloss, _, _ = self.predict(train_dataloader)
         # print(f"Train loss before training: {trloss:.8f}")
         #
-        outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
-        results = calculate_metrics(ground_truth, outputs, users, items,
-                                    self.relevance_level, prediction_threshold=0.5, ranking_only=True)
-        results = {f"valid_{k}": v for k, v in results.items()}
-        print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+
+        # outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+        # results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
+        # results = {f"valid_{k}": v for k, v in results.items()}
+        # print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+
         # random.seed(42)
         # np.random.seed(42)
         # torch.manual_seed(42)
@@ -113,8 +114,8 @@ class SupervisedTrainer:
             train_loss, total_count = 0, 0
 
             # for loop going through dataset
-            tr_outputs = []
-            tr_labels = []
+            # tr_outputs = []
+            # tr_labels = []
             for batch_idx, batch in pbar:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -127,8 +128,8 @@ class SupervisedTrainer:
                     # not applying sigmoid before loss bc it is already applied in the loss
                     loss = self.loss_fn(output, label)
                     # just apply sigmoid for logging
-                    tr_outputs.extend(list(torch.sigmoid(output)))
-                    tr_labels.extend(label)
+                    # tr_outputs.extend(list(torch.sigmoid(output.to('cpu'))))
+                    # tr_labels.extend(label.to('cpu'))
                 else:
                     if self.sig_output:
                         output = torch.sigmoid(output)
@@ -139,8 +140,8 @@ class SupervisedTrainer:
                         loss = self.loss_fn(pos_out, neg_out, pos_l)
                     else:
                         loss = self.loss_fn(output, label)
-                    tr_outputs.extend(list(output))
-                    tr_labels.extend(label)
+                    # tr_outputs.extend(list(output))
+                    # tr_labels.extend(label)
 
                 loss.backward()
                 self.optimizer.step()
@@ -164,11 +165,10 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
-            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
+            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
 #            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
 #                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
-            results = calculate_metrics(ground_truth, outputs, users, items,
-                                        self.relevance_level, prediction_threshold=0.5, ranking_only=True)
+            results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
             results["loss"] = valid_loss
             results = {f"valid_{k}": v for k, v in results.items()}
             for k, v in results.items():
@@ -211,7 +211,7 @@ class SupervisedTrainer:
         outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
         log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
-        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
+        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
         results["loss"] = valid_loss
         results = {f"validation_{k}": v for k, v in results.items()}
         for k, v in results.items():
@@ -221,14 +221,14 @@ class SupervisedTrainer:
         outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
-        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level, 0.5)
+        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
         results["loss"] = test_loss
         results = {f"test_{k}": v for k, v in results.items()}
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/{k}', v)
         print(f"\nTest results - best epoch {self.best_epoch}: {results}")
 
-    def predict(self, eval_dataloader):
+    def predict(self, eval_dataloader, low_mem=False):
         # bring models to evaluation mode
         self.model.eval()
 
@@ -270,7 +270,8 @@ class SupervisedTrainer:
                 outputs.extend(output.squeeze().tolist())
                 user_ids.extend(batch[
                                     INTERNAL_USER_ID_FIELD].squeeze().tolist())
-                item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
+                if not low_mem:
+                    item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
 
                 postprocess_time = time.perf_counter() - start_time - prepare_time - process_time
                 pbar.set_description(
