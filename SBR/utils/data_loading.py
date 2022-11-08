@@ -214,6 +214,9 @@ def load_data(config, pretrained_model, for_precalc=False):
                                                                                   user_info,
                                                                                   item_info, padding_token=padding_token)
             print(f"Finish: train collate_fn initialize {time.time() - start}")
+        elif config['training_neg_sampling_strategy'] == "random_w_CF":
+            # TODO
+            pass
         elif config['training_neg_sampling_strategy'] == "":
             train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
         elif config['training_neg_sampling_strategy'] == "genres":
@@ -233,7 +236,7 @@ def load_data(config, pretrained_model, for_precalc=False):
             valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
                                                           padding_token=padding_token)
             print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
-        elif config['validation_neg_sampling_strategy'].startswith("f:"):  # TODO here?
+        elif config['validation_neg_sampling_strategy'].startswith("f:"):
             start = time.time()
             print("Start: used_item copy and validation collate_fn initialize...")
             valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token)
@@ -1021,14 +1024,20 @@ def load_split_dataset(config, for_precalc=False):
         label_weight = 0
         if "-" in config['validation_neg_sampling_strategy']:
             fname = config['validation_neg_sampling_strategy'][2:config['validation_neg_sampling_strategy'].index("-")]
-            label_weight = config['validation_neg_sampling_strategy'][config['validation_neg_sampling_strategy'].index("-")+1:]
-            if label_weight.startswith("w_cl_"):
-                label_weight = float(label_weight[label_weight.index("w_cl_")+len("w_cl_"):])
-            elif label_weight.startswith("w_jac"):
+            label_weight_name = config['validation_neg_sampling_strategy'][config['validation_neg_sampling_strategy'].index("-")+1:]
+            # if label_weight_name.startswith("w_cl_"):
+            #     label_weight = float(label_weight[label_weight.index("w_cl_")+len("w_cl_"):])
+            # elif label_weight_name.startswith("w_jac"):
+            #     label_weight = None
+            #     # use the precalculated user-eval-item relatedness as this is timely!
+            #     user_item_jaccard_index = pickle.load(
+            #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
+            #TODO
+            if label_weight_name.startswith("w_CF"):
                 label_weight = None
-                # use the precalculated user-eval-item relatedness as this is timely!
-                user_item_jaccard_index = pickle.load(
-                    open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
+                pass
+            else:
+                raise NotImplementedError(f"{label_weight} not implemented")
         else:
             fname = config['validation_neg_sampling_strategy'][2:]
         negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
@@ -1036,12 +1045,16 @@ def load_split_dataset(config, for_precalc=False):
             negs['label'] = label_weight
         else:
             labels = []
-            for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
-                # the higher the more related to positives
-                # e.g. 0 is good negative, 0.8 is mostlypositive.
-                # So we directly assign it instead of the label
-                labels.append(avg_relatedness)
+            # TODO
+            if label_weight_name.startswith("w_CF"):
+                pass
+            elif label_weight_name.startswith("w_jac"):
+                for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
+                    avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
+                    # the higher the more related to positives
+                    # e.g. 0 is good negative, 0.8 is mostlypositive.
+                    # So we directly assign it instead of the label
+                    labels.append(avg_relatedness)
             negs['label'] = labels
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
@@ -1054,15 +1067,22 @@ def load_split_dataset(config, for_precalc=False):
         label_weight = 0
         if "-" in config['test_neg_sampling_strategy']:
             fname = config['test_neg_sampling_strategy'][2:config['test_neg_sampling_strategy'].index("-")]
-            label_weight = config['test_neg_sampling_strategy'][config['test_neg_sampling_strategy'].index("-")+1:]
-            if label_weight.startswith("w_cl_"):
-                label_weight = float(label_weight[label_weight.index("w_cl_")+len("w_cl_"):])
-            elif label_weight.startswith("w_jac"):
-                label_weight = None
+            label_weight_name = config['test_neg_sampling_strategy'][
+                                config['test_neg_sampling_strategy'].index("-") + 1:]
+            # if label_weight_name.startswith("w_cl_"):
+            #     label_weight = float(label_weight[label_weight.index("w_cl_")+len("w_cl_"):])
+            # elif label_weight_name.startswith("w_jac"):
+            #     label_weight = None
                 # use the precalculated user-eval-item relatedness as this is timely!
-                if user_item_jaccard_index is None:
-                    user_item_jaccard_index = pickle.load(
-                        open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
+                # if user_item_jaccard_index is None:
+                #     user_item_jaccard_index = pickle.load(
+                #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
+            # TODO
+            if label_weight_name.startswith("w_CF"):
+                label_weight = None
+                pass
+            else:
+                raise NotImplementedError(f"{label_weight} not implemented")
         else:
             fname = config['test_neg_sampling_strategy'][2:]
         negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
@@ -1070,12 +1090,16 @@ def load_split_dataset(config, for_precalc=False):
             negs['label'] = label_weight
         else:
             labels = []
-            for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
-                # the higher the more related to positives
-                # e.g. 0 is good negative, 0.8 is mostlypositive.
-                # So we directly assign it instead of the label
-                labels.append(avg_relatedness)
+            #TODO
+            if label_weight_name.startswith("w_CF"):
+                pass
+            elif label_weight_name.startswith("w_jac"):
+                for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
+                    avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
+                    # the higher the more related to positives
+                    # e.g. 0 is good negative, 0.8 is mostlypositive.
+                    # So we directly assign it instead of the label
+                    labels.append(avg_relatedness)
             negs['label'] = labels
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
