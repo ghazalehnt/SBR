@@ -45,7 +45,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 self.chunk_item_reps[c].requires_grad_(False)
         else:
             prec_path = os.path.join(dataset_config['dataset_path'], 'precomputed_reps',
-                                     f"size{dataset_config['chunk_size']}_"
+                                     f"size{dataset_config['user_chunk_size']}_"
                                      f"cs-{dataset_config['case_sensitive']}_"
                                      f"nn-{dataset_config['normalize_negation']}_"
                                      f"{dataset_config['limit_training_data'] if len(dataset_config['limit_training_data']) > 0 else 'no-limit'}")
@@ -69,6 +69,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             else:
                 raise ValueError(
                     f"Precalculated user embedding does not exist! {os.path.join(prec_path, user_rep_file)}")
+            prec_path = os.path.join(dataset_config['dataset_path'], 'precomputed_reps',
+                                     f"size{dataset_config['item_chunk_size']}_"
+                                     f"cs-{dataset_config['case_sensitive']}_"
+                                     f"nn-{dataset_config['normalize_negation']}_"
+                                     f"{dataset_config['limit_training_data'] if len(dataset_config['limit_training_data']) > 0 else 'no-limit'}")
             item_rep_file = f"item_representation_" \
                             f"{model_config['agg_strategy']}_" \
                             f"id{model_config['append_id']}_" \

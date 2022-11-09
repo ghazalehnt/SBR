@@ -153,7 +153,7 @@ def load_data(config, pretrained_model, for_precalc=False):
             user_info = user_info.map(tokenize_function, batched=True,
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                  # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
-                                                 "max_length": config["chunk_size"],
+                                                 "max_length": config["user_chunk_size"],
                                                  "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None,
                                                  "item_per_chunk": True if config["user_text_filter"] == "item_per_chunk" else False
                                                  })
@@ -162,7 +162,7 @@ def load_data(config, pretrained_model, for_precalc=False):
             item_info = item_info.map(tokenize_function, batched=True,
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                  # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
-                                                 "max_length": config["chunk_size"],
+                                                 "max_length": config["item_chunk_size"],
                                                  "max_num_chunks": config['max_num_chunks_item'] if "max_num_chunks_item" in config else None
                                                  })
             item_info = item_info.remove_columns(['text'])
