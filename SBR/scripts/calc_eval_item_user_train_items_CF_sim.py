@@ -53,7 +53,7 @@ if __name__ == "__main__":
     # sim_str = "dot"
     sim_str = "cosine"
 
-    main(join(DATASET_DIR, f"eval_item_ut_item_CF_sim.pkl"),
+    main(join(DATASET_DIR, f"eval_item_ut_item_CF_sim_{sim_str}.pkl"),
          CF_CHECKPOINT_FILE,
          CF_ITEM_ID_FILE,
          join(DATASET_DIR, "train.csv"),
