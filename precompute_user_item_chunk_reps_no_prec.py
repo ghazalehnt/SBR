@@ -19,7 +19,9 @@ reverse_map_user_item_text = {
     "tg": ["item.title", "item.genres"],
     "tgd": ["item.title", "item.genres", "item.description"],
     "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
-    "tgr": ["item.title", "item.genres", "interaction.review_text"]
+    "tgr": ["item.title", "item.genres", "interaction.review_text"],
+    "sr": ["interaction.summary", "interaction.reviewText"],
+    "r": ["interaction.review_text"]
 }
 
 def main(config_file, given_user_text_filter=None, given_limit_training_data=None,
@@ -58,13 +60,20 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
                   True)
 
-    prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
-                             f"size{config['dataset']['chunk_size']}_"
+    user_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
+                             f"size{config['dataset']['user_chunk_size']}_"
                              f"cs-{config['dataset']['case_sensitive']}_"
                              f"nn-{config['dataset']['normalize_negation']}_"
                              f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
-    print(prec_path)
-    os.makedirs(prec_path, exist_ok=True)
+    item_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
+                                  f"size{config['dataset']['item_chunk_size']}_"
+                                  f"cs-{config['dataset']['case_sensitive']}_"
+                                  f"nn-{config['dataset']['normalize_negation']}_"
+                                  f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
+    print(user_prec_path)
+    print(item_prec_path)
+    os.makedirs(user_prec_path, exist_ok=True)
+    os.makedirs(item_prec_path, exist_ok=True)
 
     agg_strategy = config['model']['agg_strategy']
     batch_size = config['model']['precalc_batch_size']
@@ -103,15 +112,15 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                     f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
                     f"{'_i'+'-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                     f".pkl"
-    if os.path.exists(os.path.join(prec_path, user_rep_file)):
-        print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, user_rep_file)}")
+    if os.path.exists(os.path.join(user_prec_path, user_rep_file)):
+        print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(user_prec_path, user_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size, agg_strategy,
                                          config['dataset']['dataloader_num_workers'],
                                          INTERNAL_USER_ID_FIELD, "user_id",
                                          user_id_embedding if config['model']['append_id'] else None,
                                          user_embedding_CF if config['model']['use_CF'] else None)
-        torch.save(weights, os.path.join(prec_path, user_rep_file))
+        torch.save(weights, os.path.join(user_prec_path, user_rep_file))
     print(f"user rep created  {time.time() - start}")
 
     start = time.time()
@@ -122,15 +131,15 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                     f"cf{config['model']['use_CF']}_" \
                     f"{'-'.join(config['dataset']['item_text'])}" \
                     f".pkl"
-    if os.path.exists(os.path.join(prec_path, item_rep_file)):
-        print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(prec_path, item_rep_file)}")
+    if os.path.exists(os.path.join(item_prec_path, item_rep_file)):
+        print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(item_prec_path, item_rep_file)}")
     else:
         weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size, agg_strategy,
                                          config['dataset']['dataloader_num_workers'],
                                          INTERNAL_ITEM_ID_FIELD, "item_id",
                                          item_id_embedding if config['model']['append_id'] else None,
                                          item_embedding_CF if config['model']['use_CF'] else None)
-        torch.save(weights, os.path.join(prec_path, item_rep_file))
+        torch.save(weights, os.path.join(item_prec_path, item_rep_file))
         print(f"item rep created in {time.time() - start}")
 
 
