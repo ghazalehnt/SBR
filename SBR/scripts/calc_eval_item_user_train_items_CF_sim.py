@@ -8,18 +8,16 @@ import torch
 import numpy as np
 
 
-def main(outfile_item_user_distance, cf_checkpoint_file, cf_item_ids_file, train_file, valid_neg_file, test_neg_file):
+def main(outfile_item_user_distance, cf_checkpoint_file, cf_item_ids_file, train_file, dataset_dir, neg_files):
     cf_item_reps = torch.load(cf_checkpoint_file, map_location=torch.device('cpu'))['model_state_dict']['item_embedding.weight']
     item_internal_ids = json.load(open(cf_item_ids_file, 'r'))
     train = pd.read_csv(train_file, dtype=str)
 
     user_eval_unlabeled_items = defaultdict(set)
-    eval_negs = pd.read_csv(valid_neg_file, dtype=str)
-    for user, item in zip(eval_negs['user_id'], eval_negs['item_id']):
-        user_eval_unlabeled_items[user].add(item)
-    eval_negs = pd.read_csv(test_neg_file, dtype=str)
-    for user, item in zip(eval_negs['user_id'], eval_negs['item_id']):
-        user_eval_unlabeled_items[user].add(item)
+    for neg_file in neg_files:
+        eval_negs = pd.read_csv(join(dataset_dir, neg_file), dtype=str)
+        for user, item in zip(eval_negs['user_id'], eval_negs['item_id']):
+            user_eval_unlabeled_items[user].add(item)
 
     item_item_similarity = {}
     num_users = len(set(train['user_id']))
@@ -46,8 +44,8 @@ def main(outfile_item_user_distance, cf_checkpoint_file, cf_item_ids_file, train
 
 if __name__ == "__main__":
     DATASET_DIR = ""
-    VALID_NEG_FILE = "validation_neg_genres_2.csv"
-    TEST_NEG_FILE = "test_neg_genres_2.csv"
+    neg_files = ["validation_neg_genres_2.csv", "test_neg_genres_2.csv",
+                 "test_neg_random_2.csv", "test_neg_random_2.csv"]
     CF_CHECKPOINT_FILE = ""
     CF_ITEM_ID_FILE = ""
     # sim_str = "dot"
@@ -57,5 +55,5 @@ if __name__ == "__main__":
          CF_CHECKPOINT_FILE,
          CF_ITEM_ID_FILE,
          join(DATASET_DIR, "train.csv"),
-         join(DATASET_DIR, VALID_NEG_FILE),
-         join(DATASET_DIR, TEST_NEG_FILE))
+         DATASET_DIR,
+         neg_files)
