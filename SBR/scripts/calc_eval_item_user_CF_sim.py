@@ -36,12 +36,12 @@ if __name__ == "__main__":
     DATASET_DIR = ""
     neg_files = ["validation_neg_genres_100.csv", "test_neg_genres_100.csv",
                  "validation_neg_random_100.csv", "test_neg_random_100.csv"]
-    ITEM_ITEM_SIM_FILE = ""
     sim_str = "dot"
+    ITEM_ITEM_SIM_FILE = f"eval_item_ut_item_CF_sim_{sim_str}.pkl"
     minold = 0
     maxold = 71
 
-    main(join(DATASET_DIR, f"eval_user_item_CF_sim_scaled_{minold}-{maxold}.pkl"),
+    main(join(DATASET_DIR, f"eval_user_item_CF_sim_{sim_str}_scaled_{minold}-{maxold}.pkl"),
          join(DATASET_DIR, "train.csv"),
          DATASET_DIR,
          neg_files,
