@@ -278,7 +278,7 @@ if __name__ == "__main__":
     valid_prediction = json.load(open(os.path.join(result_folder,
                                                    f"best_valid_predicted_validation_neg_{valid_neg_strategy}.json")))
     test_ground_truth = json.load(open(os.path.join(result_folder,
-                                                    f"test_ground_truth_validation_neg_{test_neg_strategy}.json")))
+                                                    f"test_ground_truth_test_neg_{test_neg_strategy}.json")))
     valid_ground_truth = json.load(open(os.path.join(result_folder,
                                                      f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}.json")))
 
