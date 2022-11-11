@@ -39,12 +39,12 @@ def calculate_ranking_metrics_macro_avg_over_users(gt, pd, relevance_level,
                                                    given_ranking_metrics=None, weighted_label=False):
     if given_ranking_metrics is None:
         given_ranking_metrics = ranking_metrics
-    if weighted_label:
-        # weighted ground truth
-        results = calculate_ndcg(gt, pd, [m for m in given_ranking_metrics if m.startswith("ndcg_")])
-    else:
+    ndcg_metrics = [m for m in given_ranking_metrics if m.startswith("ndcg_")]
+    other_metrics = [[m for m in given_ranking_metrics if not m.startswith("ndcg_")]]
+    results = calculate_ndcg(gt, pd, ndcg_metrics)
+    if not weighted_label:
         gt = {k: {k2: int(v2) for k2, v2 in v.items()} for k, v in gt.items()}
-        results = calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, given_ranking_metrics)
+        results.update(calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, other_metrics))
     return results
 
 
@@ -67,8 +67,9 @@ def calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, given_ranking_
 def ndcg(gt, pd, k):
     per_user_socre = []
     for user in gt.keys():
-        true_rel = np.asarray([[v for k, v in gt[user].items()]])
-        pred = np.asarray([[v for k, v in pd[user].items()]])
+        user_items = gt[user].keys()
+        true_rel = np.asarray([[gt[user][k] for k in user_items]])
+        pred = np.asarray([[pd[user][k] for k in user_items]])
         per_user_socre.append(ndcg_score(true_rel, pred, k=k))
     return per_user_socre
 
