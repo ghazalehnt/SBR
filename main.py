@@ -30,7 +30,9 @@ reverse_map_user_item_text = {
     "tg": ["item.title", "item.genres"],
     "tgd": ["item.title", "item.genres", "item.description"],
     "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
-    "tgr": ["item.title", "item.genres", "interaction.review_text"]
+    "tgr": ["item.title", "item.genres", "interaction.review_text"],
+    "sr": ["interaction.summary", "interaction.reviewText"],
+    "r": ["interaction.review_text"]
 }
 
 
