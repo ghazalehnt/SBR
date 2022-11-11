@@ -40,7 +40,7 @@ def calculate_ranking_metrics_macro_avg_over_users(gt, pd, relevance_level,
     if given_ranking_metrics is None:
         given_ranking_metrics = ranking_metrics
     ndcg_metrics = [m for m in given_ranking_metrics if m.startswith("ndcg_")]
-    other_metrics = [[m for m in given_ranking_metrics if not m.startswith("ndcg_")]]
+    other_metrics = [m for m in given_ranking_metrics if not m.startswith("ndcg_")]
     results = calculate_ndcg(gt, pd, ndcg_metrics)
     if not weighted_label:
         gt = {k: {k2: int(v2) for k2, v2 in v.items()} for k, v in gt.items()}
