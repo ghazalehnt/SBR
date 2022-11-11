@@ -1020,7 +1020,7 @@ def load_split_dataset(config, for_precalc=False):
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     user_item_jaccard_index = None
-    item_item_sim = None
+    user_item_sim = None
     if not for_precalc and config['validation_neg_sampling_strategy'].startswith("f:"):
         label_weight = 0
         if "-" in config['validation_neg_sampling_strategy']:
@@ -1038,10 +1038,8 @@ def load_split_dataset(config, for_precalc=False):
                 # w_CF_dot_-19_71
                 oldmax = int(label_weight_name[label_weight_name.rindex("_")+1:])
                 oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_")+len("w_CF_dot_"):label_weight_name.rindex("_")])
-                item_item_sim = pickle.load(open(join(config['dataset_path'], config["CF_item_item_prec_sims"]), 'rb'))
-                temp_train = split_datasets['train']\
-                    .merge(user_info[[INTERNAL_USER_ID_FIELD, "user_id"]], on=INTERNAL_USER_ID_FIELD)\
-                    .merge(item_info[[INTERNAL_ITEM_ID_FIELD, "item_id"]], on=INTERNAL_ITEM_ID_FIELD)[["user_id", "item_id"]]
+                sim_st = "dot"
+                user_item_sim = pickle.load(open(join(config['dataset_path'], f"eval_user_item_CF_sim_{sim_st}_scaled_{oldmin}-{oldmax}.pkl"), 'rb'))  # TODO rm config["CF_item_item_prec_sims"] all over
             else:
                 raise NotImplementedError(f"{label_weight} not implemented")
         else:
@@ -1053,16 +1051,7 @@ def load_split_dataset(config, for_precalc=False):
             labels = []
             if label_weight_name.startswith("w_CF_dot_"):
                 for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                    user_train_items = list(set(temp_train[temp_train["user_id"] == user]["item_id"]))
-                    sims = []
-                    for pos_item in user_train_items:
-                        s = item_item_sim[tuple(sorted([unlabeled_item, pos_item]))]
-                        s = (s - oldmin) / (oldmax - oldmin)  # s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
-                        # as oldmin and oldmax are estimates, we make sure that the s is between 0 and 1:
-                        s = max(0, s)
-                        s = min(1, s)
-                        sims.append(s)
-                    labels.append(sum(sims)/len(sims))
+                    labels.append(user_item_sim[user][unlabeled_item])
             # elif cosine:
                 # if label_weight_name.startswith("w_CF_cosine"):
                 #     # transform the range from -1-1 to 0-1:
@@ -1101,15 +1090,12 @@ def load_split_dataset(config, for_precalc=False):
                 #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
             if label_weight_name.startswith("w_CF_dot"):
                 label_weight = None
-                oldmax = int(label_weight_name[label_weight_name.rindex("_") + 1:])
-                oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_") + len("w_CF_dot_"):label_weight_name.rindex("_")])
-                if item_item_sim is None:
-                    item_item_sim = pickle.load(
-                        open(join(config['dataset_path'], config["CF_item_item_prec_sims"]), 'rb'))
-                    temp_train = split_datasets['train'] \
-                        .merge(user_info[[INTERNAL_USER_ID_FIELD, "user_id"]], on=INTERNAL_USER_ID_FIELD) \
-                        .merge(item_info[[INTERNAL_ITEM_ID_FIELD, "item_id"]], on=INTERNAL_ITEM_ID_FIELD)[
-                        ["user_id", "item_id"]]
+                oldmax = int(label_weight_name[label_weight_name.rindex("_")+1:])
+                oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_")+len("w_CF_dot_"):label_weight_name.rindex("_")])
+                sim_st = "dot"
+                if user_item_sim is None:
+                    user_item_sim = pickle.load(open(
+                        join(config['dataset_path'], f"eval_user_item_CF_sim_{sim_st}_scaled_{oldmin}-{oldmax}.pkl"), 'rb'))  # TODO rm config["CF_item_item_prec_sims"] all over
             else:
                 raise NotImplementedError(f"{label_weight} not implemented")
         else:
@@ -1121,17 +1107,7 @@ def load_split_dataset(config, for_precalc=False):
             labels = []
             if label_weight_name.startswith("w_CF_dot_"):
                 for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                    user_train_items = list(set(temp_train[temp_train["user_id"] == user]["item_id"]))
-                    sims = []
-                    for pos_item in user_train_items:
-                        s = item_item_sim[tuple(sorted([unlabeled_item, pos_item]))]
-                        s = (s - oldmin) / (
-                                    oldmax - oldmin)  # s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
-                        # as oldmin and oldmax are estimates, we make sure that the s is between 0 and 1:
-                        s = max(0, s)
-                        s = min(1, s)
-                        sims.append(s)
-                    labels.append(sum(sims) / len(sims))
+                    labels.append(user_item_sim[user][unlabeled_item])
             # elif label_weight_name.startswith("w_jac"):
             #     for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
             #         avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
