@@ -16,6 +16,8 @@ def main(outfile_item_user_sim_file, train_file, dataset_dir, neg_files, item_si
             user_eval_unlabeled_items[user].add(item)
 
     item_user_similarity = defaultdict(dict)
+    num_users = len(set(train['user_id']))
+    print(f"{num_users} users remained")
     for user in set(train['user_id']):
         user_items = list(set(train[train["user_id"] == user]["item_id"]))
         for unlabeled_item in user_eval_unlabeled_items[user]:
@@ -29,6 +31,9 @@ def main(outfile_item_user_sim_file, train_file, dataset_dir, neg_files, item_si
                 sims.append(s)
             avg_sim = sum(sims) / len(sims)
             item_user_similarity[user][unlabeled_item] = avg_sim
+        num_users -= 1
+        if num_users % 100 == 0:
+            print(f"{num_users} users remained")
     pickle.dump(item_user_similarity, open(outfile_item_user_sim_file, 'wb'))
 
 
