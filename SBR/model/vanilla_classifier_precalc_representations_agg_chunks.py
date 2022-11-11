@@ -63,9 +63,13 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             if os.path.exists(os.path.join(prec_path, user_rep_file)):
                 user_chunk_reps_dict = torch.load(os.path.join(prec_path, user_rep_file), map_location=device)
                 user_chunk_reps = []
+                cnt = 0
                 for u in users.sort('user_id'):
                     ex_user_id = u["user_id"]
                     user_chunk_reps.append(user_chunk_reps_dict[ex_user_id])
+                    if cnt != u[INTERNAL_USER_ID_FIELD]:
+                        raise RuntimeError("wrong user!")
+                    cnt += 1
             else:
                 raise ValueError(
                     f"Precalculated user embedding does not exist! {os.path.join(prec_path, user_rep_file)}")
@@ -84,9 +88,13 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             if os.path.exists(os.path.join(prec_path, item_rep_file)):
                 item_chunks_reps_dict = torch.load(os.path.join(prec_path, item_rep_file), map_location=device)
                 item_chunks_reps = []
+                cnt = 0
                 for i in items.sort('item_id'):
                     ex_item_id = i["item_id"]
                     item_chunks_reps.append(item_chunks_reps_dict[ex_item_id])
+                    if cnt != i[INTERNAL_ITEM_ID_FIELD]:
+                        raise RuntimeError("item user!")
+                    cnt += 1
             else:
                 raise ValueError(
                     f"Precalculated item embedding does not exist! {os.path.join(prec_path, item_rep_file)}")

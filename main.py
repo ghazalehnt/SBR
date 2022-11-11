@@ -35,7 +35,8 @@ reverse_map_user_item_text = {
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
-         given_neg_files=None, given_lr=None, given_tbs=None, given_user_text=None, given_item_text=None):
+         given_neg_files=None, given_lr=None, given_tbs=None, given_user_text=None, given_item_text=None,
+         given_CF_item_item_prec_sims=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -104,6 +105,8 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
             config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
         if given_neg_files["test"] is not None:
             config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
+        if given_CF_item_item_prec_sims is not None:
+            config["dataset"]["CF_item_item_prec_sims"] = given_CF_item_item_prec_sims
     else:
         raise ValueError("op not defined!")
 
@@ -163,6 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
     parser.add_argument('--testtime_validation_neg_strategy', '-v', default=None, help='valid neg strategy, only for op == test')
     parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
+    parser.add_argument('--testtime_CF_item_item_prec_sims', default=None, help='test CF_item_item_prec_sims when w_CF')
     parser.add_argument('--trainer_lr', default=None, help='trainer learning rate')
     parser.add_argument('--train_batch_size', default=None, help='train_batch_size')
     parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
@@ -189,6 +193,7 @@ if __name__ == '__main__':
             raise ValueError(f"OP==test does not accept config_file")
         main(op=args.op, result_folder=args.result_folder,
              given_neg_files={"validation": args.testtime_validation_neg_strategy,
-                              "test": args.testtime_test_neg_strategy})
+                              "test": args.testtime_test_neg_strategy},
+             given_CF_item_item_prec_sims=args.testtime_CF_item_item_prec_sims)
 
 

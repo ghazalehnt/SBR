@@ -1020,6 +1020,7 @@ def load_split_dataset(config, for_precalc=False):
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     user_item_jaccard_index = None
+    item_item_sim = None
     if not for_precalc and config['validation_neg_sampling_strategy'].startswith("f:"):
         label_weight = 0
         if "-" in config['validation_neg_sampling_strategy']:
@@ -1032,10 +1033,15 @@ def load_split_dataset(config, for_precalc=False):
             #     # use the precalculated user-eval-item relatedness as this is timely!
             #     user_item_jaccard_index = pickle.load(
             #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
-            #TODO
-            if label_weight_name.startswith("w_CF"):
+            if label_weight_name.startswith("w_CF_dot_"):
                 label_weight = None
-                pass
+                # w_CF_dot_-19_71
+                oldmax = int(label_weight_name[label_weight_name.rindex("_")+1:])
+                oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_")+len("w_CF_dot_"):label_weight_name.rindex("_")])
+                item_item_sim = pickle.load(open(join(config['dataset_path'], config["CF_item_item_prec_sims"]), 'rb'))
+                temp_train = split_datasets['train']\
+                    .merge(user_info[[INTERNAL_USER_ID_FIELD, "user_id"]], on=INTERNAL_USER_ID_FIELD)\
+                    .merge(item_info[[INTERNAL_ITEM_ID_FIELD, "item_id"]], on=INTERNAL_ITEM_ID_FIELD)[["user_id", "item_id"]]
             else:
                 raise NotImplementedError(f"{label_weight} not implemented")
         else:
@@ -1045,16 +1051,33 @@ def load_split_dataset(config, for_precalc=False):
             negs['label'] = label_weight
         else:
             labels = []
-            # TODO
-            if label_weight_name.startswith("w_CF"):
-                pass
-            elif label_weight_name.startswith("w_jac"):
+            if label_weight_name.startswith("w_CF_dot_"):
                 for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                    avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
-                    # the higher the more related to positives
-                    # e.g. 0 is good negative, 0.8 is mostlypositive.
-                    # So we directly assign it instead of the label
-                    labels.append(avg_relatedness)
+                    user_train_items = list(set(temp_train[temp_train["user_id"] == user]["item_id"]))
+                    sims = []
+                    for pos_item in user_train_items:
+                        s = item_item_sim[tuple(sorted([unlabeled_item, pos_item]))]
+                        s = (s - oldmin) / (oldmax - oldmin)  # s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
+                        # as oldmin and oldmax are estimates, we make sure that the s is between 0 and 1:
+                        s = max(0, s)
+                        s = min(1, s)
+                        sims.append(s)
+                    labels.append(sum(sims)/len(sims))
+            # elif cosine:
+                # if label_weight_name.startswith("w_CF_cosine"):
+                #     # transform the range from -1-1 to 0-1:
+                #     s = (s+1)/2  #  s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
+                #     # then apply scaling if given
+                #     s *= scaling_factor
+                #     s = min(1, s)  # if the scaling factor > 1
+                #     sims.append(s)
+            # elif label_weight_name.startswith("w_jac"):
+            #     for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
+            #         avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
+            #         # the higher the more related to positives
+            #         # e.g. 0 is good negative, 0.8 is mostlypositive.
+            #         # So we directly assign it instead of the label
+            #         labels.append(avg_relatedness)
             negs['label'] = labels
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
@@ -1062,7 +1085,6 @@ def load_split_dataset(config, for_precalc=False):
         split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
-    # TODO remove the cl and jac, add the CF
     if not for_precalc and config['test_neg_sampling_strategy'].startswith("f:"):
         label_weight = 0
         if "-" in config['test_neg_sampling_strategy']:
@@ -1077,10 +1099,17 @@ def load_split_dataset(config, for_precalc=False):
                 # if user_item_jaccard_index is None:
                 #     user_item_jaccard_index = pickle.load(
                 #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
-            # TODO
-            if label_weight_name.startswith("w_CF"):
+            if label_weight_name.startswith("w_CF_dot"):
                 label_weight = None
-                pass
+                oldmax = int(label_weight_name[label_weight_name.rindex("_") + 1:])
+                oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_") + len("w_CF_dot_"):label_weight_name.rindex("_")])
+                if item_item_sim is None:
+                    item_item_sim = pickle.load(
+                        open(join(config['dataset_path'], config["CF_item_item_prec_sims"]), 'rb'))
+                    temp_train = split_datasets['train'] \
+                        .merge(user_info[[INTERNAL_USER_ID_FIELD, "user_id"]], on=INTERNAL_USER_ID_FIELD) \
+                        .merge(item_info[[INTERNAL_ITEM_ID_FIELD, "item_id"]], on=INTERNAL_ITEM_ID_FIELD)[
+                        ["user_id", "item_id"]]
             else:
                 raise NotImplementedError(f"{label_weight} not implemented")
         else:
@@ -1090,16 +1119,26 @@ def load_split_dataset(config, for_precalc=False):
             negs['label'] = label_weight
         else:
             labels = []
-            #TODO
-            if label_weight_name.startswith("w_CF"):
-                pass
-            elif label_weight_name.startswith("w_jac"):
+            if label_weight_name.startswith("w_CF_dot_"):
                 for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                    avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
-                    # the higher the more related to positives
-                    # e.g. 0 is good negative, 0.8 is mostlypositive.
-                    # So we directly assign it instead of the label
-                    labels.append(avg_relatedness)
+                    user_train_items = list(set(temp_train[temp_train["user_id"] == user]["item_id"]))
+                    sims = []
+                    for pos_item in user_train_items:
+                        s = item_item_sim[tuple(sorted([unlabeled_item, pos_item]))]
+                        s = (s - oldmin) / (
+                                    oldmax - oldmin)  # s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
+                        # as oldmin and oldmax are estimates, we make sure that the s is between 0 and 1:
+                        s = max(0, s)
+                        s = min(1, s)
+                        sims.append(s)
+                    labels.append(sum(sims) / len(sims))
+            # elif label_weight_name.startswith("w_jac"):
+            #     for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
+            #         avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
+            #         # the higher the more related to positives
+            #         # e.g. 0 is good negative, 0.8 is mostlypositive.
+            #         # So we directly assign it instead of the label
+            #         labels.append(avg_relatedness)
             negs['label'] = labels
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
