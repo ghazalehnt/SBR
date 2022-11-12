@@ -195,28 +195,41 @@ def load_data(config, pretrained_model, for_precalc=False):
         #                                                          cur_used_items, user_info,
         #                                                          item_info, padding_token=padding_token)
         #     print(f"Finish: train collate_fn initialize {time.time() - start}")
-        elif config['training_neg_sampling_strategy'] == "random_w_jac":
-            print("Start: train collate_fn initialize...")
+        # elif config['training_neg_sampling_strategy'] == "random_w_jac":
+        #     print("Start: train collate_fn initialize...")
+        #     cur_used_items = user_used_items['train'].copy()
+        #     train_collate_fn = CollateNegSamplesRandomOptJaccardWeightedLabels(config['training_neg_samples'],
+        #                                                                        cur_used_items, user_used_items['train'],
+        #                                                                        config['item_userset_file'],
+        #                                                                        user_info,
+        #                                                                        item_info, padding_token=padding_token)
+        #     print(f"Finish: train collate_fn initialize {time.time() - start}")
+        # elif config['training_neg_sampling_strategy'].startswith("random_w_cl_"):
+        #     print("Start: train collate_fn initialize...")
+        #     cur_used_items = user_used_items['train'].copy()
+        #     pos_cl_prior = float(config['training_neg_sampling_strategy'][config['training_neg_sampling_strategy'].index("random_w_cl_")+len("random_w_cl_"):])
+        #     train_collate_fn = CollateNegSamplesRandomOptClassPriorWeightedLabels(config['training_neg_samples'],
+        #                                                                           cur_used_items,
+        #                                                                           pos_cl_prior,
+        #                                                                           user_info,
+        #                                                                           item_info, padding_token=padding_token)
+        #     print(f"Finish: train collate_fn initialize {time.time() - start}")
+        elif config['training_neg_sampling_strategy'].startswith("random_w_CF_dot_"):
             cur_used_items = user_used_items['train'].copy()
-            train_collate_fn = CollateNegSamplesRandomOptJaccardWeightedLabels(config['training_neg_samples'],
-                                                                               cur_used_items, user_used_items['train'],
-                                                                               config['item_userset_file'],
-                                                                               user_info,
-                                                                               item_info, padding_token=padding_token)
+            label_weight_name = config['training_neg_sampling_strategy']
+            oldmax = int(label_weight_name[label_weight_name.rindex("_") + 1:])
+            oldmin = int(label_weight_name[
+                         label_weight_name.index("w_CF_dot_") + len("w_CF_dot_"):label_weight_name.rindex("_")])
+            train_collate_fn = CollateNegSamplesRandomCFWeighted(config['training_neg_samples'],
+                                                                 cur_used_items,
+                                                                 user_used_items['train'],
+                                                                 config["cf_sim_checkpoint"],
+                                                                 config["cf_internal_ids"],
+                                                                 oldmax,
+                                                                 oldmin,
+                                                                 user_info,
+                                                                 item_info, padding_token=padding_token)
             print(f"Finish: train collate_fn initialize {time.time() - start}")
-        elif config['training_neg_sampling_strategy'].startswith("random_w_cl_"):
-            print("Start: train collate_fn initialize...")
-            cur_used_items = user_used_items['train'].copy()
-            pos_cl_prior = float(config['training_neg_sampling_strategy'][config['training_neg_sampling_strategy'].index("random_w_cl_")+len("random_w_cl_"):])
-            train_collate_fn = CollateNegSamplesRandomOptClassPriorWeightedLabels(config['training_neg_samples'],
-                                                                                  cur_used_items,
-                                                                                  pos_cl_prior,
-                                                                                  user_info,
-                                                                                  item_info, padding_token=padding_token)
-            print(f"Finish: train collate_fn initialize {time.time() - start}")
-        elif config['training_neg_sampling_strategy'] == "random_w_CF":
-            # TODO
-            pass
         elif config['training_neg_sampling_strategy'] == "":
             train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
         elif config['training_neg_sampling_strategy'] == "genres":
@@ -438,8 +451,9 @@ class CollateNegSamplesRandomOpt(object):
         return ret
 
 
-class CollateNegSamplesRandomOptJaccardWeightedLabels(CollateNegSamplesRandomOpt):
-    def __init__(self, num_neg_samples, used_items, user_training_items, item_user_set_file,
+class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
+    def __init__(self, num_neg_samples, used_items, user_training_items,
+                 cf_checkpoint_file, cf_item_id_file, oldmax, oldmin,
                  user_info=None, item_info=None, padding_token=None):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
@@ -453,9 +467,12 @@ class CollateNegSamplesRandomOptJaccardWeightedLabels(CollateNegSamplesRandomOpt
         self.item_info = self.item_info.set_index("item_id")
         self.padding_token = padding_token
         self.user_training_items = user_training_items
-        self.item_user_set = pickle.load(open(item_user_set_file, 'rb'))
-        self.item_user_set = {self.item_info.loc[k][INTERNAL_ITEM_ID_FIELD]: set(v) for k, v in self.item_user_set.items() if k in self.item_info.index}
+        temp = torch.load(cf_checkpoint_file, map_location=torch.device('cpu'))['model_state_dict']['item_embedding.weight']
+        cf_item_internal_ids = json.load(open(cf_item_id_file, 'r'))
         self.item_info = self.item_info.reset_index()
+        self.cf_item_reps = {item_in: temp[cf_item_internal_ids[item_ex]] for item_ex, item_in in zip(self.item_info["item_id"], self.item_info[INTERNAL_ITEM_ID_FIELD])}
+        self.oldmax = oldmax
+        self.oldmin = oldmin
 
     def sample(self, batch_df):
         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
@@ -492,66 +509,135 @@ class CollateNegSamplesRandomOptJaccardWeightedLabels(CollateNegSamplesRandomOpt
                     break
             # now we calculate the label weight and add the unlabeled samples to the samples list
             for sampled_item_id in user_samples:
-                relatedness = [jaccard_index(self.item_user_set[sampled_item_id], self.item_user_set[pos_item])
-                               for pos_item in self.user_training_items[user_id]]  # todo entire user_training_items? or user items in this batch?
-                avg_relatedness = sum(relatedness) / len(relatedness)
-                samples.append({'label': avg_relatedness,
+                sims = []
+                for pos_item in self.user_training_items[user_id]:
+                    s = np.dot(self.cf_item_reps[sampled_item_id], self.cf_item_reps[pos_item])
+                    s = (s - self.oldmin) / (self.oldmax - self.oldmin)  # s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
+                    # as oldmin and oldmax are estimates, we make sure that the s is between 0 and 1:
+                    s = max(0, s)
+                    s = min(1, s)
+                    sims.append(s)
+                avg_sim = sum(sims) / len(sims)
+                samples.append({'label': avg_sim,
                                 INTERNAL_USER_ID_FIELD: user_id,
                                 INTERNAL_ITEM_ID_FIELD: sampled_item_id})
         return samples
 
 
-class CollateNegSamplesRandomOptClassPriorWeightedLabels(CollateNegSamplesRandomOpt):
-    def __init__(self, num_neg_samples, used_items, pos_class_prior, user_info=None, item_info=None, padding_token=None):
-        self.num_neg_samples = num_neg_samples
-        self.used_items = used_items
-        # pool of all items is created from seen training items:
-        all_items = []
-        for items in self.used_items.values():
-            all_items.extend(items)
-        self.all_items = list(set(all_items))
-        self.user_info = user_info.to_pandas()
-        self.item_info = item_info.to_pandas()
-        self.padding_token = padding_token
-        self.pos_class_prior = pos_class_prior
+# class CollateNegSamplesRandomOptJaccardWeightedLabels(CollateNegSamplesRandomOpt):
+#     def __init__(self, num_neg_samples, used_items, user_training_items, item_user_set_file,
+#                  user_info=None, item_info=None, padding_token=None):
+#         self.num_neg_samples = num_neg_samples
+#         self.used_items = used_items
+#         # pool of all items is created from seen training items:
+#         all_items = []
+#         for items in self.used_items.values():
+#             all_items.extend(items)
+#         self.all_items = list(set(all_items))
+#         self.user_info = user_info.to_pandas()
+#         self.item_info = item_info.to_pandas()
+#         self.item_info = self.item_info.set_index("item_id")
+#         self.padding_token = padding_token
+#         self.user_training_items = user_training_items
+#         self.item_user_set = pickle.load(open(item_user_set_file, 'rb'))
+#         self.item_user_set = {self.item_info.loc[k][INTERNAL_ITEM_ID_FIELD]: set(v) for k, v in self.item_user_set.items() if k in self.item_info.index}
+#         self.item_info = self.item_info.reset_index()
+#
+#     def sample(self, batch_df):
+#         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
+#         samples = []
+#         for user_id in user_counter.keys():
+#             num_pos = user_counter[user_id]
+#             max_num_user_neg_samples = min(len(self.all_items), num_pos * self.num_neg_samples)
+#             if max_num_user_neg_samples < num_pos * self.num_neg_samples:
+#                 print(f"WARN: user {user_id} needed {num_pos * self.num_neg_samples} samples,"
+#                       f"but all_items are {len(self.all_items)}")
+#                 pass
+#             user_samples = set()
+#             try_cnt = -1
+#             num_user_neg_samples = max_num_user_neg_samples
+#             while True:
+#                 if try_cnt == 100:
+#                     print(f"WARN: After {try_cnt} tries, could not find {max_num_user_neg_samples} samples for"
+#                           f"{user_id}. We instead have {len(user_samples)} samples.")
+#                     break
+#                 current_samples = set(random.sample(self.all_items, num_user_neg_samples))
+#                 current_samples -= user_samples
+#                 cur_used_samples = self.used_items[user_id].intersection(current_samples)
+#                 current_samples = current_samples - cur_used_samples
+#                 user_samples = user_samples.union(current_samples)
+#                 num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
+#                 if len(user_samples) < max_num_user_neg_samples:
+#                     # to make the process faster
+#                     if num_user_neg_samples < len(user_samples):
+#                         num_user_neg_samples = min(max_num_user_neg_samples, num_user_neg_samples * 2)
+#                     try_cnt += 1
+#                 else:
+#                     if len(user_samples) > max_num_user_neg_samples:
+#                         user_samples = set(list(user_samples)[:max_num_user_neg_samples])
+#                     break
+#             # now we calculate the label weight and add the unlabeled samples to the samples list
+#             for sampled_item_id in user_samples:
+#                 relatedness = [jaccard_index(self.item_user_set[sampled_item_id], self.item_user_set[pos_item])
+#                                for pos_item in self.user_training_items[user_id]]  # todo entire user_training_items? or user items in this batch?
+#                 avg_relatedness = sum(relatedness) / len(relatedness)
+#                 samples.append({'label': avg_relatedness,
+#                                 INTERNAL_USER_ID_FIELD: user_id,
+#                                 INTERNAL_ITEM_ID_FIELD: sampled_item_id})
+#         return samples
 
-    def sample(self, batch_df):
-        user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
-        samples = []
-        for user_id in user_counter.keys():
-            num_pos = user_counter[user_id]
-            max_num_user_neg_samples = min(len(self.all_items), num_pos * self.num_neg_samples)
-            if max_num_user_neg_samples < num_pos * self.num_neg_samples:
-                print(f"WARN: user {user_id} needed {num_pos * self.num_neg_samples} samples,"
-                      f"but all_items are {len(self.all_items)}")
-                pass
-            user_samples = set()
-            try_cnt = -1
-            num_user_neg_samples = max_num_user_neg_samples
-            while True:
-                if try_cnt == 100:
-                    print(f"WARN: After {try_cnt} tries, could not find {max_num_user_neg_samples} samples for"
-                          f"{user_id}. We instead have {len(user_samples)} samples.")
-                    break
-                current_samples = set(random.sample(self.all_items, num_user_neg_samples))
-                current_samples -= user_samples
-                cur_used_samples = self.used_items[user_id].intersection(current_samples)
-                current_samples = current_samples - cur_used_samples
-                user_samples = user_samples.union(current_samples)
-                num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
-                if len(user_samples) < max_num_user_neg_samples:
-                    # to make the process faster
-                    if num_user_neg_samples < len(user_samples):
-                        num_user_neg_samples = min(max_num_user_neg_samples, num_user_neg_samples * 2)
-                    try_cnt += 1
-                else:
-                    if len(user_samples) > max_num_user_neg_samples:
-                        user_samples = set(list(user_samples)[:max_num_user_neg_samples])
-                    break
-            samples.extend([{'label': self.pos_class_prior,
-                             INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
-                            for sampled_item_id in user_samples])
-        return samples
+
+# class CollateNegSamplesRandomOptClassPriorWeightedLabels(CollateNegSamplesRandomOpt):
+#     def __init__(self, num_neg_samples, used_items, pos_class_prior, user_info=None, item_info=None, padding_token=None):
+#         self.num_neg_samples = num_neg_samples
+#         self.used_items = used_items
+#         # pool of all items is created from seen training items:
+#         all_items = []
+#         for items in self.used_items.values():
+#             all_items.extend(items)
+#         self.all_items = list(set(all_items))
+#         self.user_info = user_info.to_pandas()
+#         self.item_info = item_info.to_pandas()
+#         self.padding_token = padding_token
+#         self.pos_class_prior = pos_class_prior
+#
+#     def sample(self, batch_df):
+#         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
+#         samples = []
+#         for user_id in user_counter.keys():
+#             num_pos = user_counter[user_id]
+#             max_num_user_neg_samples = min(len(self.all_items), num_pos * self.num_neg_samples)
+#             if max_num_user_neg_samples < num_pos * self.num_neg_samples:
+#                 print(f"WARN: user {user_id} needed {num_pos * self.num_neg_samples} samples,"
+#                       f"but all_items are {len(self.all_items)}")
+#                 pass
+#             user_samples = set()
+#             try_cnt = -1
+#             num_user_neg_samples = max_num_user_neg_samples
+#             while True:
+#                 if try_cnt == 100:
+#                     print(f"WARN: After {try_cnt} tries, could not find {max_num_user_neg_samples} samples for"
+#                           f"{user_id}. We instead have {len(user_samples)} samples.")
+#                     break
+#                 current_samples = set(random.sample(self.all_items, num_user_neg_samples))
+#                 current_samples -= user_samples
+#                 cur_used_samples = self.used_items[user_id].intersection(current_samples)
+#                 current_samples = current_samples - cur_used_samples
+#                 user_samples = user_samples.union(current_samples)
+#                 num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
+#                 if len(user_samples) < max_num_user_neg_samples:
+#                     # to make the process faster
+#                     if num_user_neg_samples < len(user_samples):
+#                         num_user_neg_samples = min(max_num_user_neg_samples, num_user_neg_samples * 2)
+#                     try_cnt += 1
+#                 else:
+#                     if len(user_samples) > max_num_user_neg_samples:
+#                         user_samples = set(list(user_samples)[:max_num_user_neg_samples])
+#                     break
+#             samples.extend([{'label': self.pos_class_prior,
+#                              INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
+#                             for sampled_item_id in user_samples])
+#         return samples
 
 
 # class CollateNegSamplesRandomOptOrdered(CollateNegSamplesRandomOpt):
