@@ -133,15 +133,15 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     if min_user_review_len is not None:
         outfile_name = os.path.join(result_folder,
-                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}.txt")
+                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}_tiebreak.txt")
         valid_csv_f = open(os.path.join(result_folder,
-                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}.csv"), "w")
+                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}_tiebreak.csv"), "w")
         test_csv_f = open(os.path.join(result_folder,
-                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}.csv"), "w")
+                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}_tiebreak.csv"), "w")
     else:
-        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}.txt")
-        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}.csv"), "w")
-        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}.csv"), "w")
+        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}_tiebreak.txt")
+        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}_tiebreak.csv"), "w")
+        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}_tiebreak.csv"), "w")
 
     print(outfile_name)
     outf = open(outfile_name, 'w')
@@ -282,6 +282,21 @@ if __name__ == "__main__":
                                                     f"test_ground_truth_test_neg_{test_neg_strategy}.json")))
     valid_ground_truth = json.load(open(os.path.join(result_folder,
                                                      f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}.json")))
+
+    epsilon = 1e-7
+    for user in test_prediction['predicted'].keys():
+        sorted_items = sorted(test_prediction['predicted'][user].keys(), reverse=True)
+        for i in range(len(sorted_items)):
+            for j in range(i+1, len(sorted_items)):
+                if test_prediction['predicted'][user][sorted_items[i]] == test_prediction['predicted'][user][sorted_items[j]]:
+                    test_prediction['predicted'][user][sorted_items[j]] += epsilon
+
+    for user in valid_prediction['predicted'].keys():
+        sorted_items = sorted(valid_prediction['predicted'][user].keys(), reverse=True)
+        for i in range(len(sorted_items)):
+            for j in range(i+1, len(sorted_items)):
+                if valid_prediction['predicted'][user][sorted_items[i]] == valid_prediction['predicted'][user][sorted_items[j]]:
+                    valid_prediction['predicted'][user][sorted_items[j]] += epsilon
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
     if "-" in valid_neg_strategy or "-" in test_neg_strategy:

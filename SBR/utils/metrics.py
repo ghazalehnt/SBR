@@ -21,7 +21,7 @@ def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_l
     # # qid= user1:{ item1:1 } ...
     gt = {str(u): {} for u in set(users)}
     pd = {str(u): {} for u in set(users)}
-    min_not_zero = 1
+    # min_not_zero = 1
     for i in range(len(ground_truth)):
         if len(items) == 0:
             gt[str(users[i])][str(i)] = float(ground_truth[i])
@@ -29,22 +29,25 @@ def calculate_metrics(ground_truth, prediction_scores, users, items, relevance_l
         else:
             gt[str(users[i])][str(items[i])] = float(ground_truth[i])
             pd[str(users[i])][str(items[i])] = float(prediction_scores[i])
-        if ground_truth[i] != 0 and ground_truth[i] < min_not_zero:
-            min_not_zero = ground_truth[i]
-    return calculate_ranking_metrics_macro_avg_over_users(gt, pd, relevance_level, given_ranking_metrics,
-                                                          True if min_not_zero!=1 else False)
+        # if ground_truth[i] != 0 and ground_truth[i] < min_not_zero:
+        #     min_not_zero = ground_truth[i]
+    return calculate_ranking_metrics_macro_avg_over_users(gt, pd, relevance_level, given_ranking_metrics, calc_pytrec=False)
 
 
 def calculate_ranking_metrics_macro_avg_over_users(gt, pd, relevance_level,
-                                                   given_ranking_metrics=None, weighted_label=False):
+                                                   given_ranking_metrics=None, calc_pytrec=False):
     if given_ranking_metrics is None:
         given_ranking_metrics = ranking_metrics
     ndcg_metrics = [m for m in given_ranking_metrics if m.startswith("ndcg_")]
-    other_metrics = [m for m in given_ranking_metrics if not m.startswith("ndcg_")]
     results = calculate_ndcg(gt, pd, ndcg_metrics)
-    if not weighted_label:
+    if calc_pytrec:
         gt = {k: {k2: int(v2) for k2, v2 in v.items()} for k, v in gt.items()}
-        results.update(calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, other_metrics))
+        r2 = calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, given_ranking_metrics)
+        for m, v in r2.items():
+            if m in results:
+                results[f"pytrec_{m}"] = v
+            else:
+                results[m] = v
     return results
 
 
@@ -68,8 +71,8 @@ def ndcg(gt, pd, k):
     per_user_socre = []
     for user in gt.keys():
         user_items = gt[user].keys()
-        true_rel = np.asarray([[gt[user][k] for k in user_items]])
-        pred = np.asarray([[pd[user][k] for k in user_items]])
+        true_rel = [[gt[user][k] for k in user_items]]
+        pred = [[pd[user][k] for k in user_items]]
         per_user_socre.append(ndcg_score(true_rel, pred, k=k))
     return per_user_socre
 
