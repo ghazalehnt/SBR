@@ -110,7 +110,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                             ch_rep.append(user_chunks[0])  # if user has fewer than c chunks, add its chunk0
                         else:
                             raise NotImplementedError()
-                self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'], device=device) # TODO? or concat? stach -> n*1*768 , concatn*768
+                self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps']) # TODO? or concat? stach -> n*1*768 , concatn*768
+                self.chunk_user_reps[c].to(device)
 
             self.chunk_item_reps = {}
             for c in range(max_num_chunks_item):
@@ -123,7 +124,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                             ch_rep.append(item_chunks[0])  # if item has fewer than c chunks, add its chunk0
                         else:
                             raise NotImplementedError()
-                self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'], device=device)  # TODO? or concat? stach -> n*1*768 , concatn*768
+                self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'])  # TODO? or concat? stach -> n*1*768 , concatn*768
+                self.chunk_item_reps[c].to(device)
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
