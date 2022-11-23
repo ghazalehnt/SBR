@@ -106,6 +106,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
             config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
         if given_neg_files["test"] is not None:
             config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
+        config["dataset"]["load_user_item_text"] = False
     else:
         raise ValueError("op not defined!")
 
