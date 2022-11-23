@@ -89,17 +89,26 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
             else:
                 exp_dir_params.append(str(config[p1][p2]))
         exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
-
+        
         config["experiment_dir"] = exp_dir
         # check if the exp dir exists, the config file is the same as given.
         if os.path.exists(join(exp_dir, "config.json")):
             config2 = json.load(open(join(exp_dir, "config.json"), 'r'))
+#            # TODO: remove later, now for running experiments, enough logging:
+#            config2["dataset"]["load_user_item_text"] =  config["dataset"]["load_user_item_text"] 
             if config != config2:
                 raise ValueError(f"{exp_dir} exists with different config != {config_file}")
         os.makedirs(exp_dir, exist_ok=True)
         json.dump(config, open(join(exp_dir, "config.json"), 'w'), indent=4)
     elif op == "test":
         config = json.load(open(join(result_folder, "config.json"), 'r'))
+        # TODO: this should also be removed, it was written to accomodate earlier runs
+        if "chunk_size" in config["dataset"]:
+            if "user_chunk_size" not in config["dataset"]:
+                config["dataset"]["user_chunk_size"] = config["dataset"]["chunk_size"] 
+            if "item_chunk_size" not in config["dataset"]:
+                config["dataset"]["item_chunk_size"] = config["dataset"]["chunk_size"]
+        ###
         test_only = True
         exp_dir = config["experiment_dir"]
         if given_neg_files["validation"] is not None:
@@ -121,6 +130,9 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
     logger.add_text("exp_dir", exp_dir)
     print("experiment_dir:")
     print(exp_dir)
+
+#    # TODO: remove later, now for running experiments, enough logging:
+#    config["dataset"]["load_user_item_text"] = False
 
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],

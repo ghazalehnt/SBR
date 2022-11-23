@@ -61,7 +61,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                             f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                             f".pkl"
             if os.path.exists(os.path.join(prec_path, user_rep_file)):
-                user_chunk_reps_dict = torch.load(os.path.join(prec_path, user_rep_file))
+                user_chunk_reps_dict = torch.load(os.path.join(prec_path, user_rep_file), map_location=torch.device('cpu'))
                 user_chunk_reps = []
                 cnt = 0
                 for u in users.sort('user_id'):
@@ -86,7 +86,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                             f"{'-'.join(dataset_config['item_text'])}" \
                             f".pkl"
             if os.path.exists(os.path.join(prec_path, item_rep_file)):
-                item_chunks_reps_dict = torch.load(os.path.join(prec_path, item_rep_file))
+                item_chunks_reps_dict = torch.load(os.path.join(prec_path, item_rep_file), map_location=torch.device('cpu'))
                 item_chunks_reps = []
                 cnt = 0
                 for i in items.sort('item_id'):
