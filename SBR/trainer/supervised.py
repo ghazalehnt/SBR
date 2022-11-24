@@ -60,13 +60,8 @@ class SupervisedTrainer:
         else:
             raise ValueError(f"loss_fn {config['loss_fn']} is not implemented!")
 
-        if config['optimizer'] == "Adam":
-            self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
-        elif config['optimizer'] == "SGD":
-            self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
-        else:
-            raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
-
+        # TODO: I read somewhere, that you should first move the model to device and then load its params into optimizer
+        # IDK how much this effects the results, but let's fix it later: https://discuss.pytorch.org/t/same-model-running-on-gpu-and-cpu-produce-different-results/116259
         self.epochs = config['epochs']
         self.start_epoch = 0
         self.best_epoch = 0
@@ -74,15 +69,20 @@ class SupervisedTrainer:
         if exists(self.best_model_path):
             checkpoint = torch.load(self.best_model_path, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.model.to(device)
             self.start_epoch = checkpoint['epoch'] + 1
             self.best_epoch = checkpoint['epoch']
             self.best_saved_valid_metric = checkpoint['best_valid_metric']
-            self.model.to(device)
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             print("last checkpoint restored")
-
         self.model.to(device)
+        
+        if config['optimizer'] == "Adam":
+            self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
+        elif config['optimizer'] == "SGD":
+            self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
+        else:
+            raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
+        if exists(self.best_model_path):
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     def fit(self, train_dataloader, valid_dataloader):
         early_stopping_cnt = 0
