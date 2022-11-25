@@ -14,14 +14,24 @@ from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 reverse_map_user_item_text = {
-    "tc": ["item.title", "item.category"],
-    "tcd": ["item.title", "item.category", "item.description"],
-    "tg": ["item.title", "item.genres"],
-    "tgd": ["item.title", "item.genres", "item.description"],
-    "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
-    "tgr": ["item.title", "item.genres", "interaction.review_text"],
-    "sr": ["interaction.summary", "interaction.reviewText"],
-    "r": ["interaction.review_text"]
+    "Amazon": {
+        "tc": ["item.title", "item.category"],
+        "tcd": ["item.title", "item.category", "item.description"],
+        "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
+        "sr": ["interaction.summary", "interaction.reviewText"],
+    },
+    "GR_UCSD": {
+        "tg": ["item.title", "item.genres"],
+        "tgd": ["item.title", "item.genres", "item.description"],
+        "tgr": ["item.title", "item.genres", "interaction.review_text"],
+        "r": ["interaction.review_text"]
+    },
+    "CGR": {
+        "tg": ["item.title", "item.genres"],
+        "tgd": ["item.title", "item.genres", "item.description"],
+        "tgr": ["item.title", "item.genres", "interaction.review"],
+        "r": ["interaction.review"]
+    },
 }
 
 def main(config_file, given_user_text_filter=None, given_limit_training_data=None,
@@ -37,9 +47,9 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
     if given_limit_training_data is not None:
         config['dataset']['limit_training_data'] = given_limit_training_data
     if given_user_text is not None:
-        config['dataset']['user_text'] = reverse_map_user_item_text[given_user_text]
+        config['dataset']['user_text'] = reverse_map_user_item_text[config['dataset']['name']][given_user_text]
     if given_item_text is not None:
-        config['dataset']['item_text'] = reverse_map_user_item_text[given_item_text]
+        config['dataset']['item_text'] = reverse_map_user_item_text[config['dataset']['name']][given_item_text]
     if config['model']['precalc_batch_size'] > 1:
         raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
                          "are producing wrong reps. Please set the batch size to 1.")

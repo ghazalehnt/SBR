@@ -60,8 +60,6 @@ class SupervisedTrainer:
         else:
             raise ValueError(f"loss_fn {config['loss_fn']} is not implemented!")
 
-        # TODO: I read somewhere, that you should first move the model to device and then load its params into optimizer
-        # IDK how much this effects the results, but let's fix it later: https://discuss.pytorch.org/t/same-model-running-on-gpu-and-cpu-produce-different-results/116259
         self.epochs = config['epochs']
         self.start_epoch = 0
         self.best_epoch = 0
@@ -74,7 +72,7 @@ class SupervisedTrainer:
             self.best_saved_valid_metric = checkpoint['best_valid_metric']
             print("last checkpoint restored")
         self.model.to(device)
-        
+
         if config['optimizer'] == "Adam":
             self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
         elif config['optimizer'] == "SGD":
