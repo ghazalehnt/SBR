@@ -27,9 +27,32 @@ map_user_item_text = {
     "interaction.review_text": "r",
 }
 
+reverse_map_user_item_text = {
+    "Amazon": {
+        "tc": ["item.title", "item.category"],
+        "tcd": ["item.title", "item.category", "item.description"],
+        "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
+        "sr": ["interaction.summary", "interaction.reviewText"],
+    },
+    "GR_UCSD": {
+        "tg": ["item.title", "item.genres"],
+        "tgd": ["item.title", "item.genres", "item.description"],
+        "tgr": ["item.title", "item.genres", "interaction.review_text"],
+        "r": ["interaction.review_text"]
+    },
+    "CGR": {
+        "tg": ["item.title", "item.genres"],
+        "tgd": ["item.title", "item.genres", "item.description"],
+        "tgr": ["item.title", "item.genres", "interaction.review"],
+        "r": ["interaction.review"]
+    },
+}
+
+
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
-                      valid_metric, early_stopping_patience=None, save_checkpoint=False):
+                      valid_metric, early_stopping_patience=None, save_checkpoint=False,
+                      given_user_text=None, given_item_text=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -58,6 +81,11 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
     if "<EXP_ROOT_PATH>" in config["experiment_root"]:
         config["experiment_root"] = config["experiment_root"] \
             .replace("<EXP_ROOT_PATH>", exp_root_dir)
+
+    if given_user_text is not None:
+        config['dataset']['user_text'] = reverse_map_user_item_text[config['dataset']['name']][given_user_text]
+    if given_item_text is not None:
+        config['dataset']['item_text'] = reverse_map_user_item_text[config['dataset']['name']][given_item_text]
 
     exp_dir_params = []
     for param in config['params_in_exp_dir']:
@@ -130,7 +158,8 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
 
 def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric, max_epochs=50, grace_period=5, num_gpus_per_trial=0,
          num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, save_checkpoint=False,
-         early_stopping_patience=None, num_concurrent=1, data_name="GR"):
+         early_stopping_patience=None, num_concurrent=1, data_name="GR",
+         given_user_text=None, given_item_text=None):
     exp_root_dir = open("data/paths_vars/EXP_ROOT_PATH").read().strip()
     data_root_dir = open(f"data/paths_vars/DATA_ROOT_PATH_{data_name}").read().strip()
     if "<EXP_ROOT_PATH>" in ray_result_dir:
@@ -149,7 +178,8 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
         tune.with_parameters(training_function, stationary_config_file=config_file,
                              valid_metric=valid_metric, early_stopping_patience=early_stopping_patience,
                              exp_root_dir=exp_root_dir, data_root_dir=data_root_dir,
-                             save_checkpoint=save_checkpoint),
+                             save_checkpoint=save_checkpoint,
+                             given_item_text=given_item_text, given_user_text=given_user_text),
         name=name,
         resources_per_trial={"cpu": num_cpus_per_trial, "gpu": num_gpus_per_trial, "extra_gpu": extra_gpus},
         config=hyperparameter_config,
@@ -173,6 +203,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_gpu', type=int, help='number of gpus.')
 #    parser.add_argument('--num_cpu', type=int, help='number of cpus.')
     parser.add_argument('--num_con', type=int, help='number of concurrent.')
+    parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
+    parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
+
 
     args = parser.parse_args()
     if not exists(args.config_file):
@@ -202,4 +235,5 @@ if __name__ == '__main__':
          num_gpus_per_trial=config['num_gpus_per_trial'], num_cpus_per_trial=config["num_cpus_per_trial"],
          num_samples=config['num_samples'], resume=config['resume'], save_checkpoint=config['save_checkpoint'],
          early_stopping_patience=config['early_stopping_patience'] if "early_stopping_patience" in config else None,
-         num_concurrent=args.num_con, data_name=config['data_name'])
+         num_concurrent=args.num_con, data_name=config['data_name'],
+         given_user_text=args.user_text, given_item_text=args.item_text)
