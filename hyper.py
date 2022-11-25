@@ -52,7 +52,7 @@ reverse_map_user_item_text = {
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
                       valid_metric, early_stopping_patience=None, save_checkpoint=False,
-                      given_user_text=None, given_item_text=None):
+                      given_user_text=None, given_item_text=None, given_user_text_filter=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -86,6 +86,8 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
         config['dataset']['user_text'] = reverse_map_user_item_text[config['dataset']['name']][given_user_text]
     if given_item_text is not None:
         config['dataset']['item_text'] = reverse_map_user_item_text[config['dataset']['name']][given_item_text]
+    if given_user_text_filter is not None:
+        config['dataset']['user_text_filter'] = given_user_text_filter
 
     exp_dir_params = []
     for param in config['params_in_exp_dir']:
@@ -159,7 +161,7 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
 def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric, max_epochs=50, grace_period=5, num_gpus_per_trial=0,
          num_cpus_per_trial=2, extra_gpus=0, num_samples=1, resume=False, save_checkpoint=False,
          early_stopping_patience=None, num_concurrent=1, data_name="GR",
-         given_user_text=None, given_item_text=None):
+         given_user_text=None, given_item_text=None, given_user_text_filter=None):
     exp_root_dir = open("data/paths_vars/EXP_ROOT_PATH").read().strip()
     data_root_dir = open(f"data/paths_vars/DATA_ROOT_PATH_{data_name}").read().strip()
     if "<EXP_ROOT_PATH>" in ray_result_dir:
@@ -179,7 +181,8 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
                              valid_metric=valid_metric, early_stopping_patience=early_stopping_patience,
                              exp_root_dir=exp_root_dir, data_root_dir=data_root_dir,
                              save_checkpoint=save_checkpoint,
-                             given_item_text=given_item_text, given_user_text=given_user_text),
+                             given_item_text=given_item_text, given_user_text=given_user_text,
+                             given_user_text_filter=given_user_text_filter),
         name=name,
         resources_per_trial={"cpu": num_cpus_per_trial, "gpu": num_gpus_per_trial, "extra_gpu": extra_gpus},
         config=hyperparameter_config,
@@ -205,7 +208,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_con', type=int, help='number of concurrent.')
     parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
     parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
-
+    parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
 
     args = parser.parse_args()
     if not exists(args.config_file):
@@ -236,4 +239,5 @@ if __name__ == '__main__':
          num_samples=config['num_samples'], resume=config['resume'], save_checkpoint=config['save_checkpoint'],
          early_stopping_patience=config['early_stopping_patience'] if "early_stopping_patience" in config else None,
          num_concurrent=args.num_con, data_name=config['data_name'],
-         given_user_text=args.user_text, given_item_text=args.item_text)
+         given_user_text=args.user_text, given_item_text=args.item_text,
+         given_user_text_filter=args.user_text_filter)
