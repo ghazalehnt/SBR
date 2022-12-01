@@ -78,6 +78,8 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         if "<EXP_ROOT_PATH>" in config["experiment_root"]:
             config["experiment_root"] = config["experiment_root"]\
                 .replace("<EXP_ROOT_PATH>", open("data/paths_vars/EXP_ROOT_PATH").read().strip())
+        if "append_CF_ffn" not in config["model"]:
+            config["model"]["append_CF_ffn"] = False
         print(config)
         exp_dir_params = []
         for param in config['params_in_exp_dir']:
