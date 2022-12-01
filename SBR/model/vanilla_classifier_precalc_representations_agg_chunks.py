@@ -13,15 +13,15 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         n_users = users.shape[0]
         n_items = items.shape[0]
 
-        # append_CF_ffn is for when we have the ffn layer, appending the cf to the BERT output and feeding it to ffn layer
-        # so when it is True, the use_ffn layer must be True as well.
-        if use_ffn is False and model_config["append_CF_ffn"] is True:
-            raise ValueError("Error: config['append_CF_ffn'] is true, while use_ffn is false!")
-
         self.use_ffn = use_ffn
         self.use_item_bias = use_item_bias
         self.use_user_bias = use_user_bias
-        self.append_cf_ffn = model_config["append_CF_ffn"]
+        self.append_cf_ffn = model_config["append_CF_ffn"] if "append_CF_ffn" in model_config else False
+
+        # append_CF_ffn is for when we have the ffn layer, appending the cf to the BERT output and feeding it to ffn layer
+        # so when it is True, the use_ffn layer must be True as well.
+        if self.use_ffn is False and self.append_cf_ffn is True:
+            raise ValueError("Error: config['append_CF_ffn'] is true, while use_ffn is false!")
 
         if self.append_cf_ffn:
             CF_model_weights = torch.load(model_config['append_CF_ffn_model_path'], map_location=device)[
