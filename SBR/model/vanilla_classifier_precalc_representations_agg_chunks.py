@@ -26,8 +26,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if self.append_cf_ffn:
             CF_model_weights = torch.load(model_config['append_CF_ffn_model_path'], map_location=device)[
                 'model_state_dict']
-            self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
-            self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+            self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'], freeze=True)
+            self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
 
         if self.use_ffn:
             dim1 = bert_embedding_dim
