@@ -21,20 +21,21 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         self.use_ffn = use_ffn
         self.use_item_bias = use_item_bias
         self.use_user_bias = use_user_bias
+        self.append_cf_ffn = model_config["append_CF_ffn"]
 
-        if model_config["append_CF_ffn"]:
+        if self.append_cf_ffn:
             CF_model_weights = torch.load(model_config['append_CF_ffn_model_path'], map_location=device)[
                 'model_state_dict']
-            user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
-            item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+            self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
+            self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
         if self.use_ffn:
             dim1 = bert_embedding_dim
-            if model_config["append_CF_ffn"]:
-                dim1 = bert_embedding_dim + user_embedding_CF.embedding_dim
+            if self.append_cf_ffn:
+                dim1 = bert_embedding_dim + self.user_embedding_CF.embedding_dim
             self.transform_u_1 = torch.nn.Linear(dim1, model_config['k1'])
-            if model_config["append_CF_ffn"]:
-                dim1 = bert_embedding_dim + item_embedding_CF.embedding_dim
+            if self.append_cf_ffn:
+                dim1 = bert_embedding_dim + self.item_embedding_CF.embedding_dim
             self.transform_i_1 = torch.nn.Linear(dim1, model_config['k1'])
             self.transform_u_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
             self.transform_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
@@ -153,6 +154,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         for c in range(len(self.chunk_user_reps.keys())):
             user_ch_rep = self.chunk_user_reps[c](user_ids)
             if self.use_ffn:
+                if self.append_cf_ffn:
+                    user_ch_rep = torch.cat([user_ch_rep, self.user_embedding_CF(user_ids)], dim=1)
                 user_ch_rep = torch.nn.functional.relu(self.transform_u_1(user_ch_rep))
                 user_ch_rep = self.transform_u_2(user_ch_rep)
             user_reps.append(user_ch_rep)
@@ -162,6 +165,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         for c in range(len(self.chunk_item_reps.keys())):
             item_ch_rep = self.chunk_item_reps[c](item_ids)
             if self.use_ffn:
+                if self.append_cf_ffn:
+                    item_ch_rep = torch.cat([item_ch_rep, self.item_embedding_CF(item_ids)], dim=1)
                 item_ch_rep = torch.nn.functional.relu(self.transform_i_1(item_ch_rep))
                 item_ch_rep = self.transform_i_2(item_ch_rep)
             item_reps.append(item_ch_rep)
