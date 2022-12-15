@@ -36,9 +36,9 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         if given_tbs is not None:
             config['dataset']['train_batch_size'] = given_tbs
         if given_user_text is not None:
-            config['dataset']['user_text'] = get_profile([config['dataset']['name']])
+            config['dataset']['user_text'] = get_profile(config['dataset']['name'], given_user_text)
         if given_item_text is not None:
-            config['dataset']['item_text'] = get_profile([config['dataset']['name']])
+            config['dataset']['item_text'] = get_profile(config['dataset']['name'], given_item_text)
         if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
             DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
                              config["dataset"]["dataset_path"].index(">")+1]

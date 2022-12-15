@@ -27,9 +27,9 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
     if given_limit_training_data is not None:
         config['dataset']['limit_training_data'] = given_limit_training_data
     if given_user_text is not None:
-        config['dataset']['user_text'] = get_profile([config['dataset']['name']])
+        config['dataset']['user_text'] = get_profile(config['dataset']['name'], given_user_text)
     if given_item_text is not None:
-        config['dataset']['item_text'] = get_profile([config['dataset']['name']])
+        config['dataset']['item_text'] = get_profile(config['dataset']['name'], given_item_text)
     if config['model']['precalc_batch_size'] > 1:
         raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
                          "are producing wrong reps. Please set the batch size to 1.")

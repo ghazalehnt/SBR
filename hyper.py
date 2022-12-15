@@ -51,9 +51,9 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
             .replace("<EXP_ROOT_PATH>", exp_root_dir)
 
     if given_user_text is not None:
-        config['dataset']['user_text'] = get_profile([config['dataset']['name']])
+        config['dataset']['user_text'] = get_profile(config['dataset']['name'], given_user_text)
     if given_item_text is not None:
-        config['dataset']['item_text'] = get_profile([config['dataset']['name']])
+        config['dataset']['item_text'] = get_profile(config['dataset']['name'], given_item_text)
     if given_user_text_filter is not None:
         config['dataset']['user_text_filter'] = given_user_text_filter
 
