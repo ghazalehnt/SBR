@@ -1095,14 +1095,16 @@ def load_split_dataset(config, for_precalc=False):
             item_info['text'] = item_info['text'].apply(str.lower)
         if config['normalize_negation']:
             item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
-        if config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
-            if config["name"] == "Amazon":
+    if config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
+        if config["name"] == "Amazon":
+            if 'category' not in item_info.columns:
                 item_info['category'] = item_info['item.category']
-            elif config["name"] in ["CGR", "GR_UCSD"]:
+        elif config["name"] in ["CGR", "GR_UCSD"]:
+            if 'genres' not in item_info.columns:
                 item_info['genres'] = item_info['item.genres']
-            else:
-                raise NotImplementedError()
-        item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
+        else:
+            raise NotImplementedError()
+    item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
     user_item_jaccard_index = None
