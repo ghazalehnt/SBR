@@ -35,5 +35,6 @@ reverse_map_user_item_text = {
 }
 
 
-def get_profile(shortened):
-    return [reverse_map_user_item_text[i] for i in list(shortened)]
+def get_profile(dataset, shortened):
+    global reverse_map_user_item_text
+    return [reverse_map_user_item_text[dataset][i] for i in list(shortened)]
