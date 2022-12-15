@@ -15,39 +15,7 @@ from tensorboardX import SummaryWriter
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.supervised import SupervisedTrainer
-
-map_user_item_text = {
-    "item.title": "t",
-    "item.category": "c",
-    "item.genres": "g",
-    "item.description": "d",
-    "interaction.summary": "s",
-    "interaction.reviewText": "r",
-    "interaction.review": "r",
-    "interaction.review_text": "r",
-}
-
-reverse_map_user_item_text = {
-    "Amazon": {
-        "tc": ["item.title", "item.category"],
-        "tcd": ["item.title", "item.category", "item.description"],
-        "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
-        "sr": ["interaction.summary", "interaction.reviewText"],
-    },
-    "GR_UCSD": {
-        "tg": ["item.title", "item.genres"],
-        "tgd": ["item.title", "item.genres", "item.description"],
-        "tgr": ["item.title", "item.genres", "interaction.review_text"],
-        "r": ["interaction.review_text"]
-    },
-    "CGR": {
-        "tg": ["item.title", "item.genres"],
-        "tgd": ["item.title", "item.genres", "item.description"],
-        "tgr": ["item.title", "item.genres", "interaction.review"],
-        "r": ["interaction.review"]
-    },
-}
-
+from statics import get_profile, map_user_item_text
 
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
@@ -83,9 +51,9 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
             .replace("<EXP_ROOT_PATH>", exp_root_dir)
 
     if given_user_text is not None:
-        config['dataset']['user_text'] = reverse_map_user_item_text[config['dataset']['name']][given_user_text]
+        config['dataset']['user_text'] = get_profile([config['dataset']['name']])
     if given_item_text is not None:
-        config['dataset']['item_text'] = reverse_map_user_item_text[config['dataset']['name']][given_item_text]
+        config['dataset']['item_text'] = get_profile([config['dataset']['name']])
     if given_user_text_filter is not None:
         config['dataset']['user_text_filter'] = given_user_text_filter
 

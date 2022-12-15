@@ -12,38 +12,7 @@ from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.unsupervised import UnSupervisedTrainer
-
-
-map_user_item_text = {
-    "item.title": "t",
-    "item.category": "c",
-    "item.genres": "g",
-    "item.description": "d",
-    "interaction.summary": "s",
-    "interaction.reviewText": "r",
-    "interaction.review": "r",
-    "interaction.review_text": "r",
-}
-reverse_map_user_item_text = {
-    "Amazon": {
-        "tc": ["item.title", "item.category"],
-        "tcd": ["item.title", "item.category", "item.description"],
-        "tcsr": ["item.title", "item.category", "interaction.summary", "interaction.reviewText"],
-        "sr": ["interaction.summary", "interaction.reviewText"],
-    },
-    "GR_UCSD": {
-        "tg": ["item.title", "item.genres"],
-        "tgd": ["item.title", "item.genres", "item.description"],
-        "tgr": ["item.title", "item.genres", "interaction.review_text"],
-        "r": ["interaction.review_text"]
-    },
-    "CGR": {
-        "tg": ["item.title", "item.genres"],
-        "tgd": ["item.title", "item.genres", "item.description"],
-        "tgr": ["item.title", "item.genres", "interaction.review"],
-        "r": ["interaction.review"]
-    },
-}
+from statics import get_profile, map_user_item_text
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
@@ -67,9 +36,9 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         if given_tbs is not None:
             config['dataset']['train_batch_size'] = given_tbs
         if given_user_text is not None:
-            config['dataset']['user_text'] = reverse_map_user_item_text[config['dataset']['name']][given_user_text]
+            config['dataset']['user_text'] = get_profile([config['dataset']['name']])
         if given_item_text is not None:
-            config['dataset']['item_text'] = reverse_map_user_item_text[config['dataset']['name']][given_item_text]
+            config['dataset']['item_text'] = get_profile([config['dataset']['name']])
         if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
             DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
                              config["dataset"]["dataset_path"].index(">")+1]
