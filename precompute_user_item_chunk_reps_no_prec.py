@@ -11,8 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
-from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
-from statics import get_profile
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, get_profile
 
 
 def main(config_file, given_user_text_filter=None, given_limit_training_data=None,

@@ -12,7 +12,7 @@ from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.unsupervised import UnSupervisedTrainer
-from statics import get_profile, map_user_item_text
+from SBR.utils.statics import get_profile, map_user_item_text
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,

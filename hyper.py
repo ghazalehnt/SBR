@@ -15,7 +15,7 @@ from tensorboardX import SummaryWriter
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.supervised import SupervisedTrainer
-from statics import get_profile, map_user_item_text
+from SBR.utils.statics import get_profile, map_user_item_text
 
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
