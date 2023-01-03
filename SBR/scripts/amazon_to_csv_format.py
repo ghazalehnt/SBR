@@ -29,6 +29,7 @@ def main(interaction_input_file, item_meta_input_file, output_path, database_nam
     # sort by time and then drop the duplicate keeping last one
     df_inter = df_inter.sort_values(by=['unixReviewTime'])
     df_inter = df_inter.drop_duplicates(subset=['reviewerID', 'asin'], keep='last')
+    items = set(df_inter["asin"])
     df_inter.to_csv(join(output_path, f"{database_name}.interactions"), index=False)
 
     # load item meta:
@@ -46,6 +47,7 @@ def main(interaction_input_file, item_meta_input_file, output_path, database_nam
     item_info = item_info.replace(r'\r', ' ', regex=True)
     # remove duplicate asins
     item_info = item_info.drop_duplicates(subset=['asin'])
+    item_info = item_info[item_info['asin'].isin(items)]
     print(len(item_info))
     item_info.to_csv(join(output_path, f"{database_name}.items"), index=False)
 
