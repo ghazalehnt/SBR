@@ -11,16 +11,24 @@ csv.field_size_limit(sys.maxsize)
 
 CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
+goodreads_rating_mapping = {
+    'did not like it': 1,
+    'it was ok': 2,
+    'liked it': 3,
+    'really liked it': 4,
+    'it was amazing': 5,
+    '': 0
+}
 
-def create_splits(per_user_interactions, ratios, longtail_trainonly_th, keep_the_longrail):
+def create_splits(per_user_interactions, ratios, user_longtail_trainonly_th, user_keep_the_longrail):
     train = []
     test = []
     valid = []
     test_ratio = ratios[1]
     valid_ratio = ratios[2]/(1-test_ratio)  # e.g. [0.6, 0.2, 0.2] -> 0.2 = 0.25 * 0.8
     for user in per_user_interactions:
-        if len(per_user_interactions[user]) <= longtail_trainonly_th:
-            if keep_the_longrail:
+        if len(per_user_interactions[user]) <= user_longtail_trainonly_th:
+            if user_keep_the_longrail:
                 for line in per_user_interactions[user]:
                     train.append(line)
         else:
@@ -46,22 +54,36 @@ if __name__ == "__main__":
     np.random.seed(42)
 
     DATASET_PATH = "TODO"
-    # INTERACTION_FILE = "goodreads_crawled.interactions"
-    # ITEM_FILE = "goodreads_crawled.items"
-    # USER_FILE = "goodreads_crawled.users"
-    # USER_ID_FIELD = "user_id"
-    # ITEM_ID_FIELD = "item_id"
-    # RATING_FIELD = "rating"
-    INTERACTION_FILE = "amazon_reviews_books.interactions"
-    ITEM_FILE = "amazon_reviews_books.items"
-    USER_FILE = "amazon_reviews_books.users"
-    USER_ID_FIELD = "reviewerID"
-    ITEM_ID_FIELD = "asin"
-    RATING_FIELD = "overall"
+    INTERACTION_FILE = "goodreads_ucsd.interactions"
+    ITEM_FILE = "goodreads_ucsd.items"
+    USER_FILE = "goodreads_ucsd.users"
+    USER_ID_FIELD = "user_id"
+    ITEM_ID_FIELD = "book_id"
+    RATING_FIELD = "rating"
 
-    keep_lt_users = False
-    lt_threshold = 2
+   # DATASET_PATH = "TODO"
+   # INTERACTION_FILE = "goodreads_crawled.interactions"
+   # ITEM_FILE = "goodreads_crawled.items"
+   # USER_FILE = "goodreads_crawled.users"
+   # USER_ID_FIELD = "user_id"
+   # ITEM_ID_FIELD = "item_id"
+   # RATING_FIELD = "rating"
+
+   # DATASET_PATH = "TODO"
+   # INTERACTION_FILE = "amazon_reviews_books.interactions"
+   # ITEM_FILE = "amazon_reviews_books.items"
+   # USER_FILE = "amazon_reviews_books.users"
+   # USER_ID_FIELD = "reviewerID"
+   # ITEM_ID_FIELD = "asin"
+   # RATING_FIELD = "overall"
+
+    keep_lt_users = True
+    user_lt_threshold = 4
     ratios = [0.6, 0.2, 0.2]
+
+    rating_threshold = None
+    # if you want to apply a positive threshold:
+    rating_threshold = 3
 
     per_user_interactions = defaultdict(list)
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
@@ -70,11 +92,26 @@ if __name__ == "__main__":
         USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
         ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
         for line in reader:
+            if rating_threshold is not None:
+                if INTERACTION_FILE.startswith("goodreads_crawled"):
+                    for k, v in goodreads_rating_mapping.items():
+                        rating = line[RATING_FIELD].replace(k, v)
+                elif INTERACTION_FILE.startswith("goodreads_ucsd"):
+                    rating = line[RATING_FIELD].astype(int)
+                elif INTERACTION_FILE.startswith("amazon_reviews_books"):
+                    rating = line[RATING_FIELD].astype(float).astype(int)
+
+                if rating < rating_threshold:
+                    continue
             per_user_interactions[line[USER_ID_IDX_INTER]].append(line)
 
-    train, valid, test = create_splits(per_user_interactions, ratios, lt_threshold, keep_lt_users)
+    train, valid, test = create_splits(per_user_interactions, ratios,
+                                       user_lt_threshold, keep_lt_users)
 
-    out_path = join(DATASET_PATH, f"ltth{lt_threshold}-{'kept' if keep_lt_users else 'dropped'}_ratios{'-'.join([str(r) for r in ratios])}")
+    out_path = join(DATASET_PATH,
+                    f"u-ltth{user_lt_threshold}-{'kept' if keep_lt_users else 'dropped'}"
+                    f"_rating-th{rating_threshold if rating_threshold is not None else 'None'}"
+                    f"_ratios{'-'.join([str(r) for r in ratios])}")
     os.makedirs(out_path, exist_ok=True)
 
     inter_header[USER_ID_IDX_INTER] = "user_id"
