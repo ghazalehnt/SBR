@@ -11,14 +11,6 @@ csv.field_size_limit(sys.maxsize)
 
 CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
-goodreads_rating_mapping = {
-    'did not like it': 1,
-    'it was ok': 2,
-    'liked it': 3,
-    'really liked it': 4,
-    'it was amazing': 5,
-    '': 0
-}
 
 def create_splits(per_user_interactions, ratios, user_longtail_trainonly_th, user_keep_the_longrail):
     train = []
@@ -81,10 +73,6 @@ if __name__ == "__main__":
     user_lt_threshold = 4
     ratios = [0.6, 0.2, 0.2]
 
-    rating_threshold = None
-    # if you want to apply a positive threshold:
-    rating_threshold = 3
-
     per_user_interactions = defaultdict(list)
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
         reader = csv.reader(f)
@@ -92,17 +80,6 @@ if __name__ == "__main__":
         USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
         ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
         for line in reader:
-            if rating_threshold is not None:
-                if INTERACTION_FILE.startswith("goodreads_crawled"):
-                    for k, v in goodreads_rating_mapping.items():
-                        rating = line[RATING_FIELD].replace(k, v)
-                elif INTERACTION_FILE.startswith("goodreads_ucsd"):
-                    rating = line[RATING_FIELD].astype(int)
-                elif INTERACTION_FILE.startswith("amazon_reviews_books"):
-                    rating = line[RATING_FIELD].astype(float).astype(int)
-
-                if rating < rating_threshold:
-                    continue
             per_user_interactions[line[USER_ID_IDX_INTER]].append(line)
 
     train, valid, test = create_splits(per_user_interactions, ratios,
@@ -110,7 +87,6 @@ if __name__ == "__main__":
 
     out_path = join(DATASET_PATH,
                     f"u-ltth{user_lt_threshold}-{'kept' if keep_lt_users else 'dropped'}"
-                    f"_rating-th{rating_threshold if rating_threshold is not None else 'None'}"
                     f"_ratios{'-'.join([str(r) for r in ratios])}")
     os.makedirs(out_path, exist_ok=True)
 
