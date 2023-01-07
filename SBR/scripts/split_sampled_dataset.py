@@ -106,14 +106,27 @@ if __name__ == "__main__":
         writer.writerow(inter_header)
         writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in test])
 
-    # copy user and item files, change header
+    all_users = [line[USER_ID_IDX_INTER] for line in train]
+    all_users.extend([line[USER_ID_IDX_INTER] for line in test])
+    all_users.extend([line[USER_ID_IDX_INTER] for line in valid])
+    all_users = set(all_users)
+
+    all_items = [line[ITEM_ID_IDX_INTER] for line in train]
+    all_items.extend([line[ITEM_ID_IDX_INTER] for line in test])
+    all_items.extend([line[ITEM_ID_IDX_INTER] for line in valid])
+    all_items = set(all_items)
+
+    # copy user and item files, change header, keep only users/items in the dataset
     with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin, open(join(out_path, "items.csv"), 'w') as fout:
         reader = csv.reader(fin)
         item_header = next(reader)
         writer = csv.writer(fout)
-        item_header[item_header.index(ITEM_ID_FIELD)] = "item_id"
+        item_field_idx_item = item_header.index(ITEM_ID_FIELD)
+        item_header[item_field_idx_item] = "item_id"
         writer.writerow(item_header)
         for line in reader:
+            if line[item_field_idx_item] not in all_items:
+                continue
             # try to clean the genres
             if ITEM_FILE.startswith("goodreads_crawled"):
                 if "like" in line[item_header.index("genres")]:
@@ -124,20 +137,13 @@ if __name__ == "__main__":
         reader = csv.reader(fin)
         user_header = next(reader)
         writer = csv.writer(fout)
-        user_header[user_header.index(USER_ID_FIELD)] = "user_id"
+        user_field_idx_user = user_header.index(USER_ID_FIELD)
+        user_header[user_field_idx_user] = "user_id"
         writer.writerow(user_header)
         for line in reader:
+            if line[user_field_idx_user] not in all_users:
+                continue
             writer.writerow([re.sub(CLEANR, '', l) for l in line])
 
-    # shutil.copyfile(join(DATASET_PATH, ITEM_FILE), join(out_path, "items.csv"))
-    # shutil.copyfile(join(DATASET_PATH, USER_FILE), join(out_path, "users.csv"))
-
-    allusers = set([line[USER_ID_IDX_INTER] for line in train])
-    allusers = allusers.union(set([line[USER_ID_IDX_INTER] for line in test]))
-    allusers = allusers.union(set([line[USER_ID_IDX_INTER] for line in valid]))
-    print(f"num users: {len(allusers)}")
-
-    allitems = set([line[ITEM_ID_IDX_INTER] for line in train])
-    allitems = allitems.union(set([line[ITEM_ID_IDX_INTER] for line in test]))
-    allitems = allitems.union(set([line[ITEM_ID_IDX_INTER] for line in valid]))
-    print(f"num items: {len(allitems)}")
+    print(f"num users: {len(all_users)}")
+    print(f"num items: {len(all_items)}")
