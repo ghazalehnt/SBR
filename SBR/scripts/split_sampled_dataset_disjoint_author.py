@@ -2,10 +2,12 @@ import csv
 import os
 import random
 import re
+import sys
 from collections import defaultdict
 from os.path import join
 import numpy as np
 from sklearn.model_selection import train_test_split
+csv.field_size_limit(sys.maxsize)
 
 rating_mapping = {
     '': 0,
@@ -29,7 +31,7 @@ def create_splits(per_user_interactions, ratios, k_core_user, user_author_thresh
         if len(per_user_interactions[user].keys()) < user_author_threshold:
             users_removed_due_to_lack_of_distinct_authors += 1
             continue
-        X_train, X_test = train_test_split(per_user_interactions[user].keys(),
+        X_train, X_test = train_test_split(list(per_user_interactions[user].keys()),
                                            test_size=test_ratio,
                                            random_state=42)
         X_train, X_val = train_test_split(X_train,
@@ -45,9 +47,11 @@ def create_splits(per_user_interactions, ratios, k_core_user, user_author_thresh
         for author in X_val:
             user_val.extend(per_user_interactions[user][author])
 
-        # creating the k-core?
+        # creating the k-core
+        # the k_core constraint is on all test+val+train >= k-core-user not just train
         if k_core_user is not None:
-            if len(user_test) > 0 and len(user_val) > 0 and len(user_train) >= k_core_user:
+            if len(user_test) > 0 and len(user_val) > 0 \
+                    and (len(user_train) + len(user_val) + len(user_test)) >= k_core_user:
                 train.extend(user_train)
                 test.extend(user_test)
                 valid.extend(user_val)
