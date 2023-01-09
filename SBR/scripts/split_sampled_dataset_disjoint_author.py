@@ -17,13 +17,18 @@ rating_mapping = {
 }
 
 
-def create_splits(per_user_interactions, ratios, k_core_user):
+def create_splits(per_user_interactions, ratios, k_core_user, user_author_threshold=3):
     train = []
     test = []
     valid = []
     test_ratio = ratios[1]
     valid_ratio = ratios[2]/(1-test_ratio)  # e.g. [0.6, 0.2, 0.2] -> 0.2 = 0.25 * 0.8
+    users_removed_due_to_lack_of_distinct_authors = 0
+    users_removed_due_to_k_core = 0
     for user in per_user_interactions:
+        if len(per_user_interactions[user].keys()) < user_author_threshold:
+            users_removed_due_to_lack_of_distinct_authors += 1
+            continue
         X_train, X_test = train_test_split(per_user_interactions[user].keys(),
                                            test_size=test_ratio,
                                            random_state=42)
@@ -46,10 +51,16 @@ def create_splits(per_user_interactions, ratios, k_core_user):
                 train.extend(user_train)
                 test.extend(user_test)
                 valid.extend(user_val)
+            else:
+                users_removed_due_to_k_core += 1
         else:
             train.extend(user_train)
             test.extend(user_test)
             valid.extend(user_val)
+
+    print(f"users removed due to having fewer than {user_author_threshold} authors: {users_removed_due_to_lack_of_distinct_authors}")
+    if k_core_user is not None:
+        print(f"users removed due to {k_core_user}-core constraint: {users_removed_due_to_k_core}")
 
     return train, valid, test
 
