@@ -815,7 +815,8 @@ def load_split_dataset(config, for_precalc=False):
             keep_fields.extend([tie_breaker])
         else:
             raise ValueError(f"tie-breaker value: {config['user_item_text_tie_breaker']}")
-    if config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
+
+    if not for_precalc and config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
         if config["name"] == "Amazon":
             keep_fields.append("category")
         elif config["name"] in ["CGR", "GR_UCSD"]:
