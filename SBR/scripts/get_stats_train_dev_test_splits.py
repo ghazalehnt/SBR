@@ -163,7 +163,10 @@ if __name__ == '__main__':
                 "valid": get_per_item_interaction_cnt(valid),
                 "test": get_per_item_interaction_cnt(test)}
 
-    all_interactions = sum(per_user['train'].values())
+    all_interactions_train = sum(per_user['train'].values())
+    all_interactions_valid = sum(per_user['valid'].values())
+    all_interactions_test = sum(per_user['test'].values())
+    total_interactions = all_interactions_train + all_interactions_valid + all_interactions_test
 
     h_user = get_histogram(per_user['train'].values())
     x = list(h_user.keys())
@@ -177,10 +180,11 @@ if __name__ == '__main__':
 
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
+    statfile.write(f"TRAIN #interactions: {all_interactions_train} that is ratio {all_interactions_train/total_interactions}")
     statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}"
                    f"with {user_grp_inter_cnt(train, set(per_user['train']) - set(per_user['test']), USER_IDX)} interactions.\n")
     statfile.write(
-        f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions / (len(per_user['train']) * len(per_item['train'])))}\n")
+        f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions_train / (len(per_user['train']) * len(per_item['train'])))}\n")
     G, user_nodes = get_graph(train)
     statfile.write(f"TRAIN: is graph connected? {nx.is_connected(G)}\n")
     statfile.write(f"TRAIN: number of connected components: {nx.number_connected_components(G)}\n")
@@ -198,6 +202,7 @@ if __name__ == '__main__':
 
     statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
     statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
+    statfile.write(f"VALID: #interactions: {all_interactions_valid} that is ratio {all_interactions_valid / total_interactions}")
     statfile.write(f"VALID: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(valid_users.intersection(user_groups[gr]))} users and "
@@ -208,13 +213,14 @@ if __name__ == '__main__':
                    f" interactions\n")
     for gr in item_groups:
         statfile.write(f"{gr}: {len(valid_items.intersection(item_groups[gr]))} items and "
-                       f"{user_grp_inter_cnt(test, valid_items.intersection(item_groups[gr]), ITEM_IDX)}"
+                       f"{user_grp_inter_cnt(valid, valid_items.intersection(item_groups[gr]), ITEM_IDX)}"
                        f" interactions\n")
     statfile.write("\n")
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
-    statfile.write(f"VALID: num users in groups:\n")
+    statfile.write(f"TEST #interactions: {all_interactions_test} that is ratio {all_interactions_test / total_interactions}")
+    statfile.write(f"TEST: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(test_users.intersection(user_groups[gr]))} users and "
                        f"{user_grp_inter_cnt(test, test_users.intersection(user_groups[gr]), USER_IDX)}"
