@@ -1,5 +1,8 @@
 import csv
+from collections import Counter
 from os.path import join
+
+import pandas as pd
 
 import networkx as nx
 from networkx.algorithms import bipartite
@@ -46,33 +49,12 @@ def read_interactions(dataset_path):
     ret = {}
     sp_files = {"train": "train.csv", "validation": "validation.csv", "test": "test.csv"}
     for split, sp_file in sp_files.items():
-        ret[split] = []
-        with open(join(dataset_path, sp_file), 'r') as f:
-            reader = csv.reader(f)
-            h = next(reader)
-            for line in reader:
-                ret[split].append(line)
-    return ret["train"], ret["validation"], ret["test"], h
+        ret[split] = pd.read_csv(join(dataset_path, sp_file), dtype=str)
+    return ret["train"], ret["validation"], ret["test"]
 
 
-def get_per_user_interaction_cnt(inters):
-    ret = {}
-    for line in inters:
-        user_id = line[USER_IDX]
-        if user_id not in ret:
-            ret[user_id] = 0
-        ret[user_id] += 1
-    return ret
-
-
-def get_per_item_interaction_cnt(inters):
-    ret = {}
-    for line in inters:
-        item_id = line[ITEM_IDX]
-        if item_id not in ret:
-            ret[item_id] = 0
-        ret[item_id] += 1
-    return ret
+def read_item_info(dataset_path):
+    return pd.read_csv(join(dataset_path, "items.csv"), dtype=str)
 
 
 def get_graph(inters):
@@ -80,9 +62,9 @@ def get_graph(inters):
     user_nodes = set()
     item_nodes = set()
     edges = []
-    for line in inters:
-        user_id = f"u_{line[USER_IDX]}"
-        item_id = f"i_{line[ITEM_IDX]}"
+    for u, i in zip(inters[USER_ID_FIELD], inters[ITEM_ID_FIELD]):
+        user_id = f"u_{u}"
+        item_id = f"i_{i}"
         user_nodes.add(user_id)
         item_nodes.add(item_id)
         edges.append((user_id, item_id))
@@ -94,13 +76,8 @@ def get_graph(inters):
     return B, user_nodes
 
 
-def get_user_groups(train_set, id_idx, thresholds=[5]):
-    user_count = {}
-    for line in train_set:
-        if line[id_idx] not in user_count:
-            user_count[line[id_idx]] = 1
-        else:
-            user_count[line[id_idx]] += 1
+def get_user_groups(train_set, FIELD, thresholds=[5]):
+    user_count = Counter(train_set[FIELD])
     groups = {thr: set() for thr in sorted(thresholds)}
     groups['rest'] = set()
     for user, cnt in user_count.items():
@@ -125,43 +102,40 @@ def get_user_groups(train_set, id_idx, thresholds=[5]):
     return ret_group
 
 
-def user_grp_inter_cnt(split_set, users, user_id_idx):
-    cnt = 0
-    for line in split_set:
-        if line[user_id_idx] in users:
-            cnt += 1
-    return cnt
+def user_grp_inter_cnt(split_set, users, field):
+    return len(split_set[split_set[field].isin(users)])
 
 
 if __name__ == '__main__':
-    # DATASET_DIR = f"{open('data/paths_vars/DATA_ROOT_PATH', 'r').read().strip()}/GR_rating3_5-folds/example_dataset_totalu10000_su100_sltu100_h1i500_dense"
     DATASET_DIR = ""
     USER_ID_FIELD = "user_id"
     ITEM_ID_FIELD = "item_id"
+    AUTHOR_FIELD = "authors"
     thresholds = [5, 50]
     statfile = open(join(DATASET_DIR, f"stats_{'-'.join([str(thr) for thr in thresholds])}.txt"), 'w')
 
-    train, valid, test, header = read_interactions(DATASET_DIR)
+    train, valid, test = read_interactions(DATASET_DIR)
+    item_info = read_item_info(DATASET_DIR)
+    train = train.merge(item_info[[ITEM_ID_FIELD, AUTHOR_FIELD]], "left", on=ITEM_ID_FIELD)
+    valid = valid.merge(item_info[[ITEM_ID_FIELD, AUTHOR_FIELD]], "left", on=ITEM_ID_FIELD)
+    test = test.merge(item_info[[ITEM_ID_FIELD, AUTHOR_FIELD]], "left", on=ITEM_ID_FIELD)
 
-    USER_IDX = header.index(USER_ID_FIELD)
-    ITEM_IDX = header.index(ITEM_ID_FIELD)
+    user_groups = get_user_groups(train, USER_ID_FIELD, thresholds)
+    test_users = set(test[USER_ID_FIELD])
+    valid_users = set(valid[USER_ID_FIELD])
 
-    user_groups = get_user_groups(train, USER_IDX, thresholds)
-    test_users = set([line[USER_IDX] for line in test])
-    valid_users = set([line[USER_IDX] for line in valid])
+    item_groups = get_user_groups(train, ITEM_ID_FIELD, thresholds)
+    train_items = set(train[ITEM_ID_FIELD])
+    test_items = set(test[ITEM_ID_FIELD])
+    valid_items = set(valid[ITEM_ID_FIELD])
 
-    item_groups = get_user_groups(train, ITEM_IDX, thresholds)
-    train_items =  set([line[ITEM_IDX] for line in train])
-    test_items = set([line[ITEM_IDX] for line in test])
-    valid_items = set([line[ITEM_IDX] for line in valid])
+    per_user = {"train": Counter(train[USER_ID_FIELD]),
+                "valid": Counter(valid[USER_ID_FIELD]),
+                "test":  Counter(test[USER_ID_FIELD])}
 
-    per_user = {"train": get_per_user_interaction_cnt(train),
-                "valid": get_per_user_interaction_cnt(valid),
-                "test": get_per_user_interaction_cnt(test)}
-
-    per_item = {"train": get_per_item_interaction_cnt(train),
-                "valid": get_per_item_interaction_cnt(valid),
-                "test": get_per_item_interaction_cnt(test)}
+    per_item = {"train": Counter(train[ITEM_ID_FIELD]),
+                "valid": Counter(valid[ITEM_ID_FIELD]),
+                "test": Counter(test[ITEM_ID_FIELD])}
 
     all_interactions_train = sum(per_user['train'].values())
     all_interactions_valid = sum(per_user['valid'].values())
@@ -178,11 +152,28 @@ if __name__ == '__main__':
     plt.xlabel("interactions")
     plt.savefig(join(DATASET_DIR, "user_interactions_train.png"))
 
+    # num unique user per author:
+    train_unique_users_per_author = {k: len(v) for k, v in
+                                    train.groupby(AUTHOR_FIELD)[USER_ID_FIELD].unique().to_dict().items()}
+    valid_unique_users_per_author = {k: len(v) for k, v in
+                                    valid.groupby(AUTHOR_FIELD)[USER_ID_FIELD].unique().to_dict().items()}
+    test_unique_users_per_author = {k: len(v) for k, v in
+                                    test.groupby(AUTHOR_FIELD)[USER_ID_FIELD].unique().to_dict().items()}
+
+    # num unique author per user:
+    train_unique_authors_per_user = train.groupby(USER_ID_FIELD)[AUTHOR_FIELD].nunique().to_dict()
+    valid_unique_authors_per_user = valid.groupby(USER_ID_FIELD)[AUTHOR_FIELD].nunique().to_dict()
+    test_unique_authors_per_user = test.groupby(USER_ID_FIELD)[AUTHOR_FIELD].nunique().to_dict()
+
     statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
     statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
     statfile.write(f"TRAIN #interactions: {all_interactions_train} that is ratio {all_interactions_train/total_interactions}")
     statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}"
-                   f"with {user_grp_inter_cnt(train, set(per_user['train']) - set(per_user['test']), USER_IDX)} interactions.\n")
+                   f"with {user_grp_inter_cnt(train, set(per_user['train']) - set(per_user['test']), USER_ID_FIELD)} interactions.\n")
+    statfile.write(
+        f"TRAIN: avg num unique authors per user: {scipy.stats.describe(list(train_unique_authors_per_user.values()))}\n")
+    statfile.write(
+        f"TRAIN: avg num unique users per author: {scipy.stats.describe(list(train_unique_users_per_author.values()))}\n")
     statfile.write(
         f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions_train / (len(per_user['train']) * len(per_item['train'])))}\n")
     G, user_nodes = get_graph(train)
@@ -192,45 +183,53 @@ if __name__ == '__main__':
     statfile.write(f"TRAIN: sparsity= {1 - bipartite.density(G, user_nodes)}\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(user_groups[gr])} users and "
-                       f"{user_grp_inter_cnt(train, user_groups[gr], USER_IDX)}"
+                       f"{user_grp_inter_cnt(train, user_groups[gr], USER_ID_FIELD)}"
                        f" interactions\n")
     for gr in item_groups:
         statfile.write(f"{gr}: {len(item_groups[gr])} items and "
-                       f"{user_grp_inter_cnt(train, item_groups[gr], ITEM_IDX)}"
+                       f"{user_grp_inter_cnt(train, item_groups[gr], ITEM_ID_FIELD)}"
                        f" interactions\n")
     statfile.write("\n")
 
     statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
     statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
-    statfile.write(f"VALID: #interactions: {all_interactions_valid} that is ratio {all_interactions_valid / total_interactions}")
+    statfile.write(f"VALID: #interactions: {all_interactions_valid} that is ratio {all_interactions_valid / total_interactions}\n")
+    statfile.write(
+        f"VALID: avg num unique authors per user: {scipy.stats.describe(list(valid_unique_authors_per_user.values()))}\n")
+    statfile.write(
+        f"VALID: avg num unique users per author: {scipy.stats.describe(list(valid_unique_users_per_author.values()))}\n")
     statfile.write(f"VALID: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(valid_users.intersection(user_groups[gr]))} users and "
-                       f"{user_grp_inter_cnt(valid, valid_users.intersection(user_groups[gr]), USER_IDX)}"
+                       f"{user_grp_inter_cnt(valid, valid_users.intersection(user_groups[gr]), USER_ID_FIELD)}"
                        f" interactions\n")
     statfile.write(f"unseen: {len(valid_items - train_items)} items and "
-                   f"{user_grp_inter_cnt(valid, valid_items - train_items, ITEM_IDX)}"
+                   f"{user_grp_inter_cnt(valid, valid_items - train_items, ITEM_ID_FIELD)}"
                    f" interactions\n")
     for gr in item_groups:
         statfile.write(f"{gr}: {len(valid_items.intersection(item_groups[gr]))} items and "
-                       f"{user_grp_inter_cnt(valid, valid_items.intersection(item_groups[gr]), ITEM_IDX)}"
+                       f"{user_grp_inter_cnt(valid, valid_items.intersection(item_groups[gr]), ITEM_ID_FIELD)}"
                        f" interactions\n")
     statfile.write("\n")
 
     statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
     statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
-    statfile.write(f"TEST #interactions: {all_interactions_test} that is ratio {all_interactions_test / total_interactions}")
+    statfile.write(f"TEST #interactions: {all_interactions_test} that is ratio {all_interactions_test / total_interactions}\n")
+    statfile.write(
+        f"TEST: avg num unique authors per user: {scipy.stats.describe(list(test_unique_authors_per_user.values()))}\n")
+    statfile.write(
+        f"TEST: avg num unique users per author: {scipy.stats.describe(list(test_unique_users_per_author.values()))}\n")
     statfile.write(f"TEST: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(test_users.intersection(user_groups[gr]))} users and "
-                       f"{user_grp_inter_cnt(test, test_users.intersection(user_groups[gr]), USER_IDX)}"
+                       f"{user_grp_inter_cnt(test, test_users.intersection(user_groups[gr]), USER_ID_FIELD)}"
                        f" interactions\n")
     statfile.write(f"unseen: {len(test_items-train_items)} items and "
-                   f"{user_grp_inter_cnt(test, test_items-train_items, ITEM_IDX)}"
+                   f"{user_grp_inter_cnt(test, test_items-train_items, ITEM_ID_FIELD)}"
                    f" interactions\n")
     for gr in item_groups:
         statfile.write(f"{gr}: {len(test_items.intersection(item_groups[gr]))} items and "
-                       f"{user_grp_inter_cnt(test, test_items.intersection(item_groups[gr]), ITEM_IDX)}"
+                       f"{user_grp_inter_cnt(test, test_items.intersection(item_groups[gr]), ITEM_ID_FIELD)}"
                        f" interactions\n")
 
 ### question: in k-fold cross-validation where we create the folds by users,
