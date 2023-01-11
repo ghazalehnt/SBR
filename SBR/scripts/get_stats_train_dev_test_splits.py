@@ -170,7 +170,7 @@ if __name__ == '__main__':
     statfile.write(f"TRAIN: stats for user interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     temp = scipy.stats.describe(list(per_item['train'].values()))
     statfile.write(f"TRAIN: stats for item interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
-    statfile.write(f"TRAIN #interactions: {all_interactions_train} that is ratio {all_interactions_train/total_interactions}")
+    statfile.write(f"TRAIN #interactions: {all_interactions_train} that is ratio {all_interactions_train/total_interactions}\n")
     statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}"
                    f"with {user_grp_inter_cnt(train, set(per_user['train']) - set(per_user['test']), USER_ID_FIELD)} interactions.\n")
     temp = scipy.stats.describe(list(train_unique_authors_per_user.values()))
