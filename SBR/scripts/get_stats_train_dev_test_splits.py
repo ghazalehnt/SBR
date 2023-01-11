@@ -1,4 +1,5 @@
 import csv
+import math
 from collections import Counter
 from os.path import join
 
@@ -165,15 +166,19 @@ if __name__ == '__main__':
     valid_unique_authors_per_user = valid.groupby(USER_ID_FIELD)[AUTHOR_FIELD].nunique().to_dict()
     test_unique_authors_per_user = test.groupby(USER_ID_FIELD)[AUTHOR_FIELD].nunique().to_dict()
 
-    statfile.write(f"TRAIN: stats for user interactions: {scipy.stats.describe(list(per_user['train'].values()))}\n")
-    statfile.write(f"TRAIN: stats for item interactions: {scipy.stats.describe(list(per_item['train'].values()))}\n")
+    temp = scipy.stats.describe(list(per_user['train'].values()))
+    statfile.write(f"TRAIN: stats for user interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
+    temp = scipy.stats.describe(list(per_item['train'].values()))
+    statfile.write(f"TRAIN: stats for item interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     statfile.write(f"TRAIN #interactions: {all_interactions_train} that is ratio {all_interactions_train/total_interactions}")
     statfile.write(f"TRAIN: num longlong tail users only in train: {len(per_user['train']) - len(per_user['test'])}"
                    f"with {user_grp_inter_cnt(train, set(per_user['train']) - set(per_user['test']), USER_ID_FIELD)} interactions.\n")
+    temp = scipy.stats.describe(list(train_unique_authors_per_user.values()))
     statfile.write(
-        f"TRAIN: avg num unique authors per user: {scipy.stats.describe(list(train_unique_authors_per_user.values()))}\n")
+        f"TRAIN: avg num unique authors per user: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
+    temp = scipy.stats.describe(list(train_unique_users_per_author.values()))
     statfile.write(
-        f"TRAIN: avg num unique users per author: {scipy.stats.describe(list(train_unique_users_per_author.values()))}\n")
+        f"TRAIN: avg num unique users per author: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     statfile.write(
         f"TRAIN: data sparsity 1-(#inter / #users*#items) = {1 - (all_interactions_train / (len(per_user['train']) * len(per_item['train'])))}\n")
     G, user_nodes = get_graph(train)
@@ -191,13 +196,17 @@ if __name__ == '__main__':
                        f" interactions\n")
     statfile.write("\n")
 
-    statfile.write(f"VALID: stats for user interactions: {scipy.stats.describe(list(per_user['valid'].values()))}\n")
-    statfile.write(f"VALID: stats for item interactions: {scipy.stats.describe(list(per_item['valid'].values()))}\n")
+    temp = scipy.stats.describe(list(per_user['valid'].values()))
+    statfile.write(f"VALID: stats for user interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
+    temp = scipy.stats.describe(list(per_item['valid'].values()))
+    statfile.write(f"VALID: stats for item interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     statfile.write(f"VALID: #interactions: {all_interactions_valid} that is ratio {all_interactions_valid / total_interactions}\n")
+    temp = scipy.stats.describe(list(valid_unique_authors_per_user.values()))
     statfile.write(
-        f"VALID: avg num unique authors per user: {scipy.stats.describe(list(valid_unique_authors_per_user.values()))}\n")
+        f"VALID: avg num unique authors per user: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
+    temp = scipy.stats.describe(list(valid_unique_users_per_author.values()))
     statfile.write(
-        f"VALID: avg num unique users per author: {scipy.stats.describe(list(valid_unique_users_per_author.values()))}\n")
+        f"VALID: avg num unique users per author: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     statfile.write(f"VALID: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(valid_users.intersection(user_groups[gr]))} users and "
@@ -212,13 +221,17 @@ if __name__ == '__main__':
                        f" interactions\n")
     statfile.write("\n")
 
-    statfile.write(f"TEST: stats for user interactions: {scipy.stats.describe(list(per_user['test'].values()))}\n")
-    statfile.write(f"TEST: stats for item interactions: {scipy.stats.describe(list(per_item['test'].values()))}\n")
+    temp = scipy.stats.describe(list(per_user['test'].values()))
+    statfile.write(f"TEST: stats for user interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
+    temp = scipy.stats.describe(list(per_item['test'].values()))
+    statfile.write(f"TEST: stats for item interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     statfile.write(f"TEST #interactions: {all_interactions_test} that is ratio {all_interactions_test / total_interactions}\n")
+    temp = scipy.stats.describe(list(test_unique_authors_per_user.values()))
     statfile.write(
-        f"TEST: avg num unique authors per user: {scipy.stats.describe(list(test_unique_authors_per_user.values()))}\n")
+        f"TEST: avg num unique authors per user: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
+    temp = scipy.stats.describe(list(test_unique_users_per_author.values()))
     statfile.write(
-        f"TEST: avg num unique users per author: {scipy.stats.describe(list(test_unique_users_per_author.values()))}\n")
+        f"TEST: avg num unique users per author: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
     statfile.write(f"TEST: num users in groups:\n")
     for gr in user_groups:
         statfile.write(f"{gr}: {len(test_users.intersection(user_groups[gr]))} users and "
