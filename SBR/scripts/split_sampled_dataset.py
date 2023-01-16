@@ -73,6 +73,16 @@ if __name__ == "__main__":
     user_lt_threshold = 4
     ratios = [0.6, 0.2, 0.2]
 
+    # read items, to only keep items from interactions that exist in item-meta:
+    item_meta_info = defaultdict()
+    with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin:
+        reader = csv.reader(fin)
+        item_header = next(reader)
+        item_field_idx_item = item_header.index(ITEM_ID_FIELD)
+        item_header[item_field_idx_item] = "item_id"
+        for line in reader:
+            item_meta_info[line[item_field_idx_item]] = line
+
     per_user_interactions = defaultdict(list)
     with open(join(DATASET_PATH, INTERACTION_FILE), 'r') as f:
         reader = csv.reader(f)
@@ -80,6 +90,8 @@ if __name__ == "__main__":
         USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
         ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
         for line in reader:
+            if line[ITEM_ID_IDX_INTER] not in item_meta_info.keys():
+                continue
             per_user_interactions[line[USER_ID_IDX_INTER]].append(line)
 
     train, valid, test = create_splits(per_user_interactions, ratios,
@@ -117,15 +129,11 @@ if __name__ == "__main__":
     all_items = set(all_items)
 
     # copy user and item files, change header, keep only users/items in the dataset
-    with open(join(DATASET_PATH, ITEM_FILE), 'r') as fin, open(join(out_path, "items.csv"), 'w') as fout:
-        reader = csv.reader(fin)
-        item_header = next(reader)
+    with open(join(out_path, "items.csv"), 'w') as fout:
         writer = csv.writer(fout)
-        item_field_idx_item = item_header.index(ITEM_ID_FIELD)
-        item_header[item_field_idx_item] = "item_id"
         writer.writerow(item_header)
-        for line in reader:
-            if line[item_field_idx_item] not in all_items:
+        for item_id, line in item_meta_info.items():
+            if item_id not in all_items:
                 continue
             # try to clean the genres
             if ITEM_FILE.startswith("goodreads_crawled"):
