@@ -110,6 +110,8 @@ def sentencize(text, sentencizer, case_sensitive, normalize_negation):
 def filter_user_profile(dataset_config, user_info):
     # filtering the user profile
     # filter-type1.1 idf_sentence
+    # TODO having "idf_sentence_unique" and "idf_sentence_repeating" how about random_sentence? SBERT? For SBERT as it is a round robin, it is a bit weird! we choose genres from book1, then choose another sentence from book2 since genre is covered?
+    # TODO I think more important than the uniqueness is the split of genres into sentences each not all together
     if dataset_config['user_text_filter'] == "idf_sentence":
         user_info = filter_user_profile_idf_sentences(dataset_config, user_info)
     # filter-type1 idf: we can have idf_1_all, idf_2_all, idf_3_all, idf_1-2_all, ..., idf_1-2-3_all, idf_1_unique, ...
@@ -726,48 +728,80 @@ class CollateNegSamplesGenresOpt(CollateNegSamplesRandomOpt):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
         # pool of all items is created from seen training items:
-        all_items = []
-        for items in self.used_items.values():
-            all_items.extend(items)
-        self.all_items = list(set(all_items))
         self.user_info = user_info.to_pandas()
         self.item_info = item_info.to_pandas()
-        self.genres_field = 'category' if 'category' in self.item_info.columns else 'genres'
+        genres_field = 'category' if 'category' in self.item_info.columns else 'genres'
         print("start parsing item genres")
-        genres_item = defaultdict(set)
-        item_genres = defaultdict(list)
-        for item, genres in zip(self.item_info[INTERNAL_ITEM_ID_FIELD], self.item_info[self.genres_field]):
+        self.genre_items = defaultdict(set)
+        self.item_genres = defaultdict(list)
+        for item, genres in zip(self.item_info[INTERNAL_ITEM_ID_FIELD], self.item_info[genres_field]):
             for g in [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for g in genres.split(",")]:
-                genres_item[g].add(item)
-                item_genres[item].append(g)
+                self.genre_items[g].add(item)
+                self.item_genres[item].append(g)
+        for g in self.genre_items:
+            self.genre_items[g] = list(self.genre_items[g])
         print("finish parsing item genres")
-        if strategy == "genres":
-            print("start creating item candidates")
-            self.item_candidates = defaultdict(list)
-            for item, genres in item_genres.items():
-                for g in genres:
-                    self.item_candidates[item].extend(list(genres_item[g]-set([item])))
-            for item in self.item_candidates:
-                self.item_candidates[item] = Counter(self.item_candidates[item])
-            print("finish creating item candidates")
+
+        # if strategy == "genres":
+        #     print("start creating item candidates")
+        #     self.item_candidates = defaultdict(list)
+        #     for item, genres in item_genres.items():
+        #         for g in genres:
+        #             self.item_candidates[item].extend(list(genres_item[g] - set([item])))
+        #         self.item_candidates[item] = Counter(self.item_candidates[item])
+        #     print("finish creating item candidates")
+
         self.strategy = strategy
         self.padding_token = padding_token
 
     def sample(self, batch_df):
         samples = []
-        if self.strategy == "genres":
-            user_samples = defaultdict(set)
-            for user_id, item_id in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD]):
-                candids = {k: v for k, v in self.item_candidates[item_id].items()
-                           if (k not in self.used_items[user_id] and k not in user_samples[user_id])}
-                sum_w = sum(candids.values())
-                if sum_w > 0:
-                    sampled_item_ids = np.random.choice(list(candids.keys()), min(len(candids), self.num_neg_samples),
-                                                        p=[c / sum_w for c in candids.values()], replace=False)
-                    samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
-                                    for sampled_item_id in sampled_item_ids])
-                    user_samples[user_id].update(set(sampled_item_ids))
+        for user_id, item_id in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD]):
+            sampled_genres = []
+            while len(sampled_genres) < self.num_neg_samples:
+                sampled_genres.extend(np.random.choice(self.item_genres[item_id],
+                                                       min(self.num_neg_samples - len(sampled_genres),
+                                                           len(self.item_genres[item_id])),
+                                                       replace=False).tolist())
+            neg_samples = set()
+            for g in sampled_genres:
+                try_cnt = -1
+                while True:
+                    if try_cnt == 20:
+                        break
+                    s = random.choice(self.genre_items[g])
+                    if s not in neg_samples and s not in self.used_items[user_id]:
+                        neg_samples.add(s)
+                        break
+                    try_cnt += 1
+            samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
+                            for sampled_item_id in neg_samples])
         return samples
+
+    # def sample(self, batch_df):
+    #     samples = []
+    #     if self.strategy == "genres":
+    #         user_samples = defaultdict(set)
+    #         for user_id, item_id in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD]):
+    #             # create item candidate on the fly, as it doesn't fit memory
+    #             item_candidates = []
+    #             for g in self.item_genres[item_id]:
+    #                 item_candidates.extend(self.genres_items[g])
+    #             item_candidates = Counter(item_candidates)
+    #             item_candidates.pop(item_id)
+    #             candids = {k: v for k, v in item_candidates.items()
+    #                        if (k not in self.used_items[user_id] and k not in user_samples[user_id])}
+    #
+    #             candids = {k: v for k, v in self.item_candidates[item_id].items()
+    #                        if (k not in self.used_items[user_id] and k not in user_samples[user_id])}
+    #             sum_w = sum(candids.values())
+    #             if sum_w > 0:
+    #                 sampled_item_ids = np.random.choice(list(candids.keys()), min(len(candids), self.num_neg_samples),
+    #                                                     p=[c / sum_w for c in candids.values()], replace=False)
+    #                 samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
+    #                                 for sampled_item_id in sampled_item_ids])
+    #                 user_samples[user_id].update(set(sampled_item_ids))
+    #     return samples
 
 
 def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
@@ -791,6 +825,7 @@ def load_split_dataset(config, for_precalc=False):
         item_text_fields = []
 
     # read users and items, create internal ids for them to be used
+    # TODO manual profile loaded here?
     keep_fields = ["user_id"]
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if "user." in field])
     keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
@@ -838,15 +873,18 @@ def load_split_dataset(config, for_precalc=False):
                  "item." in field})
     if 'item.genres' in item_info.columns:
         item_info['item.genres'] = item_info['item.genres'].apply(
-            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").strip() for
+            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
                                  g in x.split(",")]))
     if config["name"] == "Amazon":
         if 'item.category' in item_info.columns:
             item_info['item.category'] = item_info['item.category'].apply(
-                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
+                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
+                .replace("[", "").replace("]", "").strip())
         if 'item.description' in item_info.columns:
             item_info['item.description'] = item_info['item.description'].apply(
-                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " "))
+                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
+                .replace("[", "").replace("]", "").strip())
+
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
