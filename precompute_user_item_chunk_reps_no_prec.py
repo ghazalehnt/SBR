@@ -15,7 +15,7 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, ge
 
 
 def main(config_file, given_user_text_filter=None, given_limit_training_data=None,
-         given_user_text=None, given_item_text=None):
+         given_user_text=None, given_item_text=None, calc_which=None):
     np.random.seed(42)
     torch.manual_seed(42)
     torch.cuda.manual_seed(42)
@@ -49,25 +49,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         load_data(config['dataset'],
                   config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
                   True)
-
-    user_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
-                             f"size{config['dataset']['user_chunk_size']}_"
-                             f"cs-{config['dataset']['case_sensitive']}_"
-                             f"nn-{config['dataset']['normalize_negation']}_"
-                             f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
-    item_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
-                                  f"size{config['dataset']['item_chunk_size']}_"
-                                  f"cs-{config['dataset']['case_sensitive']}_"
-                                  f"nn-{config['dataset']['normalize_negation']}_"
-                                  f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
-    print(user_prec_path)
-    print(item_prec_path)
-    os.makedirs(user_prec_path, exist_ok=True)
-    os.makedirs(item_prec_path, exist_ok=True)
-
     agg_strategy = config['model']['agg_strategy']
     batch_size = config['model']['precalc_batch_size']
-
     bert = transformers.AutoModel.from_pretrained(config['model']['pretrained_model'])
     bert.to(device)  # need to move to device earlier as we are precalculating.
     if config['model']['tune_BERT'] is False:
@@ -77,60 +60,83 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         raise ValueError("You cannot precompute if you want to tune BERT!")
     bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
     bert_embeddings = bert.get_input_embeddings()
-
-    user_id_embedding, item_id_embedding = None, None
-    if config['model']["append_id"]:
-        user_id_embedding = torch.nn.Embedding(users.shape[0], bert_embedding_dim, device=device)
-        item_id_embedding = torch.nn.Embedding(items.shape[0], bert_embedding_dim, device=device)
-
-    user_embedding_CF, item_embedding_CF = None, None
     if config['model']['use_CF']:
-        # loading the pretrained CF embeddings for users and items
         CF_model_weights = torch.load(config['model']['CF_model_path'], map_location=device)['model_state_dict']
-        user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
-        item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
-    start = time.time()
-    user_rep_file = f"user_representation_" \
-                    f"{agg_strategy}_" \
-                    f"id{config['model']['append_id']}_" \
-                    f"tb{config['model']['tune_BERT']}_" \
-                    f"cf{config['model']['use_CF']}_" \
-                    f"{'-'.join(config['dataset']['user_text'])}_" \
-                    f"{config['dataset']['user_item_text_choice']}_" \
-                    f"{config['dataset']['user_item_text_tie_breaker'] if config['dataset']['user_text_filter'] in ['', 'item_sentence_SBERT'] else ''}_" \
-                    f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
-                    f"{'_i'+'-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
-                    f".pkl"
-    if os.path.exists(os.path.join(user_prec_path, user_rep_file)):
-        print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(user_prec_path, user_rep_file)}")
-    else:
-        weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size, agg_strategy,
-                                         config['dataset']['dataloader_num_workers'],
-                                         INTERNAL_USER_ID_FIELD, "user_id",
-                                         user_id_embedding if config['model']['append_id'] else None,
-                                         user_embedding_CF if config['model']['use_CF'] else None)
-        torch.save(weights, os.path.join(user_prec_path, user_rep_file))
-    print(f"user rep created  {time.time() - start}")
+    if calc_which is None or calc_which == "user":
+        user_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
+                                      f"size{config['dataset']['user_chunk_size']}_"
+                                      f"cs-{config['dataset']['case_sensitive']}_"
+                                      f"nn-{config['dataset']['normalize_negation']}_"
+                                      f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
+        print(user_prec_path)
+        os.makedirs(user_prec_path, exist_ok=True)
+        user_id_embedding = None
+        if config['model']["append_id"]:
+            user_id_embedding = torch.nn.Embedding(users.shape[0], bert_embedding_dim, device=device)
+        user_embedding_CF = None
+        if config['model']['use_CF']:
+            user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
 
-    start = time.time()
-    item_rep_file = f"item_representation_" \
-                    f"{agg_strategy}_" \
-                    f"id{config['model']['append_id']}_" \
-                    f"tb{config['model']['tune_BERT']}_" \
-                    f"cf{config['model']['use_CF']}_" \
-                    f"{'-'.join(config['dataset']['item_text'])}" \
-                    f".pkl"
-    if os.path.exists(os.path.join(item_prec_path, item_rep_file)):
-        print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(item_prec_path, item_rep_file)}")
-    else:
-        weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size, agg_strategy,
-                                         config['dataset']['dataloader_num_workers'],
-                                         INTERNAL_ITEM_ID_FIELD, "item_id",
-                                         item_id_embedding if config['model']['append_id'] else None,
-                                         item_embedding_CF if config['model']['use_CF'] else None)
-        torch.save(weights, os.path.join(item_prec_path, item_rep_file))
-        print(f"item rep created in {time.time() - start}")
+        start = time.time()
+        user_rep_file = f"user_representation_" \
+                        f"{agg_strategy}_" \
+                        f"id{config['model']['append_id']}_" \
+                        f"tb{config['model']['tune_BERT']}_" \
+                        f"cf{config['model']['use_CF']}_" \
+                        f"{'-'.join(config['dataset']['user_text'])}_" \
+                        f"{config['dataset']['user_item_text_choice']}_" \
+                        f"{config['dataset']['user_item_text_tie_breaker'] if config['dataset']['user_text_filter'] in ['', 'item_sentence_SBERT'] else ''}_" \
+                        f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
+                        f"{'_i' + '-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
+                        f".pkl"
+
+        if os.path.exists(os.path.join(user_prec_path, user_rep_file)):
+            print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(user_prec_path, user_rep_file)}")
+        else:
+            weights = create_representations(bert, bert_embeddings, users, padding_token, device, batch_size,
+                                             agg_strategy,
+                                             config['dataset']['dataloader_num_workers'],
+                                             INTERNAL_USER_ID_FIELD, "user_id",
+                                             user_id_embedding if config['model']['append_id'] else None,
+                                             user_embedding_CF if config['model']['use_CF'] else None)
+            torch.save(weights, os.path.join(user_prec_path, user_rep_file))
+        print(f"user rep created  {time.time() - start}")
+
+    if calc_which is None or calc_which == "item":
+        item_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
+                                      f"size{config['dataset']['item_chunk_size']}_"
+                                      f"cs-{config['dataset']['case_sensitive']}_"
+                                      f"nn-{config['dataset']['normalize_negation']}_"
+                                      f"{config['dataset']['limit_training_data'] if len(config['dataset']['limit_training_data']) > 0 else 'no-limit'}")
+        print(item_prec_path)
+        os.makedirs(item_prec_path, exist_ok=True)
+        item_id_embedding = None
+        if config['model']["append_id"]:
+            item_id_embedding = torch.nn.Embedding(items.shape[0], bert_embedding_dim, device=device)
+        item_embedding_CF = None
+        if config['model']['use_CF']:
+            item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+
+        start = time.time()
+        item_rep_file = f"item_representation_" \
+                        f"{agg_strategy}_" \
+                        f"id{config['model']['append_id']}_" \
+                        f"tb{config['model']['tune_BERT']}_" \
+                        f"cf{config['model']['use_CF']}_" \
+                        f"{'-'.join(config['dataset']['item_text'])}" \
+                        f".pkl"
+        if os.path.exists(os.path.join(item_prec_path, item_rep_file)):
+            print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(item_prec_path, item_rep_file)}")
+        else:
+            weights = create_representations(bert, bert_embeddings, items, padding_token, device, batch_size,
+                                             agg_strategy,
+                                             config['dataset']['dataloader_num_workers'],
+                                             INTERNAL_ITEM_ID_FIELD, "item_id",
+                                             item_id_embedding if config['model']['append_id'] else None,
+                                             item_embedding_CF if config['model']['use_CF'] else None)
+            torch.save(weights, os.path.join(item_prec_path, item_rep_file))
+            print(f"item rep created in {time.time() - start}")
 
 
 def create_representations(bert, bert_embeddings, info, padding_token, device, batch_size, agg_strategy,
@@ -212,10 +218,11 @@ if __name__ == '__main__':
                         help='the file name containing the limited training data')
     parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
     parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
+    parser.add_argument('--which', default=None, help='if specified, only calculate user/item reps otherwhise both.')
     args, _ = parser.parse_known_args()
 
     if not os.path.exists(args.config_file):
         raise ValueError(f"Config file does not exist: {args.config_file}")
     main(config_file=args.config_file, given_user_text_filter=args.user_text_filter,
          given_limit_training_data=args.limit_training_data,
-         given_user_text=args.user_text, given_item_text=args.item_text)
+         given_user_text=args.user_text, given_item_text=args.item_text, calc_which=args.which)
