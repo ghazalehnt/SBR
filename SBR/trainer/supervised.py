@@ -206,16 +206,6 @@ class SupervisedTrainer:
         self.best_saved_valid_metric = checkpoint['best_valid_metric']
         print("best model loaded!")
 
-        outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
-        log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
-                    self.users, self.items)
-        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
-        results["loss"] = valid_loss
-        results = {f"validation_{k}": v for k, v in results.items()}
-        for k, v in results.items():
-            self.logger.add_scalar(f'final_results/{k}', v)
-        print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
-
         outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
         log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items)
@@ -225,6 +215,16 @@ class SupervisedTrainer:
         for k, v in results.items():
             self.logger.add_scalar(f'final_results/{k}', v)
         print(f"\nTest results - best epoch {self.best_epoch}: {results}")
+
+        outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
+        log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
+                    self.users, self.items)
+        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
+        results["loss"] = valid_loss
+        results = {f"validation_{k}": v for k, v in results.items()}
+        for k, v in results.items():
+            self.logger.add_scalar(f'final_results/{k}', v)
+        print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
 
     def predict(self, eval_dataloader, low_mem=False):
         # bring models to evaluation mode
