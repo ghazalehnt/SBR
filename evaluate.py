@@ -132,20 +132,25 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     print(f"grouped users in {time.time()-start}")
 
-    if min_user_review_len is not None:
-        outfile_name = os.path.join(result_folder,
-                                    f"results_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_v-{valid_neg_st}_t-{test_neg_st}.txt")
-        valid_csv_f = open(os.path.join(result_folder,
-                                      f"results_valid_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{valid_neg_st}.csv"), "w")
-        test_csv_f = open(os.path.join(result_folder,
-                                     f"results_test_th_{'_'.join([str(t) for t in thrs])}_min_review_len_{min_user_review_len}_{test_neg_st}.csv"), "w")
-    else:
-        outfile_name = os.path.join(result_folder, f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}.txt")
-        valid_csv_f = open(os.path.join(result_folder, f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}.csv"), "w")
-        test_csv_f = open(os.path.join(result_folder, f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}.csv"), "w")
 
-    print(outfile_name)
-    outf = open(outfile_name, 'w')
+    outfname = f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}"
+    valid_fname = f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}"
+    test_fname = f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}"
+    if min_user_review_len is not None:
+        outfname += f"_min_review_len_{min_user_review_len}"
+        valid_fname += f"_min_review_len_{min_user_review_len}"
+        test_fname += f"_min_review_len_{min_user_review_len}"
+    if best_epoch is not None:
+        outfname += f"_epoch-{best_epoch}"
+        valid_fname += f"_epoch-{best_epoch}"
+        test_fname += f"_epoch-{best_epoch}"
+    outfname += ".txt"
+    valid_fname += ".csv"
+    test_fname += ".csv"
+    print(outfname)
+    outf = open(os.path.join(result_folder, outfname), 'w')
+    valid_csv_f = open(os.path.join(result_folder, valid_fname), "w")
+    test_csv_f = open(os.path.join(result_folder, test_fname), "w")
 
     test_gt = {k: v for k, v in test_gt.items() if k in train_user_count.keys()}
     test_pd = {k: v for k, v in test_pd.items() if k in train_user_count.keys()}
