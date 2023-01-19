@@ -11,6 +11,14 @@ csv.field_size_limit(sys.maxsize)
 
 CLEANR = re.compile(r'<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')
 
+goodreads_rating_mapping = {
+    'did not like it': 1,
+    'it was ok': 2,
+    'liked it': 3,
+    'really liked it': 4,
+    'it was amazing': 5
+}
+
 
 def create_splits(per_user_interactions, ratios, user_longtail_trainonly_th, user_keep_the_longrail):
     train = []
@@ -69,6 +77,7 @@ if __name__ == "__main__":
    # ITEM_ID_FIELD = "asin"
    # RATING_FIELD = "overall"
 
+    rating_threshold = 4
     keep_lt_users = True
     user_lt_threshold = 4
     ratios = [0.6, 0.2, 0.2]
@@ -89,22 +98,31 @@ if __name__ == "__main__":
         inter_header = next(reader)
         USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
         ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
+        RATING_IDX_INTER = inter_header.index(RATING_FIELD)
         for line in reader:
             if line[ITEM_ID_IDX_INTER] not in item_meta_info.keys():
                 continue
+            if rating_threshold is not None:
+                if INTERACTION_FILE.startswith("goodreads_crawled"):
+                    if goodreads_rating_mapping[line[RATING_IDX_INTER]] < rating_threshold:
+                        continue
+                else:
+                    if int(float(line[RATING_IDX_INTER])) < rating_threshold:
+                        continue
             per_user_interactions[line[USER_ID_IDX_INTER]].append(line)
 
     train, valid, test = create_splits(per_user_interactions, ratios,
                                        user_lt_threshold, keep_lt_users)
 
     out_path = join(DATASET_PATH,
-                    f"u-ltth{user_lt_threshold}-{'kept' if keep_lt_users else 'dropped'}"
+                    f"rating-th-{rating_threshold if rating_threshold is not None else 'None'}"
+                    f"_u-ltth{user_lt_threshold}-{'kept' if keep_lt_users else 'dropped'}"
                     f"_ratios{'-'.join([str(r) for r in ratios])}")
     os.makedirs(out_path, exist_ok=True)
 
     inter_header[USER_ID_IDX_INTER] = "user_id"
     inter_header[ITEM_ID_IDX_INTER] = "item_id"
-    inter_header[inter_header.index(RATING_FIELD)] = "rating"
+    inter_header[RATING_IDX_INTER] = "rating"
     with open(join(out_path, "train.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
