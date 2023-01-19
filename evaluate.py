@@ -204,7 +204,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
     # ALL:
     valid_results = get_metrics(ground_truth=valid_gt,
                                 prediction_scores=valid_pd,
-                                weighted_labels=True if "-" in valid_neg_st else False,
+                                weighted_labels=True if (valid_neg_st is not None and "-" in valid_neg_st) else False,
                                 ranking_metrics=ranking_metrics)
     metric_header = sorted(valid_results.keys())
     rows_valid.append(["group"] + metric_header)
@@ -213,7 +213,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     test_results = get_metrics(ground_truth=test_gt,
                                prediction_scores=test_pd,
-                               weighted_labels=True if "-" in test_neg_st else False,
+                               weighted_labels=True if (test_neg_st is not None and "-" in test_neg_st) else False,
                                ranking_metrics=ranking_metrics)
     rows_test.append(["group"] + metric_header)
     outf.write(f"Test results ALL: {test_results}\n\n")
@@ -223,14 +223,14 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
     for gr in user_groups:
         valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt.items() if k in user_groups[gr]},
                                     prediction_scores={k: v for k, v in valid_pd.items() if k in user_groups[gr]},
-                                    weighted_labels=True if "-" in valid_neg_st else False,
+                                    weighted_labels=True if (valid_neg_st is not None and "-" in valid_neg_st) else False,
                                     ranking_metrics=ranking_metrics)
         outf.write(f"Valid results group: {gr}: {valid_results}\n")
         rows_valid.append([f"Valid - group {gr}"] + [valid_results[h] if h in valid_results else "" for h in metric_header])
 
         test_results = get_metrics(ground_truth={k: v for k, v in test_gt.items() if k in user_groups[gr]},
                                    prediction_scores={k: v for k, v in test_pd.items() if k in user_groups[gr]},
-                                   weighted_labels=True if "-" in test_neg_st else False,
+                                   weighted_labels=True if (test_neg_st is not None and "-" in test_neg_st) else False,
                                    ranking_metrics=ranking_metrics)
         outf.write(f"Test results group: {gr}: {test_results}\n\n")
         rows_test.append([f"Test - group {gr}"] + [test_results[h] if h in test_results else "" for h in metric_header])
@@ -255,8 +255,8 @@ if __name__ == "__main__":
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result folder, to evaluate')
     parser.add_argument('--thresholds', type=int, nargs='+', default=None, help='user thresholds')
     # required which evaluation set we want to evaluate, random or genre ?
-    parser.add_argument('--test_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
-    parser.add_argument('--valid_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
+    parser.add_argument('--test_neg_strategy', type=str, default=None, help='negative sampling strategy')
+    parser.add_argument('--valid_neg_strategy', type=str, default=None, help='negative sampling strategy')
     parser.add_argument('--best_epoch', type=str, default=None)
 
     # optional if we want to only calculate the metrics for users with certain review length.
@@ -280,17 +280,24 @@ if __name__ == "__main__":
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
     config = json.load(open(os.path.join(result_folder, "config.json")))
 
-    test_prediction = json.load(open(os.path.join(result_folder,
-                                                  f"test_predicted_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
-    valid_prediction = json.load(open(os.path.join(result_folder,
-                                                   f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
-    test_ground_truth = json.load(open(os.path.join(result_folder,
-                                                    f"test_ground_truth_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
-    valid_ground_truth = json.load(open(os.path.join(result_folder,
-                                                     f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+    test_prediction = {'predicted': {}}
+    test_ground_truth = {'ground_truth': {}}
+    valid_prediction = {'predicted': {}}
+    valid_ground_truth = {'ground_truth': {}}
+    if test_neg_strategy is not None:
+        test_prediction = json.load(open(os.path.join(result_folder,
+                                                      f"test_predicted_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+        test_ground_truth = json.load(open(os.path.join(result_folder,
+                                                        f"test_ground_truth_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+    if valid_neg_strategy is not None:
+        valid_prediction = json.load(open(os.path.join(result_folder,
+                                                       f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+        valid_ground_truth = json.load(open(os.path.join(result_folder,
+                                                         f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
-    if "-" in valid_neg_strategy or "-" in test_neg_strategy:
+    if (valid_neg_strategy is not None and "-" in valid_neg_strategy) or \
+        (test_neg_strategy is not None and "-" in test_neg_strategy):
         ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
