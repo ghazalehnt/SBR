@@ -257,6 +257,7 @@ if __name__ == "__main__":
     # required which evaluation set we want to evaluate, random or genre ?
     parser.add_argument('--test_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
     parser.add_argument('--valid_neg_strategy', type=str, default="random_100", help='negative sampling strategy')
+    parser.add_argument('--best_epoch', type=str, default=None)
 
     # optional if we want to only calculate the metrics for users with certain review length.
     parser.add_argument('--user_review_len', type=int, default=None, help='min length of the user review')
@@ -273,19 +274,20 @@ if __name__ == "__main__":
 
     test_neg_strategy = args.test_neg_strategy
     valid_neg_strategy = args.valid_neg_strategy
+    best_epoch = args.best_epoch
 
     if not os.path.exists(os.path.join(result_folder, "config.json")):
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
     config = json.load(open(os.path.join(result_folder, "config.json")))
 
     test_prediction = json.load(open(os.path.join(result_folder,
-                                                  f"test_predicted_test_neg_{test_neg_strategy}.json")))
+                                                  f"test_predicted_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
     valid_prediction = json.load(open(os.path.join(result_folder,
-                                                   f"best_valid_predicted_validation_neg_{valid_neg_strategy}.json")))
+                                                   f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
     test_ground_truth = json.load(open(os.path.join(result_folder,
-                                                    f"test_ground_truth_test_neg_{test_neg_strategy}.json")))
+                                                    f"test_ground_truth_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
     valid_ground_truth = json.load(open(os.path.join(result_folder,
-                                                     f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}.json")))
+                                                     f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
     if "-" in valid_neg_strategy or "-" in test_neg_strategy:
