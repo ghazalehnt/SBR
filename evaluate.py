@@ -291,14 +291,14 @@ if __name__ == "__main__":
     valid_ground_truth = {'ground_truth': {}}
     if test_neg_strategy is not None:
         test_prediction = json.load(open(os.path.join(result_folder,
-                                                      f"test_predicted_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+                                                      f"test_predicted_test_neg_{test_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
         test_ground_truth = json.load(open(os.path.join(result_folder,
-                                                        f"test_ground_truth_test_neg_{test_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+                                                        f"test_ground_truth_test_neg_{test_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
     if valid_neg_strategy is not None:
         valid_prediction = json.load(open(os.path.join(result_folder,
-                                                       f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+                                                       f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
         valid_ground_truth = json.load(open(os.path.join(result_folder,
-                                                         f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}{f'e-{best_epoch}' if best_epoch is not None else ''}.json")))
+                                                         f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
     if (valid_neg_strategy is not None and "-" in valid_neg_strategy) or \
