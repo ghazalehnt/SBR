@@ -91,16 +91,17 @@ def group_users(config, thresholds, min_user_review_len=None, review_field=None)
     train_user_count_longtail = {str(k): v for k, v in train_user_count.items() if k not in eval_users}
 
     groups = {thr: set() for thr in sorted(thresholds)}
-    groups['rest'] = set()
-    for user in eval_users:
-        added = False
-        for thr in sorted(thresholds):
-            if train_user_count[user] <= thr:
-                groups[thr].add(str(user))
-                added = True
-                break
-        if not added:
-            groups['rest'].add(str(user))
+    if len(thresholds) > 0:
+        groups['rest'] = set()
+        for user in eval_users:
+            added = False
+            for thr in sorted(thresholds):
+                if train_user_count[user] <= thr:
+                    groups[thr].add(str(user))
+                    added = True
+                    break
+            if not added:
+                groups['rest'].add(str(user))
 
     ret_group = {}
     last = 1
@@ -151,7 +152,8 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
     valid_gt = {k: v for k, v in valid_gt.items() if k in train_user_count.keys()}
     valid_pd = {k: v for k, v in valid_pd.items() if k in train_user_count.keys()}
 
-    assert sum([len(ug) for ug in user_groups.values()]) == len(set(test_gt.keys()).union(valid_gt.keys()))
+    if len(thresholds) > 0:
+        assert sum([len(ug) for ug in user_groups.values()]) == len(set(test_gt.keys()).union(valid_gt.keys()))
 
     # let's count how many interactions are there
     valid_pos_inter_cnt = {group: 0 for group in user_groups}
@@ -263,6 +265,8 @@ if __name__ == "__main__":
 
     result_folder = args.result_folder
     thrs = args.thresholds
+    if thrs is None:
+        thrs = []
 
     r_len = args.user_review_len
     r_field = args.review_field
