@@ -25,10 +25,13 @@ def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
 
 
 def rank_items(item_id, query):
+    if os.path.exists(join(dataset_path, "BM25_item_ranking" ,f"{item_id}.pkl")):
+        return
+    f = open(join(dataset_path, "BM25_item_ranking" ,f"{item_id}.pkl"), 'wb')
     document_scores = index.get_scores(query)
     document_scores = np.argsort(document_scores)[::-1]
-    with open(join(dataset_path, f"{item_id}.pkl"), 'wb') as f:
-        pickle.dump([doc_ids[doc] for doc in document_scores], f)
+    pickle.dump([doc_ids[doc] for doc in document_scores], f)
+    f.close()
     return
 
 if __name__ == "__main__":
