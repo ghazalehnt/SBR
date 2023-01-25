@@ -44,10 +44,12 @@ def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
 
 def main(dataset_path, num_neg_samples):
     used_items, test_dataset = get_user_used_items_for_test(dataset_path)
+    print("load test dataset")
     use_col = [ITEM_ID_FIELD]
     use_col.extend(item_user_inter_text_fields)
     item_info = pd.read_csv(os.path.join(dataset_path, "items.csv"), dtype=str, usecols=use_col)
     item_info = item_info.fillna("")
+    print("load item meta data")
     for col in item_user_inter_text_fields:
         item_info[col] = item_info[col].apply(
             lambda x: ", ".join(
@@ -63,30 +65,31 @@ def main(dataset_path, num_neg_samples):
 
     item_info = item_info.to_pandas()
     item_info["item_id2"] = item_info[ITEM_ID_FIELD]
-    item_info.set_index("item_id2")
+    item_info = item_info.set_index("item_id2")
 
     index = BM25Okapi(item_info['tokenized_text'])
-    doc_ids = item_info[ITEM_ID_FIELD]
+    doc_ids = list(item_info[ITEM_ID_FIELD])
+    print("BM25 index created")
 
     test_samples = []
     for item_id, user_id in zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD]):
-        item = item_info[item_id]
-        document_socres = index.get_scores(item['tokenized_text'])
-        document_socres = np.argsort(document_socres)[::-1]
+        item = item_info.loc[item_id]
+        document_scores = index.get_scores(item['tokenized_text'])
+        document_scores = np.argsort(document_scores)[::-1]
         neg_samples = []
-        for doc_id in document_socres:
+        for doc_id in document_scores:
+            if len(neg_samples) == num_neg_samples:
+                break
             if doc_ids[doc_id] == item_id:
                 continue
             if doc_ids[doc_id] in used_items[user_id]:
                 continue
-            if len(neg_samples) == num_neg_samples:
-                break
             neg_samples.append(doc_ids[doc_id])
-        test_samples.extend([[user_id, sampled_item_id, 0] for sampled_item_id in neg_samples])
+        test_samples.extend([[user_id, sampled_item_id, 0, item_id] for sampled_item_id in neg_samples])
 
     with open(os.path.join(dataset_path, f'test_neg_SB_BM25_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
-        writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label'])
+        writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
         writer.writerows(test_samples)
     print("test done")
 
