@@ -75,6 +75,7 @@ def main(dataset_path, num_neg_samples):
     writer = csv.writer(f)
     writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
 
+    cnt = 0
     for item_id, user_id in zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD]):
         item = item_info.loc[item_id]
         document_scores = index.get_scores(item['tokenized_text'])
@@ -89,6 +90,10 @@ def main(dataset_path, num_neg_samples):
                 continue
             neg_samples.append(doc_ids[doc_id])
         writer.writerows([[user_id, sampled_item_id, 0, item_id] for sampled_item_id in neg_samples])
+        cnt += 1
+        if cnt % 1000 == 0:
+            print(f"{cnt} done!")
+            f.flush()
     f.close()
     print("test done")
 
