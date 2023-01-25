@@ -71,7 +71,10 @@ def main(dataset_path, num_neg_samples):
     doc_ids = list(item_info[ITEM_ID_FIELD])
     print("BM25 index created")
 
-    test_samples = []
+    f = open(os.path.join(dataset_path, f'test_neg_SB_BM25_{num_neg_samples}.csv'), 'w')
+    writer = csv.writer(f)
+    writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
+
     for item_id, user_id in zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD]):
         item = item_info.loc[item_id]
         document_scores = index.get_scores(item['tokenized_text'])
@@ -85,12 +88,8 @@ def main(dataset_path, num_neg_samples):
             if doc_ids[doc_id] in used_items[user_id]:
                 continue
             neg_samples.append(doc_ids[doc_id])
-        test_samples.extend([[user_id, sampled_item_id, 0, item_id] for sampled_item_id in neg_samples])
-
-    with open(os.path.join(dataset_path, f'test_neg_SB_BM25_{num_neg_samples}.csv'), 'w') as f:
-        writer = csv.writer(f)
-        writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
-        writer.writerows(test_samples)
+        writer.writerows([[user_id, sampled_item_id, 0, item_id] for sampled_item_id in neg_samples])
+    f.close()
     print("test done")
 
 
