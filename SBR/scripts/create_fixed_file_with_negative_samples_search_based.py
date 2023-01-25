@@ -1,9 +1,10 @@
 import argparse
 import csv
-import math
 import os
 import random
 from collections import Counter, defaultdict
+import time
+
 import pandas as pd
 import numpy as np
 from datasets import Dataset
@@ -76,6 +77,7 @@ def main(dataset_path, num_neg_samples):
     writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
 
     cnt = 0
+    start = time.time()
     for item_id, user_id in zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD]):
         item = item_info.loc[item_id]
         document_scores = index.get_scores(item['tokenized_text'])
@@ -93,6 +95,7 @@ def main(dataset_path, num_neg_samples):
         cnt += 1
         if cnt % 1000 == 0:
             print(f"{cnt} done!")
+            print(f"is {time.time() - start} seconds")
             f.flush()
     f.close()
     print("test done")
