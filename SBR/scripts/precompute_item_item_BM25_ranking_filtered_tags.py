@@ -27,7 +27,7 @@ def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
 
 
 def rank_items(item_id, query):
-    if os.path.exists(join(dataset_path, "BM25_item_ranking" ,f"{item_id}.pkl")):
+    if os.path.exists(join(dataset_path, "BM25_item_ranking_filtered_by_tags" ,f"{item_id}.pkl")):
         return
     f = open(join(dataset_path, "BM25_item_ranking_filtered_by_tags", f"{item_id}.pkl"), 'wb')
     candidate_doc_ids = []
