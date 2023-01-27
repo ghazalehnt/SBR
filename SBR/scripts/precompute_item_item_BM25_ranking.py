@@ -2,7 +2,6 @@ import argparse
 import os
 import pickle
 import random
-from collections import defaultdict
 from os.path import join
 
 import pandas as pd
@@ -18,6 +17,7 @@ ITEM_ID_FIELD = "item_id"
 USER_ID_FIELD = "user_id"
 item_user_inter_text_fields = ["title", "category", "description"]
 topn = 1000
+
 
 def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
     samples[f"tokenized_{doc_desc_field}"] = [tokenizer(text) for text in samples[doc_desc_field]]
@@ -75,7 +75,11 @@ if __name__ == "__main__":
     start = time.time()
     pool = mp.Pool(mp.cpu_count())
 
-    pool.starmap(rank_items, [(item_id, item_text) for item_id, item_text in \
-                              zip(item_info["item_id"], item_info["tokenized_text"]) if item_id in to_calc_items])
+    shuffled_list = [(item_id, item_text) for item_id, item_text in
+                     zip(item_info["item_id"], item_info["tokenized_text"]) if item_id in to_calc_items]
+    random.shuffle(shuffled_list)
+
+    pool.starmap(rank_items, [item for item in shuffled_list])
+    
     pool.close()
     print(f"finished {time.time() - start} seconds")
