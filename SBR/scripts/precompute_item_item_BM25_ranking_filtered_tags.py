@@ -102,7 +102,9 @@ if __name__ == "__main__":
     start = time.time()
     pool = mp.Pool(mp.cpu_count())
 
-    pool.starmap(rank_items, [(item_id, item_text) for item_id, item_text in \
-                              zip(item_info["item_id"], item_info["tokenized_text"]) if item_id in to_calc_items])
+    shuffled_list = [(item_id, item_text) for item_id, item_text in zip(item_info["item_id"], item_info["tokenized_text"]) if item_id in to_calc_items]
+    random.shuffle(shuffled_list)
+
+    pool.starmap(rank_items, [item for item in shuffled_list])
     pool.close()
     print(f"finished {time.time() - start} seconds")
