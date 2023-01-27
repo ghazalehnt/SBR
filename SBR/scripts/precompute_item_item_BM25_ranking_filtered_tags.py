@@ -17,7 +17,7 @@ import time
 ITEM_ID_FIELD = "item_id"
 USER_ID_FIELD = "user_id"
 tag_field = "category"
-item_user_inter_text_fields = ["title", "description"]
+item_user_inter_text_fields = ["title", "description", "category"]
 topn = 1000
 
 
