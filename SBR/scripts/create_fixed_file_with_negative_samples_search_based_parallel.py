@@ -55,15 +55,17 @@ if __name__ == "__main__":
     random.seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_folder', type=str, help='path to dataset')
+    parser.add_argument('--rf', type=str, help='ranking folder')
     parser.add_argument('--ns', type=int, help='number of negative samples')
     args, _ = parser.parse_known_args()
 
     num_neg_samples = args.ns
     dataset_path = args.dataset_folder
+    ranking_folder = args.rf
 
     used_items, test_dataset = get_user_used_items_for_test(dataset_path)
     print("load test dataset")
-    bm25_folder = os.path.join(dataset_path, "BM25_item_ranking")
+    bm25_folder = os.path.join(dataset_path, ranking_folder)
 
     item_bm25_ranking = {}
     for item_id in set(test_dataset["item_id"]):
