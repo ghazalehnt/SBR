@@ -132,7 +132,6 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
 
     print(f"grouped users in {time.time()-start}")
 
-
     outfname = f"results_th_{'_'.join([str(t) for t in thrs])}_v-{valid_neg_st}_t-{test_neg_st}"
     valid_fname = f"results_valid_th_{'_'.join([str(t) for t in thrs])}_{valid_neg_st}"
     test_fname = f"results_test_th_{'_'.join([str(t) for t in thrs])}_{test_neg_st}"
@@ -152,6 +151,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
     valid_csv_f = open(os.path.join(result_folder, valid_fname), "w")
     test_csv_f = open(os.path.join(result_folder, test_fname), "w")
 
+    # why?
     test_gt = {k: v for k, v in test_gt.items() if k in train_user_count.keys()}
     test_pd = {k: v for k, v in test_pd.items() if k in train_user_count.keys()}
     valid_gt = {k: v for k, v in valid_gt.items() if k in train_user_count.keys()}
@@ -220,6 +220,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
                                prediction_scores=test_pd,
                                weighted_labels=True if (test_neg_st is not None and "-" in test_neg_st) else False,
                                ranking_metrics=ranking_metrics)
+    metric_header = sorted(test_results.keys())
     rows_test.append(["group"] + metric_header)
     outf.write(f"Test results ALL: {test_results}\n\n")
     rows_test.append(["Test - ALL"] + [test_results[h] for h in metric_header])
@@ -230,6 +231,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
                                     prediction_scores={k: v for k, v in valid_pd.items() if k in user_groups[gr]},
                                     weighted_labels=True if (valid_neg_st is not None and "-" in valid_neg_st) else False,
                                     ranking_metrics=ranking_metrics)
+        metric_header = sorted(valid_results.keys())
         outf.write(f"Valid results group: {gr}: {valid_results}\n")
         rows_valid.append([f"Valid - group {gr}"] + [valid_results[h] if h in valid_results else "" for h in metric_header])
 
@@ -237,6 +239,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
                                    prediction_scores={k: v for k, v in test_pd.items() if k in user_groups[gr]},
                                    weighted_labels=True if (test_neg_st is not None and "-" in test_neg_st) else False,
                                    ranking_metrics=ranking_metrics)
+        metric_header = sorted(test_results.keys())
         outf.write(f"Test results group: {gr}: {test_results}\n\n")
         rows_test.append([f"Test - group {gr}"] + [test_results[h] if h in test_results else "" for h in metric_header])
 
