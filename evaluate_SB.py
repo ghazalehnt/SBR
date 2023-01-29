@@ -6,14 +6,14 @@ import argparse
 import csv
 import json
 import os
-import pickle
 import time
 from collections import Counter, defaultdict
 
 import transformers
 import pandas as pd
+import numpy as np
 
-from SBR.utils.metrics import calculate_ranking_metrics_macro_avg_over_qid
+from SBR.utils.metrics import calculate_ranking_metrics_detailed
 
 relevance_level = 1
 prediction_threshold = 0.5
@@ -26,18 +26,6 @@ goodreads_rating_mapping = {
     'really liked it': 4,
     'it was amazing': 5
 }
-
-
-def get_metrics(ground_truth, prediction_scores, weighted_labels, ranking_metrics=None):
-    if len(ground_truth) == 0:
-        return {}
-    start = time.time()
-    results = calculate_ranking_metrics_macro_avg_over_qid(gt=ground_truth, pd=prediction_scores,
-                                                             relevance_level=relevance_level,
-                                                             given_ranking_metrics=ranking_metrics,
-                                                             calc_pytrec=not weighted_labels)
-    print(f"ranking metrics in {time.time() - start}")
-    return results
 
 
 def group_users(config, thresholds, min_user_review_len=None, review_field=None):
@@ -117,12 +105,35 @@ def group_users(config, thresholds, min_user_review_len=None, review_field=None)
     return ret_group, train_user_count, train_user_count_longtail
 
 
-def jaccard_index(X, Y):
-    X = set(X)
-    return len(X.intersection(Y))/len(X.union(Y))
+def get_metrics(ground_truth, prediction_scores, weighted_labels, ranking_metrics=None):
+    if len(ground_truth) == 0:
+        return {}, {}
+    start = time.time()
+    results = calculate_ranking_metrics_detailed(gt=ground_truth, pd=prediction_scores,
+                                                             relevance_level=relevance_level,
+                                                             given_ranking_metrics=ranking_metrics,
+                                                             calc_pytrec=not weighted_labels)
+    # micro avg:
+    micro_res = defaultdict()
+    for m in results:
+        assert len(results[m]) == len(ground_truth)
+        micro_res[m] = np.array(results[m]).mean().tolist()
+    # macro avg per user:
+    macro_res = defaultdict()
+    for m in results:
+        user_qids_res = defaultdict(list)
+        for qid, r in zip(ground_truth.keys(), results[m]):
+            user_id = qid[:qid.index("_")]
+            user_qids_res[user_id].append(r)
+        user_res = []
+        for user_id in user_qids_res:
+            user_res.append(np.array(user_qids_res[user_id]).mean().tolist())
+        macro_res[m] = np.array(user_res).mean().tolist()
+    print(f"ranking metrics in {time.time() - start}")
+    return micro_res, macro_res
 
 
-def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
+def main(config, valid_gt, valid_pd, test_gt, test_pd, test_qid_items, valid_qid_items, thresholds,
          min_user_review_len=None, review_field=None, test_neg_st=None, valid_neg_st=None, ranking_metrics=None):
     start = time.time()
     user_groups, train_user_count, train_user_count_longtail = group_users(config, thresholds,
@@ -212,44 +223,77 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
         outf.write(f"negative_inters_test_user_group_{gr} = {test_neg_inter_cnt[gr]}\n")
     outf.write("\n\n")
 
+    test_gt_per_qid = defaultdict(lambda: defaultdict())
+    test_pd_per_qid = defaultdict(lambda: defaultdict())
+    for user_id in test_qid_items:
+        for ref_item in test_qid_items[user_id]:
+            for item_id in test_qid_items[user_id][ref_item]:
+                test_gt_per_qid[f"{user_id}_{ref_item}"][item_id] = test_gt[user_id][item_id]
+                test_pd_per_qid[f"{user_id}_{ref_item}"][item_id] = test_pd[user_id][item_id]
+
+    valid_gt_per_qid = defaultdict(lambda: defaultdict())
+    valid_pd_per_qid = defaultdict(lambda: defaultdict())
+    for user_id in valid_qid_items:
+        for ref_item in valid_qid_items[user_id]:
+            for item_id in valid_qid_items[user_id][ref_item]:
+                valid_gt_per_qid[f"{user_id}_{ref_item}"][item_id] = valid_gt[user_id][item_id]
+                valid_pd_per_qid[f"{user_id}_{ref_item}"][item_id] = valid_pd[user_id][item_id]
+
     rows_valid = []
     rows_test = []
-    # ALL:
-    valid_results = get_metrics(ground_truth=valid_gt,
-                                prediction_scores=valid_pd,
-                                weighted_labels=True if (valid_neg_st is not None and "-" in valid_neg_st) else False,
-                                ranking_metrics=ranking_metrics)
-    metric_header = sorted(valid_results.keys())
+    valid_results_micro, valid_results_macro = get_metrics(ground_truth=valid_gt_per_qid,
+                                                           prediction_scores=valid_pd_per_qid,
+                                                           weighted_labels=True if (valid_neg_st is not None and "-" in valid_neg_st) else False,
+                                                           ranking_metrics=ranking_metrics)
+    metric_header = sorted(valid_results_micro.keys())
     rows_valid.append(["group"] + metric_header)
-    outf.write(f"Valid results ALL: {valid_results}\n")
-    rows_valid.append(["Valid - ALL"] + [valid_results[h] for h in metric_header])
+    outf.write(f"MICRO Valid results ALL: {valid_results_micro}\n")
+    rows_valid.append(["MICRO Valid - ALL"] + [valid_results_micro[h] for h in metric_header])
+    metric_header = sorted(valid_results_macro.keys())
+    rows_valid.append(["group"] + metric_header)
+    outf.write(f"MACRO Valid results ALL: {valid_results_macro}\n")
+    rows_valid.append(["MACRO Valid - ALL"] + [valid_results_macro[h] for h in metric_header])
 
-    test_results = get_metrics(ground_truth=test_gt,
-                               prediction_scores=test_pd,
+    test_results_micro, test_results_macro = get_metrics(ground_truth=test_gt_per_qid,
+                               prediction_scores=test_pd_per_qid,
                                weighted_labels=True if (test_neg_st is not None and "-" in test_neg_st) else False,
                                ranking_metrics=ranking_metrics)
-    metric_header = sorted(test_results.keys())
+    metric_header = sorted(test_results_micro.keys())
     rows_test.append(["group"] + metric_header)
-    outf.write(f"Test results ALL: {test_results}\n\n")
-    rows_test.append(["Test - ALL"] + [test_results[h] for h in metric_header])
+    outf.write(f"MICRO Test results ALL: {test_results_micro}\n\n")
+    rows_test.append(["MICRO Test - ALL"] + [test_results_micro[h] for h in metric_header])
+    metric_header = sorted(test_results_macro.keys())
+    rows_test.append(["group"] + metric_header)
+    outf.write(f"MACRO Test results ALL: {test_results_macro}\n\n")
+    rows_test.append(["MACRO Test - ALL"] + [test_results_macro[h] for h in metric_header])
 
     # GROUPS
     for gr in user_groups:
-        valid_results = get_metrics(ground_truth={k: v for k, v in valid_gt.items() if k in user_groups[gr]},
-                                    prediction_scores={k: v for k, v in valid_pd.items() if k in user_groups[gr]},
+        valid_results_micro, valid_results_macro = get_metrics(ground_truth={k: v for k, v in valid_gt_per_qid.items() if k[:k.index("_")] in user_groups[gr]},
+                                    prediction_scores={k: v for k, v in valid_pd_per_qid.items() if k[:k.index("_")] in user_groups[gr]},
                                     weighted_labels=True if (valid_neg_st is not None and "-" in valid_neg_st) else False,
                                     ranking_metrics=ranking_metrics)
-        metric_header = sorted(valid_results.keys())
-        outf.write(f"Valid results group: {gr}: {valid_results}\n")
-        rows_valid.append([f"Valid - group {gr}"] + [valid_results[h] if h in valid_results else "" for h in metric_header])
+        metric_header = sorted(valid_results_micro.keys())
+        outf.write(f"MICRO Valid results group: {gr}: {valid_results_micro}\n")
+        rows_valid.append([f"MICRO Valid - group {gr}"] + [valid_results_micro[h] if h in valid_results_micro else "" for h in metric_header])
+        metric_header = sorted(valid_results_macro.keys())
+        outf.write(f"MACRO Valid results group: {gr}: {valid_results_macro}\n")
+        rows_valid.append(
+            [f"MACRO Valid - group {gr}"] + [valid_results_macro[h] if h in valid_results_macro else "" for h in
+                                             metric_header])
 
-        test_results = get_metrics(ground_truth={k: v for k, v in test_gt.items() if k in user_groups[gr]},
-                                   prediction_scores={k: v for k, v in test_pd.items() if k in user_groups[gr]},
+        test_results_micro, test_results_macro = get_metrics(ground_truth={k: v for k, v in test_gt_per_qid.items() if k[:k.index("_")] in user_groups[gr]},
+                                   prediction_scores={k: v for k, v in test_pd_per_qid.items() if k[:k.index("_")] in user_groups[gr]},
                                    weighted_labels=True if (test_neg_st is not None and "-" in test_neg_st) else False,
                                    ranking_metrics=ranking_metrics)
-        metric_header = sorted(test_results.keys())
-        outf.write(f"Test results group: {gr}: {test_results}\n\n")
-        rows_test.append([f"Test - group {gr}"] + [test_results[h] if h in test_results else "" for h in metric_header])
+        metric_header = sorted(test_results_micro.keys())
+        outf.write(f"MICRO Test results group: {gr}: {test_results_micro}\n\n")
+        rows_test.append([f"MICRO Test - group {gr}"] + [test_results_micro[h] if h in test_results_micro else "" for h in metric_header])
+        metric_header = sorted(test_results_macro.keys())
+        outf.write(f"MACRO Test results group: {gr}: {test_results_macro}\n\n")
+        rows_test.append(
+            [f"MACRO Test - group {gr}"] + [test_results_macro[h] if h in test_results_macro else "" for h in
+                                            metric_header])
 
     vwriter = csv.writer(valid_csv_f)
     vwriter.writerows(rows_valid)
@@ -298,18 +342,35 @@ if __name__ == "__main__":
 
     test_prediction = {'predicted': {}}
     test_ground_truth = {'ground_truth': {}}
+    test_user_refitem_items = defaultdict(lambda: defaultdict(set))
     valid_prediction = {'predicted': {}}
     valid_ground_truth = {'ground_truth': {}}
+    valid_user_refitem_items = defaultdict(lambda: defaultdict(set))
     if test_neg_strategy is not None:
         test_prediction = json.load(open(os.path.join(result_folder,
                                                       f"test_predicted_test_neg_{test_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
         test_ground_truth = json.load(open(os.path.join(result_folder,
                                                         f"test_ground_truth_test_neg_{test_neg_strategy}.json")))
+        test_negs_with_refs = pd.read_csv(os.path.join(config['dataset']['dataset_path'], f"test_neg_{test_neg_strategy}.csv"), dtype=str)
+        for user_id, item_id, ref_item_id in zip(test_negs_with_refs["user_id"], test_negs_with_refs["item_id"],
+                                                 test_negs_with_refs["ref_item"]):
+            test_user_refitem_items[user_id][ref_item_id].add(item_id)
+        for user_id in test_user_refitem_items:
+            for ref_item in test_user_refitem_items[user_id]:
+                test_user_refitem_items[user_id][ref_item].add(ref_item)
+
     if valid_neg_strategy is not None:
         valid_prediction = json.load(open(os.path.join(result_folder,
                                                        f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
         valid_ground_truth = json.load(open(os.path.join(result_folder,
                                                          f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}.json")))
+        valid_negs_with_refs = pd.read_csv(os.path.join(config['dataset']['dataset_path'], f"validation_neg_{test_neg_strategy}.csv"), dtype=str)
+        for user_id, item_id, ref_item_id in zip(valid_negs_with_refs["user_id"], valid_negs_with_refs["item_id"],
+                                                 valid_negs_with_refs["ref_item"]):
+            valid_user_refitem_items[user_id][ref_item_id].add(item_id)
+        for user_id in valid_user_refitem_items:
+            for ref_item in valid_user_refitem_items[user_id]:
+                valid_user_refitem_items[user_id][ref_item].add(ref_item)
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
     if (valid_neg_strategy is not None and "-" in valid_neg_strategy) or \
@@ -318,6 +379,7 @@ if __name__ == "__main__":
 
     main(config, valid_ground_truth['ground_truth'], valid_prediction['predicted'],
          test_ground_truth['ground_truth'], test_prediction['predicted'],
+         test_user_refitem_items, valid_user_refitem_items,
          thrs, r_len, r_field, test_neg_strategy, valid_neg_strategy, ranking_metrics)
 
 
