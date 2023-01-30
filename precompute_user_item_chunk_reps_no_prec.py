@@ -62,11 +62,12 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         raise ValueError("You cannot precompute if you want to tune BERT!")
     bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
     bert_embeddings = bert.get_input_embeddings()
+    CF_model_weights = None
     if config['model']['use_CF']:
         CF_model_weights = torch.load(config['model']['CF_model_path'], map_location=device)['model_state_dict']
 
     if calc_which is None or calc_which == "user":
-        user_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
+        user_prec_path = os.path.join(config['dataset']['dataset_path'], f'precomputed_reps{f"_MF-{CF_model_weights.embedding_dim}" if CF_model_weights is not None else ""}',
                                       f"size{config['dataset']['user_chunk_size']}_"
                                       f"cs-{config['dataset']['case_sensitive']}_"
                                       f"nn-{config['dataset']['normalize_negation']}_"
@@ -110,7 +111,7 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         print(f"user rep created  {time.time() - start}")
 
     if calc_which is None or calc_which == "item":
-        item_prec_path = os.path.join(config['dataset']['dataset_path'], 'precomputed_reps',
+        item_prec_path = os.path.join(config['dataset']['dataset_path'], f'precomputed_reps{f"_MF-{CF_model_weights.embedding_dim}" if CF_model_weights is not None else ""}',
                                       f"size{config['dataset']['item_chunk_size']}_"
                                       f"cs-{config['dataset']['case_sensitive']}_"
                                       f"nn-{config['dataset']['normalize_negation']}_"
