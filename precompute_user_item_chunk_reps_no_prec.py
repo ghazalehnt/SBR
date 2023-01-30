@@ -13,6 +13,8 @@ from tqdm import tqdm
 from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, get_profile
 
+BERT_DIM = 768
+
 
 def main(config_file, given_user_text_filter=None, given_limit_training_data=None,
          given_user_text=None, given_item_text=None, calc_which=None):
@@ -77,6 +79,10 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         user_embedding_CF = None
         if config['model']['use_CF']:
             user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
+            if user_embedding_CF.embedding_dim > BERT_DIM:
+                raise ValueError("The CF embedding cannot be bigger than BERT dim")
+            elif user_embedding_CF.embedding_dim < BERT_DIM:
+                print("CF embedding dim was smaller than BERT dim, therefore will be filled with  0's.")
 
         start = time.time()
         user_rep_file = f"user_representation_" \
@@ -180,13 +186,15 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                                       attention_mask=att_mask)
             elif embedding_CF is not None:
                 cf_embeds = embedding_CF(ids)
+                if embedding_CF.embedding_dim < BERT_DIM:
+                    cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], cf_embeds.shape[1], BERT_DIM-cf_embeds.shape[2]))], dim=2)
                 token_embeddings = bert_embeddings.forward(input_ids)
                 cls_tokens = token_embeddings[:, 0].unsqueeze(1)
                 other_tokens = token_embeddings[:, 1:]
+
                 # insert user_id embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
-                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask],
-                                            dim=1)
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
                 output = bert.forward(inputs_embeds=concat_ids,
                                       attention_mask=att_mask)
             else:
