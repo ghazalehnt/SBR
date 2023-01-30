@@ -18,6 +18,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         self.use_user_bias = use_user_bias
         self.append_cf_ffn = model_config["append_CF_ffn"] if "append_CF_ffn" in model_config else False
 
+        self.device = device
+
         # append_CF_ffn is for when we have the ffn layer, appending the cf to the BERT output and feeding it to ffn layer
         # so when it is True, the use_ffn layer must be True as well.
         if self.use_ffn is False and self.append_cf_ffn is True:
@@ -128,7 +130,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                     else:
                         raise NotImplementedError()
             self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'])
-            self.chunk_user_reps[c].to(device)
+#            self.chunk_user_reps[c].to(device)
 
         self.chunk_item_reps = {}
         for c in range(max_num_chunks_item):
@@ -142,7 +144,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                     else:
                         raise NotImplementedError()
             self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'])
-            self.chunk_item_reps[c].to(device)
+#            self.chunk_item_reps[c].to(device)
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
@@ -150,9 +152,17 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
 
         # todo for users/items who had fewer than max-chunks, I put their chunk[0] for the missing chunks, so the output would be same az 0, max pooling gets chunk0
+        chunk_device = self.chunk_user_reps[0].weight.device
+        if chunk_device.__str__() == 'cpu':
+            id_temp = user_ids.cpu()
         user_reps = []
         for c in range(len(self.chunk_user_reps.keys())):
-            user_ch_rep = self.chunk_user_reps[c](user_ids)
+            if chunk_device.__str__() == 'cpu':
+                user_ch_rep = self.chunk_user_reps[c](id_temp)
+                user_ch_rep = user_ch_rep.to(self.device)
+            else:
+                user_ch_rep = self.chunk_user_reps[c](user_ids)
+#            user_ch_rep = self.chunk_user_reps[c](user_ids)
             if self.use_ffn:
                 if self.append_cf_ffn:
                     user_ch_rep = torch.cat([user_ch_rep, self.user_embedding_CF(user_ids)], dim=1)
@@ -160,10 +170,17 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 user_ch_rep = self.transform_u_2(user_ch_rep)
             user_reps.append(user_ch_rep)
         user_reps = torch.stack(user_reps).max(dim=0).values
-
+        
+        if chunk_device.__str__() == 'cpu':
+            id_temp = item_ids.cpu()
         item_reps = []
         for c in range(len(self.chunk_item_reps.keys())):
-            item_ch_rep = self.chunk_item_reps[c](item_ids)
+            if chunk_device.__str__() == 'cpu':
+                item_ch_rep = self.chunk_item_reps[c](id_temp)
+                item_ch_rep = item_ch_rep.to(self.device)
+            else:
+                item_ch_rep = self.chunk_item_reps[c](item_ids)          
+#            item_ch_rep = self.chunk_item_reps[c](item_ids)
             if self.use_ffn:
                 if self.append_cf_ffn:
                     item_ch_rep = torch.cat([item_ch_rep, self.item_embedding_CF(item_ids)], dim=1)
