@@ -70,16 +70,18 @@ if __name__ == "__main__":
     item_bm25_ranking = {}
     for item_id in set(test_dataset["item_id"]):
         item_bm25_ranking[item_id] = pickle.load(open(os.path.join(bm25_folder, f"{item_id}.pkl"), 'rb'))
+    print("item rankings loaded")
 
     start = time.time()
     pool = mp.Pool(mp.cpu_count())
     results = pool.starmap(sample_negs, [(item_id, user_id) for item_id, user_id in
-                                         zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD])])
+        zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD])])
     print(time.time() - start)
 
     with open(os.path.join(dataset_path, f'test_neg_SB_BM25_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
-        writer.writerows(results)
+        for r in results:
+            writer.writerows(r)
 
     print("test done")
