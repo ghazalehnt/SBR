@@ -65,9 +65,14 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
     CF_model_weights = None
     if config['model']['use_CF']:
         CF_model_weights = torch.load(config['model']['CF_model_path'], map_location=device)['model_state_dict']
+        embedding_dim = CF_model_weights['user_embedding.weight'].shape[-1]
+        if embedding_dim > BERT_DIM:
+            raise ValueError("The CF embedding cannot be bigger than BERT dim")
+        elif embedding_dim < BERT_DIM:
+            print("CF embedding dim was smaller than BERT dim, therefore will be filled with  0's.")
 
     if calc_which is None or calc_which == "user":
-        user_prec_path = os.path.join(config['dataset']['dataset_path'], f'precomputed_reps{f"_MF-{CF_model_weights.embedding_dim}" if CF_model_weights is not None else ""}',
+        user_prec_path = os.path.join(config['dataset']['dataset_path'], f'precomputed_reps{f"_MF-{embedding_dim}" if CF_model_weights is not None else ""}',
                                       f"size{config['dataset']['user_chunk_size']}_"
                                       f"cs-{config['dataset']['case_sensitive']}_"
                                       f"nn-{config['dataset']['normalize_negation']}_"
@@ -80,10 +85,6 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         user_embedding_CF = None
         if config['model']['use_CF']:
             user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
-            if user_embedding_CF.embedding_dim > BERT_DIM:
-                raise ValueError("The CF embedding cannot be bigger than BERT dim")
-            elif user_embedding_CF.embedding_dim < BERT_DIM:
-                print("CF embedding dim was smaller than BERT dim, therefore will be filled with  0's.")
 
         start = time.time()
         user_rep_file = f"user_representation_" \
@@ -111,7 +112,7 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         print(f"user rep created  {time.time() - start}")
 
     if calc_which is None or calc_which == "item":
-        item_prec_path = os.path.join(config['dataset']['dataset_path'], f'precomputed_reps{f"_MF-{CF_model_weights.embedding_dim}" if CF_model_weights is not None else ""}',
+        item_prec_path = os.path.join(config['dataset']['dataset_path'], f'precomputed_reps{f"_MF-{embedding_dim}" if CF_model_weights is not None else ""}',
                                       f"size{config['dataset']['item_chunk_size']}_"
                                       f"cs-{config['dataset']['case_sensitive']}_"
                                       f"nn-{config['dataset']['normalize_negation']}_"
