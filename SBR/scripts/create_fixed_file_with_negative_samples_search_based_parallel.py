@@ -51,6 +51,10 @@ def sample_negs(item_id, user_id):
     return [[user_id, sampled_item_id, 0, item_id] for sampled_item_id in neg_samples]
 
 
+def load_ranking_files(item_id):
+    item_bm25_ranking[item_id] = pickle.load(open(os.path.join(bm25_folder, f"{item_id}.pkl"), 'rb'))
+
+
 if __name__ == "__main__":
     random.seed(42)
     parser = argparse.ArgumentParser()
@@ -67,13 +71,17 @@ if __name__ == "__main__":
     print("load test dataset")
     bm25_folder = os.path.join(dataset_path, ranking_folder)
 
+    pool = mp.Pool(mp.cpu_count())
+
     item_bm25_ranking = {}
-    for item_id in set(test_dataset["item_id"]):
-        item_bm25_ranking[item_id] = pickle.load(open(os.path.join(bm25_folder, f"{item_id}.pkl"), 'rb'))
+    pool.map(load_ranking_files, [item_id for item_id in set(test_dataset["item_id"])])
+    
+    # for item_id in set(test_dataset["item_id"]):
+        # item_bm25_ranking[item_id] = pickle.load(open(os.path.join(bm25_folder, f"{item_id}.pkl"), 'rb'))
     print("item rankings loaded")
 
     start = time.time()
-    pool = mp.Pool(mp.cpu_count())
+
     results = pool.starmap(sample_negs, [(item_id, user_id) for item_id, user_id in
         zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD])])
     print(time.time() - start)
