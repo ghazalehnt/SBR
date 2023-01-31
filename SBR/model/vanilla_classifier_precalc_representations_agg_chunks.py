@@ -63,7 +63,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         #         self.chunk_item_reps[c] = torch.nn.Embedding(n_items, 768, device=device)
         #         self.chunk_item_reps[c].requires_grad_(False)
         # else:
-        prec_path = os.path.join(dataset_config['dataset_path'], 'precomputed_reps',
+        cf_emb_dim = ""
+        if model_config["use_CF"]:
+            cf_emb_dim = f"_MF-{model_config['CF_embedding_dim']}"
+
+        prec_path = os.path.join(dataset_config['dataset_path'], f'precomputed_reps{cf_emb_dim}',
                                  f"size{dataset_config['user_chunk_size']}_"
                                  f"cs-{dataset_config['case_sensitive']}_"
                                  f"nn-{dataset_config['normalize_negation']}_"
@@ -92,7 +96,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         else:
             raise ValueError(
                 f"Precalculated user embedding does not exist! {os.path.join(prec_path, user_rep_file)}")
-        prec_path = os.path.join(dataset_config['dataset_path'], 'precomputed_reps',
+        prec_path = os.path.join(dataset_config['dataset_path'], f'precomputed_reps{cf_emb_dim}',
                                  f"size{dataset_config['item_chunk_size']}_"
                                  f"cs-{dataset_config['case_sensitive']}_"
                                  f"nn-{dataset_config['normalize_negation']}_"
