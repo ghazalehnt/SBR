@@ -152,15 +152,18 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
     test_csv_f = open(os.path.join(result_folder, test_fname), "w")
 
     # why?
+    start = time.time()
     test_gt = {k: v for k, v in test_gt.items() if k in train_user_count.keys()}
     test_pd = {k: v for k, v in test_pd.items() if k in train_user_count.keys()}
     valid_gt = {k: v for k, v in valid_gt.items() if k in train_user_count.keys()}
     valid_pd = {k: v for k, v in valid_pd.items() if k in train_user_count.keys()}
+    print(f"? {time.time() - start}")
 
     if len(thresholds) > 0:
         assert sum([len(ug) for ug in user_groups.values()]) == len(set(test_gt.keys()).union(valid_gt.keys()))
 
     # let's count how many interactions are there
+    start = time.time()
     valid_pos_inter_cnt = {group: 0 for group in user_groups}
     valid_neg_inter_cnt = {group: 0 for group in user_groups}
     valid_pos_total_cnt = 0
@@ -188,7 +191,9 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
         group = group[0]
         test_pos_inter_cnt[group] += len([k for k, v in test_gt[u].items() if v == 1])
         test_neg_inter_cnt[group] += len([k for k, v in test_gt[u].items() if v == 0])
+    print(f"count inters {time.time() - start}")
 
+    start = time.time()
     outf.write(f"#total_evaluation_users = {len(set(test_gt.keys()).union(valid_gt.keys()))} \n"
                f"#total_training_users = {len(set(test_gt.keys()).union(valid_gt.keys())) + len(train_user_count_longtail)} \n"
                f"#total_longtail_trainonly_users = {len(train_user_count_longtail)} \n")
@@ -211,6 +216,7 @@ def main(config, valid_gt, valid_pd, test_gt, test_pd, thresholds,
     for gr in user_groups:
         outf.write(f"negative_inters_test_user_group_{gr} = {test_neg_inter_cnt[gr]}\n")
     outf.write("\n\n")
+    print(f"write stats {time.time() - start}")
 
     rows_valid = []
     rows_test = []
@@ -296,6 +302,7 @@ if __name__ == "__main__":
         raise ValueError(f"Result file config.json does not exist: {result_folder}")
     config = json.load(open(os.path.join(result_folder, "config.json")))
 
+    start = time.time()
     test_prediction = {'predicted': {}}
     test_ground_truth = {'ground_truth': {}}
     valid_prediction = {'predicted': {}}
@@ -310,6 +317,7 @@ if __name__ == "__main__":
                                                        f"best_valid_predicted_validation_neg_{valid_neg_strategy}{f'_e-{best_epoch}' if best_epoch is not None else ''}.json")))
         valid_ground_truth = json.load(open(os.path.join(result_folder,
                                                          f"best_valid_ground_truth_validation_neg_{valid_neg_strategy}.json")))
+    print(f"read data {time.time() - start}")
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
     if (valid_neg_strategy is not None and "-" in valid_neg_strategy) or \
