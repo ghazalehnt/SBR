@@ -379,7 +379,8 @@ if __name__ == "__main__":
                 valid_user_refitem_items[user_id][ref_item].add(ref_item)
     print(f"read data {time.time() - start}")
 
-    ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
+    # ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
+    ranking_metrics = ["ndcg_cut_5", "P_1", "recip_rank"]
     if (valid_neg_strategy is not None and "-" in valid_neg_strategy) or \
         (test_neg_strategy is not None and "-" in test_neg_strategy):
         ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20"]
