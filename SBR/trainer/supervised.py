@@ -31,14 +31,14 @@ class SupervisedTrainer:
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
-                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}.json'),}
+                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}'),}
 #                                       "log": join(exp_dir, f'best_valid_{neg_name}_log.txt')}
         neg_name = dataset_eval_neg_sampling['test']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
-                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}.json'),
-                                 "log": join(exp_dir, f'test_{neg_name}_log_100users.txt')}
+                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}'),}
+#                                 "log": join(exp_dir, f'test_{neg_name}_log_100users')}
 
 #        self.train_output_log = join(exp_dir, "outputs")
 #        os.makedirs(self.train_output_log, exist_ok=True)
@@ -72,15 +72,16 @@ class SupervisedTrainer:
             self.best_saved_valid_metric = checkpoint['best_valid_metric']
             print("last checkpoint restored")
         self.model.to(device)
-
-        if config['optimizer'] == "Adam":
-            self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
-        elif config['optimizer'] == "SGD":
-            self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
-        else:
-            raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
-        if exists(self.best_model_path):
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        
+        if not test_only:
+            if config['optimizer'] == "Adam":
+                self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
+            elif config['optimizer'] == "SGD":
+                self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'], momentum=config['momentum'], nesterov=config['nesterov'])
+            else:
+                raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
+            if exists(self.best_model_path):
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     def fit(self, train_dataloader, valid_dataloader):
         early_stopping_cnt = 0
@@ -183,7 +184,8 @@ class SupervisedTrainer:
                         'model_state_dict': self.model.state_dict(),
                         'optimizer_state_dict': self.optimizer.state_dict(),
                         }
-                    torch.save(checkpoint, self.best_model_path)
+                    torch.save(checkpoint, f"{self.best_model_path}_tmp")
+                    os.rename(f"{self.best_model_path}_tmp", self.best_model_path)
                 early_stopping_cnt = 0
             else:
                 early_stopping_cnt += 1
@@ -207,24 +209,30 @@ class SupervisedTrainer:
         print("best model loaded!")
 
         outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
-        log_results(self.test_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
-                    self.users, self.items)
-        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
-        results["loss"] = test_loss
-        results = {f"test_{k}": v for k, v in results.items()}
-        for k, v in results.items():
-            self.logger.add_scalar(f'final_results/{k}', v)
-        print(f"\nTest results - best epoch {self.best_epoch}: {results}")
+        log_results(ground_truth, outputs, internal_user_ids, internal_item_ids,
+                    self.users, self.items,
+                    self.test_output_path['ground_truth'],
+                    f"{self.test_output_path['predicted']}_e-{self.best_epoch}.json",
+                    f"{self.test_output_path['log']}_e-{self.best_epoch}.txt" if "log" in self.test_output_path else None)
+#        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
+#        results["loss"] = test_loss
+#        results = {f"test_{k}": v for k, v in results.items()}
+#        for k, v in results.items():
+#            self.logger.add_scalar(f'final_results/{k}', v)
+#        print(f"\nTest results - best epoch {self.best_epoch}: {results}")
 
-        outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
-        log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
-                    self.users, self.items)
-        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
-        results["loss"] = valid_loss
-        results = {f"validation_{k}": v for k, v in results.items()}
-        for k, v in results.items():
-            self.logger.add_scalar(f'final_results/{k}', v)
-        print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
+        #outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
+        #log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
+        #            self.users, self.items,
+        #            self.best_valid_output_path['ground_truth'],
+        #            f"{self.best_valid_output_path['predicted']}_e-{self.best_epoch}.json",
+        #            f"{self.best_valid_output_path['log']}_e-{self.best_epoch}.txt" if "log" in self.best_valid_output_path else None)
+#        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
+#        results["loss"] = valid_loss
+#        results = {f"validation_{k}": v for k, v in results.items()}
+#        for k, v in results.items():
+#            self.logger.add_scalar(f'final_results/{k}', v)
+#        print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
 
     def predict(self, eval_dataloader, low_mem=False):
         # bring models to evaluation mode

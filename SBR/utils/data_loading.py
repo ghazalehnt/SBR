@@ -464,17 +464,17 @@ class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
         for items in self.used_items.values():
             all_items.extend(items)
         self.all_items = list(set(all_items))
-        self.user_info = user_info.to_pandas()
-        self.item_info = item_info.to_pandas()
-        self.item_info = self.item_info.set_index("item_id")
         self.padding_token = padding_token
         self.user_training_items = user_training_items
         temp = torch.load(cf_checkpoint_file, map_location=torch.device('cpu'))['model_state_dict']['item_embedding.weight']
         cf_item_internal_ids = json.load(open(cf_item_id_file, 'r'))
-        self.item_info = self.item_info.reset_index()
-        self.cf_item_reps = {item_in: temp[cf_item_internal_ids[item_ex]] for item_ex, item_in in zip(self.item_info["item_id"], self.item_info[INTERNAL_ITEM_ID_FIELD])}
+        item_info = item_info.to_pandas()
+        self.cf_item_reps = {item_in: temp[cf_item_internal_ids[item_ex]] for item_ex, item_in in zip(item_info["item_id"], item_info[INTERNAL_ITEM_ID_FIELD])}
         self.oldmax = oldmax
         self.oldmin = oldmin
+        if self.padding_token is not None:
+            self.user_info = user_info.to_pandas()
+            self.item_info = item_info
 
     def sample(self, batch_df):
         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
@@ -1198,6 +1198,8 @@ def load_split_dataset(config, for_precalc=False):
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
+        if "ref_item" in negs.columns:
+            negs = negs.drop(columns=["ref_item"])
         split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
@@ -1246,6 +1248,8 @@ def load_split_dataset(config, for_precalc=False):
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
+        if "ref_item" in negs.columns:
+            negs = negs.drop(columns=["ref_item"])        
         split_datasets['test'] = pd.concat([split_datasets['test'], negs])
         split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 

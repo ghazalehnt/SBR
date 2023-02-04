@@ -189,7 +189,7 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
             elif embedding_CF is not None:
                 cf_embeds = embedding_CF(ids)
                 if embedding_CF.embedding_dim < BERT_DIM:
-                    cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], cf_embeds.shape[1], BERT_DIM-cf_embeds.shape[2]))], dim=2)
+                    cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], cf_embeds.shape[1], BERT_DIM-cf_embeds.shape[2]), device=cf_embeds.device)], dim=2)
                 token_embeddings = bert_embeddings.forward(input_ids)
                 cls_tokens = token_embeddings[:, 0].unsqueeze(1)
                 other_tokens = token_embeddings[:, 1:]
