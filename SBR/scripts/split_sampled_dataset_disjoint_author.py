@@ -169,19 +169,32 @@ if __name__ == "__main__":
 
     inter_header[USER_ID_IDX_INTER] = "user_id"
     inter_header[ITEM_ID_IDX_INTER] = "item_id"
-    inter_header[inter_header.index(RATING_FIELD)] = "rating"
+    inter_header[RATING_IDX_INTER] = "rating"
     with open(join(out_path, "train.csv"), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(inter_header)
         writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in train_set])
+
+    # only keep user_id, item_id, rating
+    temp = []
+    for line in valid_set:
+        temp.append([re.sub(CLEANR, '', line[USER_ID_IDX_INTER]),
+                     re.sub(CLEANR, '', line[ITEM_ID_IDX_INTER]),
+                     re.sub(CLEANR, '', line[RATING_IDX_INTER])])
     with open(join(out_path, "validation.csv"), 'w') as f:
         writer = csv.writer(f)
-        writer.writerow(inter_header)
-        writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in valid_set])
+        writer.writerow(["user_id", "item_id", "rating"])
+        writer.writerows(temp)
+
+    temp = []
+    for line in test_set:
+        temp.append([re.sub(CLEANR, '', line[USER_ID_IDX_INTER]),
+                     re.sub(CLEANR, '', line[ITEM_ID_IDX_INTER]),
+                     re.sub(CLEANR, '', line[RATING_IDX_INTER])])
     with open(join(out_path, "test.csv"), 'w') as f:
         writer = csv.writer(f)
-        writer.writerow(inter_header)
-        writer.writerows([[re.sub(CLEANR, '', l) for l in line] for line in test_set])
+        writer.writerow(["user_id", "item_id", "rating"])
+        writer.writerows(temp)
 
     all_users = [line[USER_ID_IDX_INTER] for line in train_set]
     all_users.extend([line[USER_ID_IDX_INTER] for line in test_set])
