@@ -76,14 +76,14 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
-    DATASET_PATH = "TODO"
-    INTERACTION_FILE = "goodreads_ucsd.interactions"
-    ITEM_FILE = "goodreads_ucsd.items"
-    USER_FILE = "goodreads_ucsd.users"
-    USER_ID_FIELD = "user_id"
-    ITEM_ID_FIELD = "book_id"
-    RATING_FIELD = "rating"
-    AUTHOR_FIELD = "authors"
+    #DATASET_PATH = ""
+    #INTERACTION_FILE = "goodreads_ucsd.interactions"
+    #ITEM_FILE = "goodreads_ucsd.items"
+    #USER_FILE = "goodreads_ucsd.users"
+    #USER_ID_FIELD = "user_id"
+    #ITEM_ID_FIELD = "book_id"
+    #RATING_FIELD = "rating"
+    #AUTHOR_FIELD = "authors"
 
     # DATASET_PATH = "TODO"
     # INTERACTION_FILE = "goodreads_crawled.interactions"
@@ -93,17 +93,18 @@ if __name__ == "__main__":
     # ITEM_ID_FIELD = "item_id"
     # RATING_FIELD = "rating"
 
-    # DATASET_PATH = "TODO"
-    # INTERACTION_FILE = "amazon_reviews_books.interactions"
-    # ITEM_FILE = "amazon_reviews_books.items"
-    # USER_FILE = "amazon_reviews_books.users"
-    # USER_ID_FIELD = "reviewerID"
-    # ITEM_ID_FIELD = "asin"
-    # RATING_FIELD = "overall"
-    # AUTHOR_FIELD = "brand"
+    DATASET_PATH = ""
+    INTERACTION_FILE = "amazon_reviews_books.interactions"
+    ITEM_FILE = "amazon_reviews_books.items"
+    USER_FILE = "amazon_reviews_books.users"
+    USER_ID_FIELD = "reviewerID"
+    ITEM_ID_FIELD = "asin"
+    RATING_FIELD = "overall"
+    AUTHOR_FIELD = "brand"
 
     rating_threshold = 4
-    user_core_k = 5
+    user_core_k = 3
+    author_case_sensitive = False
     ratio = [0.6, 0.2, 0.2]
 
     item_authors = defaultdict()
@@ -116,7 +117,10 @@ if __name__ == "__main__":
         TITLE_IDX_ITEM = item_header.index("title")
         for line in reader:
             item_id = line[ITEM_ID_IDX_ITEM]
-            author = line[AUTHOR_IDX_ITEM]
+            if not author_case_sensitive:
+                author = line[AUTHOR_IDX_ITEM].lower()  # newly added this, it was not lower cased for the www-short
+            else:
+                author = line[AUTHOR_IDX_ITEM]
             # keeping the author field as it is (do not care about multiple, ...) other meta info
             if author == "":
                 continue
@@ -158,7 +162,7 @@ if __name__ == "__main__":
     train_set, test_set, valid_set = create_splits(all_interactions_per_user_per_author, ratio, user_core_k)
 
     out_path = join(DATASET_PATH,
-                    f"rating-th-{rating_threshold}"
+                    f"disjoint-auth-cs-{author_case_sensitive}_rating-th-{rating_threshold}"
                     f"_user-core-{user_core_k if user_core_k is not None else 'None'}"
                     f"_ratios{'-'.join([str(r) for r in ratio])}")
     os.makedirs(out_path, exist_ok=True)
