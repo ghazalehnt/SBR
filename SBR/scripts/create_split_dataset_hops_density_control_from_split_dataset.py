@@ -1,3 +1,4 @@
+import argparse
 import csv
 import os
 import random
@@ -148,10 +149,19 @@ def main():
 
 # run this on already splited data, for example the disjoint author case.
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset_path', '-d', type=str, default=None, help='path to dataset')
+    parser.add_argument('--su', type=int, default=None, help='starting_num_users')
+    parser.add_argument('--item_p', type=int, default=None, help='item_propagation_number')
+    parser.add_argument('--user_p', type=int, default=None, help='item_propagation_number')
+    parser.add_argument('--total_users', '-u', type=int, default=None, help='total number of users to sample')
+    parser.add_argument('--objective', '-o', type=str, default=None, help='random/sparse/dense')
+    args, _ = parser.parse_known_args()
+
     random.seed(42)
     np.random.seed(42)
 
-    DATASET_PATH = "todo"
+    DATASET_PATH = args.dataset_path
 
     RATING_FIELD = "rating"
     USER_ID_FIELD = "user_id"
@@ -160,12 +170,10 @@ if __name__ == "__main__":
     ITEM_FILE = "items.csv"
     USER_FILE = "users.csv"
 
-    starting_num_users = 5
-    item_propagation_number = 10
-    user_propagation_number = 10
-    total_num_users = 100
-    #objective = 'dense'
-    #objective = 'sparse'
-    objective = 'random'
+    starting_num_users = args.su
+    item_propagation_number = args.item_p
+    user_propagation_number = args.user_p
+    total_num_users = args.total_users
+    objective = args.objective
 
     main()
