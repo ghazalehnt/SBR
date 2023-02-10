@@ -37,8 +37,10 @@ def main():
     user_interaction_cnt = get_per_user_interaction_cnt(interactions, USER_ID_IDX_INTER)
 
     # starting randomly with a set of users:
-    final_selected_users = np.random.choice(user_interaction_cnt.keys(), size=starting_num_users, replace=False)
+    final_selected_users = set(np.random.choice(list(user_interaction_cnt.keys()), size=starting_num_users, replace=False))
+    hop = 0
     while len(final_selected_users) < total_num_users:
+        hop += 1
         # then selecting their items wrt the objective and choosing a number of them wrt propagation degree
         h0_items = set([l[ITEM_ID_IDX_INTER] for l in interactions if l[USER_ID_IDX_INTER] in final_selected_users])
         if objective == "random":
@@ -58,7 +60,7 @@ def main():
         dem = sum(h0_items_degree.values())
         h0_items_probs = [p / dem for p in h0_items_degree.values()]
         h0_items_keys = list(h0_items_degree.keys())
-        print(len(h0_items_keys))
+        print(f"{hop} items to choose from: {len(h0_items_keys)}")
         chosen_h0_items = list(np.random.choice(h0_items_keys, size=item_propagation_number, replace=False, p=h0_items_probs))
 
         # expanding the chosen items wrt objective, selecting using propagation degree
@@ -82,7 +84,7 @@ def main():
         h1_users_probs = [p / dem for p in h1_users_degree.values()]
         h1_users_keys = list(h1_users_degree.keys())
         # we sample h1 users, and add them to the u0 users
-        print(len(h1_users_keys))
+        print(f"{hop} users to choose from: {len(h1_users_keys)}")
         chosen_h1_users = list(np.random.choice(h1_users_keys, size=user_propagation_number, replace=False, p=h1_users_probs))
 
         if len(final_selected_users) + len(chosen_h1_users) > total_num_users:
@@ -149,12 +151,11 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
-    DATASET_PATH = "tODO"
-    DATASET_NAME = "Amazon"  # "Amazon", "CGR", "UCSD_GR"
+    DATASET_PATH = "todo"
+
     RATING_FIELD = "rating"
     USER_ID_FIELD = "user_id"
     ITEM_ID_FIELD = "item_id"
-
     INTERACTION_FILES = ["train.csv", "test.csv", "validation.csv"]
     ITEM_FILE = "items.csv"
     USER_FILE = "users.csv"
@@ -162,7 +163,7 @@ if __name__ == "__main__":
     starting_num_users = 5
     item_propagation_number = 10
     user_propagation_number = 10
-    total_num_users = 50
+    total_num_users = 100
     #objective = 'dense'
     #objective = 'sparse'
     objective = 'random'
