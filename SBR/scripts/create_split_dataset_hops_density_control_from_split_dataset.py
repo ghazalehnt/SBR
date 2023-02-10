@@ -62,7 +62,8 @@ def main():
         h0_items_probs = [p / dem for p in h0_items_degree.values()]
         h0_items_keys = list(h0_items_degree.keys())
         print(f"{hop} items to choose from: {len(h0_items_keys)}")
-        chosen_h0_items = list(np.random.choice(h0_items_keys, size=item_propagation_number, replace=False, p=h0_items_probs))
+        chosen_h0_items = list(np.random.choice(h0_items_keys, size=max(item_propagation_number, len(h0_items_keys)),
+                                                replace=False, p=h0_items_probs))
 
         # expanding the chosen items wrt objective, selecting using propagation degree
         h1_users = set([l[USER_ID_IDX_INTER] for l in interactions if l[ITEM_ID_IDX_INTER] in chosen_h0_items])
@@ -86,7 +87,8 @@ def main():
         h1_users_keys = list(h1_users_degree.keys())
         # we sample h1 users, and add them to the u0 users
         print(f"{hop} users to choose from: {len(h1_users_keys)}")
-        chosen_h1_users = list(np.random.choice(h1_users_keys, size=user_propagation_number, replace=False, p=h1_users_probs))
+        chosen_h1_users = list(np.random.choice(h1_users_keys, size=max(user_propagation_number, len(h1_users_keys)),
+                                                replace=False, p=h1_users_probs))
 
         if len(final_selected_users) + len(chosen_h1_users) > total_num_users:
             chosen_h1_users = chosen_h1_users[:total_num_users-len(final_selected_users)]
