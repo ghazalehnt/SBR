@@ -143,9 +143,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_path', '-d', type=str, default=None, help='path to dataset')
     parser.add_argument('--si', type=int, default=None, help='starting_num_items')
-    parser.add_argument('--si_objective', '-o', type=str, default=None, help='random/sparse/dense')
+    parser.add_argument('--si_o', type=str, default=None, help='random/sparse/dense')
     parser.add_argument('--user_p', type=int, default=None, help='item_propagation_number')
-    parser.add_argument('--u_objective', '-o', type=str, default=None, help='random/sparse/dense')
+    parser.add_argument('--u_o', type=str, default=None, help='random/sparse/dense')
     parser.add_argument('--total_users', '-u', type=int, default=None, help='total number of users to sample')
     args, _ = parser.parse_known_args()
 
