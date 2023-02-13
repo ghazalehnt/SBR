@@ -38,15 +38,23 @@ def main():
     user_interaction_cnt = get_per_user_interaction_cnt(interactions, USER_ID_IDX_INTER)
 
     # starting randomly with a set of users:
-    final_selected_users = set(np.random.choice(list(user_interaction_cnt.keys()), size=starting_num_users, replace=False))
-    hop = 0
-    mul = 1
+    final_selected_users = set()
+    round = 0
     while len(final_selected_users) < total_num_users:
-        hop += 1
-        if lin:
-            mul = hop
+        round += 1
+
+        remaining_num_user = total_num_users - len(final_selected_users)
+        su = round((starting_num_users * remaining_num_user) / total_num_users)
+        if su == 0:  # corner case of only 1 user remaining...
+            su = 1
+        starting_users = list(set(np.random.choice(list(user_interaction_cnt.keys()), size=su, replace=False)))
+        if len(final_selected_users) + len(starting_users) > total_num_users:  # checking corner cases
+            final_selected_users = final_selected_users.union(starting_users[:total_num_users - len(final_selected_users)])
+            break
+        final_selected_users = final_selected_users.union(starting_users)
+
         # then selecting their items wrt the objective and choosing a number of them wrt propagation degree
-        h0_items = set([l[ITEM_ID_IDX_INTER] for l in interactions if l[USER_ID_IDX_INTER] in final_selected_users])
+        h0_items = set([l[ITEM_ID_IDX_INTER] for l in interactions if l[USER_ID_IDX_INTER] in starting_users])
         if objective == "random":
             h0_items_degree = {item: 1 for item in h0_items}
         else:
@@ -64,14 +72,14 @@ def main():
         dem = sum(h0_items_degree.values())
         h0_items_probs = [p / dem for p in h0_items_degree.values()]
         h0_items_keys = list(h0_items_degree.keys())
-        print(f"{hop} items to choose from: {len(h0_items_keys)}")
-        chosen_h0_items = list(np.random.choice(h0_items_keys, size=min(mul*item_propagation_number, len(h0_items_keys)),
+        print(f"{round} items to choose from: {len(h0_items_keys)}")
+        chosen_h0_items = list(np.random.choice(h0_items_keys, size=min(item_propagation_number, len(h0_items_keys)),
                                                 replace=False, p=h0_items_probs))
 
         # expanding the chosen items wrt objective, selecting using propagation degree
         h1_users = set([l[USER_ID_IDX_INTER] for l in interactions if l[ITEM_ID_IDX_INTER] in chosen_h0_items])
         # we want to include the initial users, making sure connections
-        h1_users = h1_users - final_selected_users
+        h1_users = h1_users - final_selected_users  # select new users
         if objective == "random":
             h1_users_degree = {u: 1 for u in h1_users}
         else:
@@ -89,8 +97,8 @@ def main():
         h1_users_probs = [p / dem for p in h1_users_degree.values()]
         h1_users_keys = list(h1_users_degree.keys())
         # we sample h1 users, and add them to the u0 users
-        print(f"{hop} users to choose from: {len(h1_users_keys)}")
-        chosen_h1_users = list(np.random.choice(h1_users_keys, size=min(mul*user_propagation_number, len(h1_users_keys)),
+        print(f"{round} users to choose from: {len(h1_users_keys)}")
+        chosen_h1_users = list(np.random.choice(h1_users_keys, size=min(user_propagation_number, len(h1_users_keys)),
                                                 replace=False, p=h1_users_probs))
 
         if len(final_selected_users) + len(chosen_h1_users) > total_num_users:
@@ -100,8 +108,9 @@ def main():
     OUTPUT_DATASET = join(DATASET_PATH,
                           f'total-u-{total_num_users}_'
                           f'start-u-{starting_num_users}_'
-                          f'item-propag-{item_propagation_number}_l{lin}_'
-                          f'user-propag-{user_propagation_number}_l{lin}_'
+                          f'item-propag-{item_propagation_number}_'
+                          f'user-propag-{user_propagation_number}_'
+                          f'{round}_rounds'
                           f'{objective}')
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
@@ -168,7 +177,6 @@ if __name__ == "__main__":
 
     DATASET_PATH = args.dataset_path
     
-    lin = False # multiple the propagation factors by hop
     RATING_FIELD = "rating"
     USER_ID_FIELD = "user_id"
     ITEM_ID_FIELD = "item_id"
