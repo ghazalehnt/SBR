@@ -48,11 +48,11 @@ def main():
         if su == 0:  # corner case of only 1 user remaining...
             su = 1
 
-        if u_objective == "random":
+        if su_objective == "random":
             su_degree = {user: 1 for user in user_interaction_cnt if user not in final_selected_users}
-        elif u_objective == "dense":
+        elif su_objective == "dense":
             su_degree = {user: user_interaction_cnt[user] for user in user_interaction_cnt if user not in final_selected_users}
-        elif u_objective == "sparse":
+        elif su_objective == "sparse":
             su_degree = {user: (1/user_interaction_cnt[user]) for user in user_interaction_cnt if user not in final_selected_users}
         else:
             raise ValueError("Not implemented")
@@ -111,8 +111,8 @@ def main():
     OUTPUT_DATASET = join(DATASET_PATH,
                           f'total-u-{total_num_users}_'
                           f'{cnt}_rounds_'
-                          f'start-u-{starting_num_users}_'
-                          f'item-propag-{item_propagation_number}_{i_objective}'
+                          f'start-u-{starting_num_users}_{su_objective}_'
+                          f'item-propag-{item_propagation_number}_{i_objective}_'
                           f'user-propag-{user_propagation_number}_{u_objective}')
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
@@ -193,6 +193,7 @@ if __name__ == "__main__":
     objective = args.objective
 
     u_objective = objective
+    su_objective = "random"
     i_objective = "random"
 
     main()
