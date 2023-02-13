@@ -162,8 +162,8 @@ if __name__ == "__main__":
     user_propagation_number = args.user_p
     total_num_users = args.total_users
 
-    u_objective = args.u_objective
-    si_objective = args.si_objective
+    u_objective = args.u_o
+    si_objective = args.si_o
 
     random.seed(42)
     np.random.seed(42)
