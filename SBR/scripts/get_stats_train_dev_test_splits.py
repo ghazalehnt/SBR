@@ -1,3 +1,4 @@
+import argparse
 import csv
 import math
 from collections import Counter
@@ -108,10 +109,16 @@ def user_grp_inter_cnt(split_set, users, field):
 
 
 if __name__ == '__main__':
-    DATASET_DIR = ""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset_path', '-d', type=str, default=None, help='path to dataset')
+    parser.add_argument('--af', type=str, default=None, help='AUTHOR_FIELD')
+    args, _ = parser.parse_known_args()
+
+    DATASET_DIR = args.dataset_path
+    AUTHOR_FIELD = args.af
+
     USER_ID_FIELD = "user_id"
     ITEM_ID_FIELD = "item_id"
-    AUTHOR_FIELD = "authors"
     thresholds = [5, 50]
     statfile = open(join(DATASET_DIR, f"stats_{'-'.join([str(thr) for thr in thresholds])}.txt"), 'w')
 
