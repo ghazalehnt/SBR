@@ -48,11 +48,11 @@ def main():
         if su == 0:  # corner case of only 1 user remaining...
             su = 1
 
-        if objective == "random":
+        if u_objective == "random":
             su_degree = {user: 1 for user in user_interaction_cnt if user not in final_selected_users}
-        elif objective == "dense":
+        elif u_objective == "dense":
             su_degree = {user: user_interaction_cnt[user] for user in user_interaction_cnt if user not in final_selected_users}
-        elif objective == "sparse":
+        elif u_objective == "sparse":
             su_degree = {user: (1/user_interaction_cnt[user]) for user in user_interaction_cnt if user not in final_selected_users}
         else:
             raise ValueError("Not implemented")
@@ -69,11 +69,11 @@ def main():
 
         # then selecting their items wrt the objective and choosing a number of them wrt propagation degree
         h0_items = set([l[ITEM_ID_IDX_INTER] for l in interactions if l[USER_ID_IDX_INTER] in starting_users])
-        if objective == "random":
+        if i_objective == "random":
             h0_items_degree = {item: 1 for item in h0_items}
-        elif objective == "dense":
+        elif i_objective == "dense":
             h0_items_degree = {item: item_interaction_cnt[item] for item in h0_items}
-        elif objective == "sparse":
+        elif i_objective == "sparse":
             h0_items_degree = {item: (1/item_interaction_cnt[item]) for item in h0_items}
         else:
             raise ValueError("Not implemented")
@@ -88,11 +88,11 @@ def main():
         h1_users = set([l[USER_ID_IDX_INTER] for l in interactions if l[ITEM_ID_IDX_INTER] in chosen_h0_items])
         # we want to include the initial users, making sure connections
         h1_users = h1_users - final_selected_users  # select new users
-        if objective == "random":
+        if u_objective == "random":
             h1_users_degree = {u: 1 for u in h1_users}
-        elif objective == "dense":
+        elif u_objective == "dense":
             h1_users_degree = {u: user_interaction_cnt[u] for u in h1_users}
-        elif objective == "sparse":
+        elif u_objective == "sparse":
             h1_users_degree = {u: (1/user_interaction_cnt[u]) for u in h1_users}
         else:
             raise ValueError("Not implemented")
@@ -110,11 +110,10 @@ def main():
 
     OUTPUT_DATASET = join(DATASET_PATH,
                           f'total-u-{total_num_users}_'
-                          f'start-u-{starting_num_users}_'
-                          f'item-propag-{item_propagation_number}_'
-                          f'user-propag-{user_propagation_number}_'
                           f'{cnt}_rounds_'
-                          f'{objective}')
+                          f'start-u-{starting_num_users}_'
+                          f'item-propag-{item_propagation_number}_{i_objective}'
+                          f'user-propag-{user_propagation_number}_{u_objective}')
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
     total_items = set()
@@ -192,5 +191,8 @@ if __name__ == "__main__":
     user_propagation_number = args.user_p
     total_num_users = args.total_users
     objective = args.objective
+
+    u_objective = objective
+    i_objective = "random"
 
     main()
