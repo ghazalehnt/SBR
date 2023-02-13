@@ -47,7 +47,20 @@ def main():
         su = round((starting_num_users * remaining_num_user) / total_num_users)
         if su == 0:  # corner case of only 1 user remaining...
             su = 1
-        starting_users = list(set(np.random.choice(list(user_interaction_cnt.keys()), size=su, replace=False)))
+
+        if objective == "random":
+            su_degree = {user: 1 for user in user_interaction_cnt if user not in final_selected_users}
+        elif objective == "dense":
+            su_degree = {user: user_interaction_cnt[user] for user in user_interaction_cnt if user not in final_selected_users}
+        elif objective == "sparse":
+            su_degree = {user: (1/user_interaction_cnt[user]) for user in user_interaction_cnt if user not in final_selected_users}
+        else:
+            raise ValueError("Not implemented")
+        dem = sum(su_degree.values())
+        starting_users = list(set(np.random.choice(list(su_degree.keys()),
+                                                   size=su,
+                                                   replace=False,
+                                                   p=[p / dem for p in su_degree.values()])))
 
         if len(final_selected_users) + len(starting_users) > total_num_users:  # checking corner cases
             final_selected_users = final_selected_users.union(starting_users[:total_num_users - len(final_selected_users)])
