@@ -2,19 +2,18 @@ import argparse
 import csv
 import os
 import random
+from collections import defaultdict
 from os.path import join
 import numpy as np
 import sys
 csv.field_size_limit(sys.maxsize)
 
 
-def get_per_user_interaction_cnt(inters, USER_ID_IDX):
-    ret = {}
+def get_field_interaction_cnt(inters, field):
+    ret = defaultdict(lambda: 0)
     for line in inters:
-        user_id = line[USER_ID_IDX]
-        if user_id not in ret:
-            ret[user_id] = 0
-        ret[user_id] += 1
+        field_id = line[field]
+        ret[field_id] += 1
     return ret
 
 
@@ -35,7 +34,8 @@ def main():
     interactions, inter_header = get_interactions()
     USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
     ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
-    user_interaction_cnt = get_per_user_interaction_cnt(interactions, USER_ID_IDX_INTER)
+    user_interaction_cnt = get_field_interaction_cnt(interactions, USER_ID_IDX_INTER)
+    item_interaction_cnt = get_field_interaction_cnt(interactions, ITEM_ID_IDX_INTER)
 
     # starting randomly with a set of users:
     final_selected_users = set()
@@ -48,6 +48,7 @@ def main():
         if su == 0:  # corner case of only 1 user remaining...
             su = 1
         starting_users = list(set(np.random.choice(list(user_interaction_cnt.keys()), size=su, replace=False)))
+
         if len(final_selected_users) + len(starting_users) > total_num_users:  # checking corner cases
             final_selected_users = final_selected_users.union(starting_users[:total_num_users - len(final_selected_users)])
             break
@@ -57,18 +58,12 @@ def main():
         h0_items = set([l[ITEM_ID_IDX_INTER] for l in interactions if l[USER_ID_IDX_INTER] in starting_users])
         if objective == "random":
             h0_items_degree = {item: 1 for item in h0_items}
+        elif objective == "dense":
+            h0_items_degree = {item: item_interaction_cnt[item] for item in h0_items}
+        elif objective == "sparse":
+            h0_items_degree = {item: (1/item_interaction_cnt[item]) for item in h0_items}
         else:
-            h0_items_degree = {item: 0 for item in h0_items}
-            for l in interactions:
-                if l[ITEM_ID_IDX_INTER] in h0_items:
-                    h0_items_degree[l[ITEM_ID_IDX_INTER]] += 1
-
-            if objective == "dense":
-                h0_items_degree = {k: v for k, v in h0_items_degree.items()}
-            elif objective == "sparse":
-                h0_items_degree = {k: (1 / v) for k, v in h0_items_degree.items()}
-            else:
-                raise ValueError("Not implemented")
+            raise ValueError("Not implemented")
         dem = sum(h0_items_degree.values())
         h0_items_probs = [p / dem for p in h0_items_degree.values()]
         h0_items_keys = list(h0_items_degree.keys())
@@ -82,17 +77,12 @@ def main():
         h1_users = h1_users - final_selected_users  # select new users
         if objective == "random":
             h1_users_degree = {u: 1 for u in h1_users}
+        elif objective == "dense":
+            h1_users_degree = {u: user_interaction_cnt[u] for u in h1_users}
+        elif objective == "sparse":
+            h1_users_degree = {u: (1/user_interaction_cnt[u]) for u in h1_users}
         else:
-            h1_users_degree = {u: 0 for u in h1_users}
-            for l in interactions:
-                if l[USER_ID_IDX_INTER] in h1_users:
-                    h1_users_degree[l[USER_ID_IDX_INTER]] += 1
-            if objective == "dense":
-                h1_users_degree = {k: v for k, v in h1_users_degree.items()}
-            elif objective == "sparse":
-                h1_users_degree = {k: (1 / v) for k, v in h1_users_degree.items()}
-            else:
-                raise ValueError("Not implemented")
+            raise ValueError("Not implemented")
         dem = sum(h1_users_degree.values())
         h1_users_probs = [p / dem for p in h1_users_degree.values()]
         h1_users_keys = list(h1_users_degree.keys())
@@ -110,7 +100,7 @@ def main():
                           f'start-u-{starting_num_users}_'
                           f'item-propag-{item_propagation_number}_'
                           f'user-propag-{user_propagation_number}_'
-                          f'{cnt}_rounds'
+                          f'{cnt}_rounds_'
                           f'{objective}')
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
