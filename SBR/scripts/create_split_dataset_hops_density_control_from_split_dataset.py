@@ -39,9 +39,9 @@ def main():
 
     # starting randomly with a set of users:
     final_selected_users = set()
-    round = 0
+    cnt = 0
     while len(final_selected_users) < total_num_users:
-        round += 1
+        cnt += 1
 
         remaining_num_user = total_num_users - len(final_selected_users)
         su = round((starting_num_users * remaining_num_user) / total_num_users)
@@ -72,7 +72,7 @@ def main():
         dem = sum(h0_items_degree.values())
         h0_items_probs = [p / dem for p in h0_items_degree.values()]
         h0_items_keys = list(h0_items_degree.keys())
-        print(f"{round} items to choose from: {len(h0_items_keys)}")
+        print(f"{cnt} items to choose from: {len(h0_items_keys)}")
         chosen_h0_items = list(np.random.choice(h0_items_keys, size=min(item_propagation_number, len(h0_items_keys)),
                                                 replace=False, p=h0_items_probs))
 
@@ -97,7 +97,7 @@ def main():
         h1_users_probs = [p / dem for p in h1_users_degree.values()]
         h1_users_keys = list(h1_users_degree.keys())
         # we sample h1 users, and add them to the u0 users
-        print(f"{round} users to choose from: {len(h1_users_keys)}")
+        print(f"{cnt} users to choose from: {len(h1_users_keys)}")
         chosen_h1_users = list(np.random.choice(h1_users_keys, size=min(user_propagation_number, len(h1_users_keys)),
                                                 replace=False, p=h1_users_probs))
 
@@ -110,7 +110,7 @@ def main():
                           f'start-u-{starting_num_users}_'
                           f'item-propag-{item_propagation_number}_'
                           f'user-propag-{user_propagation_number}_'
-                          f'{round}_rounds'
+                          f'{cnt}_rounds'
                           f'{objective}')
     os.makedirs(OUTPUT_DATASET, exist_ok=True)
 
