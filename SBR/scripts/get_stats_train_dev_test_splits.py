@@ -182,7 +182,18 @@ if __name__ == '__main__':
     temp = scipy.stats.describe(list({u: train_unique_authors_per_user[u]+valid_unique_authors_per_user[u]+test_unique_authors_per_user[u] for u in train_unique_authors_per_user.keys()}.values()))
     statfile.write(
         f"TOTAL: avg num unique authors per user: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
-    temp = scipy.stats.describe(list({u: train_unique_users_per_author[u]+valid_unique_users_per_author[u]+test_unique_users_per_author[u] for u in train_unique_users_per_author.keys()}.values()))
+    temp = train_unique_users_per_author.copy()
+    for a, v in valid_unique_users_per_author.items():
+        if a not in temp:
+            temp[a] = v
+        else:
+            temp[a] += v
+    for a, v in test_unique_users_per_author.items():
+        if a not in temp:
+            temp[a] = v
+        else:
+            temp[a] += v
+    temp = scipy.stats.describe(list(temp.values()))
     statfile.write(
         f"TOTAL: avg num unique users per author: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n\n\n")
 
