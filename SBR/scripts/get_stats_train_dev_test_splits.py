@@ -179,10 +179,10 @@ if __name__ == '__main__':
     temp = scipy.stats.describe(list({i: per_item['train'][i] + per_item['valid'][i] + per_item['test'][i] for i in per_item['train'].keys()}.values()))
     statfile.write(f"TOTAL: stats for item interactions: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
 
-    temp = scipy.stats.describe(list({u: train_unique_authors_per_user[u]+valid_unique_authors_per_user[u]+test_unique_authors_per_user[u] for u in per_user['train'].keys()}.values()))
+    temp = scipy.stats.describe(list({u: train_unique_authors_per_user[u]+valid_unique_authors_per_user[u]+test_unique_authors_per_user[u] for u in train_unique_authors_per_user.keys()}.values()))
     statfile.write(
         f"TOTAL: avg num unique authors per user: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n")
-    temp = scipy.stats.describe(list({u: train_unique_users_per_author[u]+valid_unique_users_per_author[u]+test_unique_users_per_author[u] for u in per_user['train'].keys()}.values()))
+    temp = scipy.stats.describe(list({u: train_unique_users_per_author[u]+valid_unique_users_per_author[u]+test_unique_users_per_author[u] for u in train_unique_users_per_author.keys()}.values()))
     statfile.write(
         f"TOTAL: avg num unique users per author: {temp} - mean: {temp.mean.round(2)} - std: {math.sqrt(temp.variance).__round__(2)}\n\n\n")
 
