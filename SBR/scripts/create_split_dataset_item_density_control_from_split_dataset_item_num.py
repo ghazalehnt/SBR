@@ -8,6 +8,8 @@ import numpy as np
 import sys
 csv.field_size_limit(sys.maxsize)
 
+import subprocess
+
 
 def get_field_interaction_cnt(inters, field):
     ret = defaultdict(lambda: 0)
@@ -64,8 +66,7 @@ def main():
                                                        replace=False,
                                                        p=[p / dem for p in si_degree.values()])))
         if len(final_selected_items) + len(chosen_h0_items) > total_num_items:  # checking corner cases
-            final_selected_items = final_selected_items.union(chosen_h0_items[:total_num_items - len(final_selected_items)])
-            break
+            chosen_h0_items = chosen_h0_items[:total_num_items - len(final_selected_items)]
         final_selected_items = final_selected_items.union(chosen_h0_items)
 
         # expanding the chosen items wrt objective, selecting using propagation degree
@@ -161,6 +162,10 @@ def main():
         writer = csv.writer(f)
         writer.writerow(item_header)
         writer.writerows(item_info)
+    
+    auth="authors"
+    cmd = f'python /GW/PSR/work/ghazaleh/SBR/SBR/scripts/get_stats_train_dev_test_splits.py -d {OUTPUT_DATASET} --af {auth}'
+    subprocess.call(cmd, shell=True)
 
 
 # run this on already splited data, for example the disjoint author case.
