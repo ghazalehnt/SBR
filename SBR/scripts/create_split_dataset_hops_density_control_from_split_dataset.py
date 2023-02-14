@@ -2,6 +2,7 @@ import argparse
 import csv
 import os
 import random
+import subprocess
 from collections import defaultdict
 from os.path import join
 import numpy as np
@@ -162,6 +163,11 @@ def main():
         writer.writerow(item_header)
         writer.writerows(item_info)
 
+    print(OUTPUT_DATASET)
+    auth = "authors"
+    cmd = f'python /GW/PSR/work/ghazaleh/SBR/SBR/scripts/get_stats_train_dev_test_splits.py -d {OUTPUT_DATASET} --af {auth}'
+    subprocess.call(cmd, shell=True)
+
 
 # run this on already splited data, for example the disjoint author case.
 if __name__ == "__main__":
@@ -171,7 +177,9 @@ if __name__ == "__main__":
     parser.add_argument('--item_p', type=int, default=None, help='item_propagation_number')
     parser.add_argument('--user_p', type=int, default=None, help='item_propagation_number')
     parser.add_argument('--total_users', '-u', type=int, default=None, help='total number of users to sample')
-    parser.add_argument('--objective', '-o', type=str, default=None, help='random/sparse/dense')
+    parser.add_argument('--u_o', type=str, default=None, help='random/sparse/dense')
+    parser.add_argument('--i_o', type=str, default=None, help='random/sparse/dense')
+    parser.add_argument('--su_o', type=str, default=None, help='random/sparse/dense')
     args, _ = parser.parse_known_args()
 
     random.seed(42)
@@ -190,10 +198,9 @@ if __name__ == "__main__":
     item_propagation_number = args.item_p
     user_propagation_number = args.user_p
     total_num_users = args.total_users
-    objective = args.objective
 
-    u_objective = objective
-    su_objective = "random"
-    i_objective = "random"
+    u_objective = args.u_o
+    su_objective = args.su_o
+    i_objective = args.i_o
 
     main()
