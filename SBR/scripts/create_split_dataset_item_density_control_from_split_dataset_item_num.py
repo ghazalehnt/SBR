@@ -44,23 +44,23 @@ def main():
         cnt += 1
 
         remaining_num_items = total_num_items - len(final_selected_items)
-        su = round((starting_num_items * remaining_num_items) / total_num_items)
-        if su == 0:  # corner case of only 1 user remaining...
-            su = 1
+        si = round((starting_num_items * remaining_num_items) / total_num_items)
+        if si == 0:  # corner case of only 1 user remaining...
+            si = 1
         if si_objective == "random":
-            chosen_h0_items = list(set(np.random.choice(list(item_interaction_cnt),
-                                                       size=starting_num_items,
+            chosen_h0_items = list(set(np.random.choice([i for i in item_interaction_cnt if i not in final_selected_items],
+                                                       size=si,
                                                        replace=False)))
         else:
             if si_objective == "dense":
-                si_degree = {item: item_interaction_cnt[item] for item in item_interaction_cnt}
+                si_degree = {item: item_interaction_cnt[item] for item in item_interaction_cnt if item not in final_selected_items}
             elif si_objective == "sparse":
-                si_degree = {item: (1/item_interaction_cnt[item]) for item in item_interaction_cnt}
+                si_degree = {item: (1/item_interaction_cnt[item]) for item in item_interaction_cnt if item not in final_selected_items}
             else:
                 raise ValueError("Not implemented")
             dem = sum(si_degree.values())
             chosen_h0_items = list(set(np.random.choice(list(si_degree.keys()),
-                                                       size=starting_num_items,
+                                                       size=si,
                                                        replace=False,
                                                        p=[p / dem for p in si_degree.values()])))
         if len(final_selected_items) + len(chosen_h0_items) > total_num_items:  # checking corner cases
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     parser.add_argument('--user_p', type=int, default=None, help='user_propagation_number')
     parser.add_argument('--u_o', type=str, default=None, help='random/sparse/dense')
     parser.add_argument('--item_p', type=int, default=None, help='item_propagation_number')
-    parser.add_argument('--u_i', type=str, default=None, help='random/sparse/dense')
+    parser.add_argument('--i_o', type=str, default=None, help='random/sparse/dense')
     parser.add_argument('--total_items', '-i', type=int, default=None, help='total number of items to sample')
     args, _ = parser.parse_known_args()
 
