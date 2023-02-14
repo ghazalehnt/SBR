@@ -45,7 +45,7 @@ def main():
     USER_ID_IDX_INTER = inter_header.index(USER_ID_FIELD)
     ITEM_ID_IDX_INTER = inter_header.index(ITEM_ID_FIELD)
     item_interaction_cnt = get_field_interaction_cnt(interactions, ITEM_ID_IDX_INTER)
-    user_item_degree = get_user_degree(interactions, item_interaction_cnt, USER_ID_FIELD)
+    user_item_degree = get_user_degree(interactions, item_interaction_cnt, USER_ID_IDX_INTER, ITEM_ID_IDX_INTER)
 
     # starting randomly with a set of users:
     final_selected_users = set()
