@@ -27,6 +27,7 @@ goodreads_rating_mapping = {
     'it was amazing': 5
 }
 
+LOG_PROFILES = True
 
 def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks, item_per_chunk=False):
     if item_per_chunk:
@@ -137,6 +138,10 @@ def load_data(config, pretrained_model, for_precalc=False):
     datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_split_dataset(config, for_precalc)
     if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
         config['case_sensitive'] = temp_cs
+        # since cs was turned off while reading the dataset for user-text to remain intact. user text will change in the followup filder_user_profile function.
+        # but item text should be change now latest.
+        if temp_cs is False:
+            item_info = item_info.map(lambda example: {"text": example["text"].lower()})
     print(f"Finish: load dataset in {time.time()-start}")
 
     # apply filter:
@@ -159,6 +164,8 @@ def load_data(config, pretrained_model, for_precalc=False):
                                                  "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None,
                                                  "item_per_chunk": True if config["user_text_filter"] == "item_per_chunk" else False
                                                  })
+            if LOG_PROFILES:
+                user_info.to_pandas()[["user_id", "text"]].to_csv(join(config['dataset_path'], f"users_profile_{'-'.join(config['user_text'])}_{config['user_text_filter']}{'_i' + '-'.join(config['item_text']) if config['user_text_filter'] in ['item_sentence_SBERT'] else ''}.csv"), index=False)
             user_info = user_info.remove_columns(['text'])
         if 'text' in item_info.column_names:
             item_info = item_info.map(tokenize_function, batched=True,
@@ -167,6 +174,8 @@ def load_data(config, pretrained_model, for_precalc=False):
                                                  "max_length": config["item_chunk_size"],
                                                  "max_num_chunks": config['max_num_chunks_item'] if "max_num_chunks_item" in config else None
                                                  })
+            if LOG_PROFILES:
+                item_info.to_pandas()[["item_id", "text"]].to_csv(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv"), index=False)
             item_info = item_info.remove_columns(['text'])
 
     if not for_precalc:
@@ -961,16 +970,16 @@ def load_split_dataset(config, for_precalc=False):
             columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
                      "interaction." in field})
 
-        for field in user_text_fields:
-            if "interaction." in field:
-                df[field] = df[field].fillna('')
-
-        # concat and move the user/item text fields to user and item info:
-        sort_reviews = ""
-        if len(user_text_fields) > 0:
-            sort_reviews = config['user_item_text_choice']
         # text profile:
         if sp == 'train':
+            # concat and move the user/item text fields to user and item info:
+            sort_reviews = ""
+            if len(user_text_fields) > 0:
+                sort_reviews = config['user_item_text_choice']
+
+            for field in user_text_fields:
+                if "interaction." in field:
+                    df[field] = df[field].fillna('')
             ## USER:
             # This code works for user text fields from interaction and item file
             user_item_text_fields = [field for field in user_text_fields if "item." in field]
@@ -1051,7 +1060,7 @@ def load_split_dataset(config, for_precalc=False):
                     user_info['text'] = user_texts
                     print(f"user text matching with item done!")
                 else:
-                    if sort_reviews == "nothing":
+                    if sort_reviews == "":
                         temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text']
                     else:
                         if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
@@ -1092,7 +1101,7 @@ def load_split_dataset(config, for_precalc=False):
                 # before sorting them based on rating, etc., let's append each row's field together
                 temp['text'] = temp[item_user_inter_text_fields].agg('. '.join, axis=1)
 
-                if sort_reviews == "nothing":
+                if sort_reviews == "":
                     temp = temp.groupby(INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
                 else:
                     if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
