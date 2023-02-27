@@ -178,6 +178,7 @@ def load_data(config, pretrained_model, for_precalc=False):
                 item_info.to_pandas()[["item_id", "text"]].to_csv(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv"), index=False)
             item_info = item_info.remove_columns(['text'])
 
+    train_dataloader, validation_dataloader, test_dataloader = None, None, None
     if not for_precalc:
         start = time.time()
         print("Start: get user used items...")
@@ -297,8 +298,8 @@ def load_data(config, pretrained_model, for_precalc=False):
                                      batch_size=config['eval_batch_size'],
                                      collate_fn=test_collate_fn,
                                      num_workers=config['dataloader_num_workers'])
-        return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, config['relevance_level'], return_padding_token
-    return None, None, None, user_info, item_info, config['relevance_level'], return_padding_token
+    return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, \
+           config['relevance_level'] if 'relevance_level' in config else None, return_padding_token
 
 
 class CollateOriginalDataPad(object):
@@ -930,33 +931,25 @@ def load_split_dataset(config, for_precalc=False):
             df = df[df['user_item_ids'].isin(limited_user_item_ids)]
             df = df.drop(columns=['user_item_ids'])
 
-        # TODO here create the pos and negs if binary thresholded is the case
-        if config['binary_interactions']:
-            # if binary prediction (interaction): set label for all interactions to 1.
-            df['label'] = np.ones(df.shape[0])
-            if config["name"] == "CGR":
-                for k, v in goodreads_rating_mapping.items():
-                    df['rating'] = df['rating'].replace(k, v)
-            elif config["name"] == "GR_UCSD":
-                df['rating'] = df['rating'].astype(int)
-            elif config["name"] == "Amazon":
-                df['rating'] = df['rating'].astype(float).astype(int)
-            else:
-                raise NotImplementedError(f"dataset {config['name']} not implemented!")
-        else:
-            # if predicting rating: remove the not-rated entries and map rating text to int
-            df = df[df['rating'].notna()].reset_index()
-            if config["name"] == "CGR":
-                for k, v in goodreads_rating_mapping.items():
-                    df['rating'] = df['rating'].replace(k, v)
-            elif config["name"] == "GR_UCSD":
-                df['rating'] = df['rating'].astype(int)
-            elif config["name"] == "Amazon":
-                df['rating'] = df['rating'].astype(float).astype(int)
-            else:
-                raise NotImplementedError(f"dataset {config['name']} not implemented!")
-            df['label'] = df['rating']
+        # TODO if dataset is cleaned beforehand this could change slightly
         df['rating'] = df['rating'].fillna(-1)
+        if config["name"] == "CGR":
+            for k, v in goodreads_rating_mapping.items():
+                df['rating'] = df['rating'].replace(k, v)
+        elif config["name"] == "GR_UCSD":
+            df['rating'] = df['rating'].astype(int)
+        elif config["name"] == "Amazon":
+            df['rating'] = df['rating'].astype(float).astype(int)
+        else:
+            raise NotImplementedError(f"dataset {config['name']} not implemented!")
+        if not for_precalc:
+            if config['binary_interactions']:
+                # if binary prediction (interaction): set label for all interactions to 1.
+                df['label'] = np.ones(df.shape[0])
+            else:
+                # if predicting rating: remove the not-rated entries and map rating text to int
+                df = df[df['rating'] != -1].reset_index()
+                df['label'] = df['rating']
 
         # replace user_id with internal_user_id (same for item_id)
         df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
@@ -1143,7 +1136,7 @@ def load_split_dataset(config, for_precalc=False):
             item_info['text'] = item_info['text'].apply(str.lower)
         if config['normalize_negation']:
             item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
-    if config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
+    if not for_precalc and config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
         if config["name"] == "Amazon":
             if 'category' not in item_info.columns:
                 item_info['category'] = item_info['item.category']
