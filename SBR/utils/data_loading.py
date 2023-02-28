@@ -140,7 +140,7 @@ def load_data(config, pretrained_model, for_precalc=False):
         config['case_sensitive'] = temp_cs
         # since cs was turned off while reading the dataset for user-text to remain intact. user text will change in the followup filder_user_profile function.
         # but item text should be change now latest.
-        if temp_cs is False:
+        if temp_cs is False and 'text' in item_info.column_names:
             item_info = item_info.map(lambda example: {"text": example["text"].lower()})
     print(f"Finish: load dataset in {time.time()-start}")
 
