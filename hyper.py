@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import random
+import time
 from os.path import exists, join
 
 import ray
@@ -35,10 +36,14 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
         if '.' in k:
             l1 = k[:k.index(".")]
             l2 = k[k.index(".")+1:]
+            if l1 not in config:
+                raise ValueError(f"{l1} not in config")
+            if l2 not in config[l1]:
+                raise ValueError(f"{l2} not in config[{l1}]")
             config[l1][l2] = tuning_config[k]
-            if l2 == "max_num_chunks":
-                config[l1]['max_num_chunks_user'] = tuning_config[k]
-                config[l1]['max_num_chunks_item'] = tuning_config[k]
+            if l1 == "model" and l2 == "k1k2":
+                config[l1]["k1"] = tuning_config[k]
+                config[l1]["k2"] = tuning_config[k]
         else:
             config[k] = tuning_config[k]
     if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
@@ -168,6 +173,7 @@ def main(hyperparameter_config, config_file, ray_result_dir, name, valid_metric,
 
 
 if __name__ == '__main__':
+    _start = time.time()
     parser = argparse.ArgumentParser(description='Run the parameter tuning pipeline.')
     parser.add_argument('--config_file', type=str, help='path to configuration file.')
     parser.add_argument('--hyperparam_config_file', type=str, help='path to hyperparam configuration file.')
@@ -209,3 +215,4 @@ if __name__ == '__main__':
          num_concurrent=args.num_con, data_name=config['data_name'],
          given_user_text=args.user_text, given_item_text=args.item_text,
          given_user_text_filter=args.user_text_filter)
+    print(f"all done in {(time.time()-_start)/60} minutes")
