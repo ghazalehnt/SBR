@@ -32,14 +32,14 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
 
         if self.use_ffn:
-            dim1 = bert_embedding_dim
+            dim1user = dim1item = bert_embedding_dim
             if self.append_cf_ffn:
-                dim1 = bert_embedding_dim + self.user_embedding_CF.embedding_dim
-            self.transform_u_1 = torch.nn.Linear(dim1, model_config['k1'])
+                dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
             if self.append_cf_ffn:
-                dim1 = bert_embedding_dim + self.item_embedding_CF.embedding_dim
-            self.transform_i_1 = torch.nn.Linear(dim1, model_config['k1'])
+                dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
+            self.transform_u_1 = torch.nn.Linear(dim1user, model_config['k1'])
             self.transform_u_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
+            self.transform_i_1 = torch.nn.Linear(dim1item, model_config['k1'])
             self.transform_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
 
         if self.use_item_bias:
@@ -78,8 +78,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                         f"tb{model_config['tune_BERT']}_" \
                         f"cf{model_config['use_CF']}_" \
                         f"{'-'.join(dataset_config['user_text'])}_" \
-                        f"{dataset_config['user_item_text_choice']}_" \
-                        f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] in ['', 'item_sentence_SBERT'] else ''}_" \
+                        f"{dataset_config['user_item_text_choice'] if dataset_config['user_text_filter'] in ['', 'item_sentence_SBERT', 'item_per_chunk'] else ''}_" \
+                        f"{dataset_config['user_item_text_tie_breaker'] if dataset_config['user_text_filter'] in ['', 'item_sentence_SBERT', 'item_per_chunk'] else ''}_" \
                         f"{dataset_config['user_text_filter'] if len(dataset_config['user_text_filter']) > 0 else 'no-filter'}" \
                         f"{'_i' + '-'.join(dataset_config['item_text']) if dataset_config['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
                         f".pkl"
