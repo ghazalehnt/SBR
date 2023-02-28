@@ -38,12 +38,17 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
             l2 = k[k.index(".")+1:]
             if l1 not in config:
                 raise ValueError(f"{l1} not in config")
-            if l2 not in config[l1]:
+            if l2 not in config[l1] and l2 not in ["k1k2", "max_num_chunks"]:
                 raise ValueError(f"{l2} not in config[{l1}]")
-            config[l1][l2] = tuning_config[k]
-            if l1 == "model" and l2 == "k1k2":
+            # special cases:
+            if l2 == "max_num_chunks":
+                config[l1]['max_num_chunks_user'] = tuning_config[k]
+                config[l1]['max_num_chunks_item'] = tuning_config[k]
+            elif l1 == "model" and l2 == "k1k2":
                 config[l1]["k1"] = tuning_config[k]
                 config[l1]["k2"] = tuning_config[k]
+            else:
+                config[l1][l2] = tuning_config[k]
         else:
             config[k] = tuning_config[k]
     if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
