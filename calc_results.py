@@ -97,8 +97,8 @@ def get_results(prediction, ground_truth, ranking_metrics, thresholds,
     num_filtered_eval_users_group = {group: 0 for group in user_groups}
     for g in user_groups:
         num_filtered_eval_users_group[g] = len(set(ground_truth.keys()).intersection(user_groups[g]))
-    ret.append(["#total-users", num_filtered_eval_users])
-    ret.extend([[f"#users-{g}",  num_filtered_eval_users_group[g]] for g in user_groups])
+    ret.append({"#total-users": num_filtered_eval_users})
+    ret.extend([{f"#users-{g}":  num_filtered_eval_users_group[g]} for g in user_groups])
     # interactions:
     pos_total_cnt = 0
     neg_total_cnt = 0
@@ -116,11 +116,10 @@ def get_results(prediction, ground_truth, ranking_metrics, thresholds,
         if group is not None:
             pos_inter_cnt[group] += len([k for k, v in ground_truth[u].items() if v == 1])
             neg_inter_cnt[group] += len([k for k, v in ground_truth[u].items() if v == 0])
-    ret.append(["#total-pos-inter", pos_total_cnt])
-    ret.append(["#total-neg-inter", neg_total_cnt])
-    ret.extend([[f"#pos-inter-{g}", pos_inter_cnt[g]] for g in user_groups])
-    ret.extend([[f"#neg-inter-{g}", neg_inter_cnt[g]] for g in user_groups])
-    ret.append([])
+    ret.append({"#total-pos-inter": pos_total_cnt})
+    ret.append({"#total-neg-inter": neg_total_cnt})
+    ret.extend([{f"#pos-inter-{g}": pos_inter_cnt[g]} for g in user_groups])
+    ret.extend([{f"#neg-inter-{g}": neg_inter_cnt[g]} for g in user_groups])
     print(f"count inters {time.time() - start}")
 
     # calc metrics:
@@ -129,9 +128,7 @@ def get_results(prediction, ground_truth, ranking_metrics, thresholds,
                                 prediction_scores=prediction,
                                 ranking_metrics=ranking_metrics)
     metric_header = sorted(total_results.keys())
-    ret.append(["group"] + metric_header)
-    ret.append(["ALL"] + [total_results[h] for h in metric_header])
-    ret.append([])
+    ret.append({"ALL":  {h: total_results[h] for h in metric_header}})
 
     # groups:
     for g in user_groups:
@@ -139,9 +136,7 @@ def get_results(prediction, ground_truth, ranking_metrics, thresholds,
                                     prediction_scores={k: v for k, v in prediction.items() if k in user_groups[g]},
                                     ranking_metrics=ranking_metrics)
         metric_header = sorted(group_results.keys())
-        ret.append(["group"] + metric_header)
-        ret.append([g] + [group_results[h] for h in metric_header])
-        ret.append([])
+        ret.append({g:  {h: group_results[h] for h in metric_header}})
 
     return ret
 
@@ -163,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument('--thresholds', type=int, nargs='+', default=None, help='user thresholds')
 
     # optional if we want to only calculate the metrics for users with certain review length.
-    parser.add_argument('--user_review_len', type=int, default=None, help='min length of the user review')
+    parser.add_argument('--min_user_review_len', type=int, default=None, help='min length of the user review')
     parser.add_argument('--review_field', type=str, default="review", help='review field')
     args, _ = parser.parse_known_args()
 
@@ -185,12 +180,14 @@ if __name__ == "__main__":
 
     results = get_results(prediction, ground_truth, ranking_metrics, thrs,
                           train_file=args.train_file_path,
-                          min_user_review_len=args.user_review_len,
+                          min_user_review_len=args.min_user_review_len,
                           review_field=args.review_field)
+    results.append({"min_user_review_len": args.min_user_review_len, "review_field": args.review_field})
+
     outfile = args.out_path
     print(outfile)
     outfile_f = open(outfile, "w")
-    vwriter = csv.writer(outfile_f)
-    vwriter.writerow([args.user_review_len, args.review_field])
-    vwriter.writerow([])
-    vwriter.writerows(results)
+    for line in results:
+        json.dump(line, outfile_f)
+        outfile_f.write("\n\n")
+    outfile_f.close()
