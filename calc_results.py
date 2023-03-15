@@ -159,7 +159,7 @@ if __name__ == "__main__":
 
     # optional if we want to only calculate the metrics for users with certain review length.
     parser.add_argument('--min_user_review_len', type=int, default=None, help='min length of the user review')
-    parser.add_argument('--review_field', type=str, default="review", help='review field')
+    parser.add_argument('--review_field', type=str, default=None, help='review field')
     args, _ = parser.parse_known_args()
 
     ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
