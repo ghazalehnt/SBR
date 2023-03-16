@@ -90,10 +90,14 @@ def get_results(prediction, ground_truth, ranking_metrics, thresholds,
         return
     print(f"grouped users in {time.time()-start}")
 
+    # apply filters to the gt and pd
+    ground_truth = {u: v for u, v in ground_truth.items() if u in filtered_train_user_count}
+    prediction = {u: v for u, v in prediction.items() if u in filtered_train_user_count}
+
     # only count the number of users and interactions in this given eval file (for example when changes such as rev len ...)
     start = time.time()
     # users:
-    num_filtered_eval_users = len(set(ground_truth.keys()).intersection(filtered_train_user_count))
+    num_filtered_eval_users = len(ground_truth.keys())
     num_filtered_eval_users_group = {group: 0 for group in user_groups}
     for g in user_groups:
         num_filtered_eval_users_group[g] = len(set(ground_truth.keys()).intersection(user_groups[g]))
@@ -105,8 +109,8 @@ def get_results(prediction, ground_truth, ranking_metrics, thresholds,
     pos_inter_cnt = {group: 0 for group in user_groups}
     neg_inter_cnt = {group: 0 for group in user_groups}
     for u in ground_truth:
-        pos_total_cnt += len([k for k, v in ground_truth[u].items() if (v == 1 and u in filtered_train_user_count)])
-        neg_total_cnt += len([k for k, v in ground_truth[u].items() if (v == 0 and u in filtered_train_user_count)])
+        pos_total_cnt += len([k for k, v in ground_truth[u].items() if v == 1])
+        neg_total_cnt += len([k for k, v in ground_truth[u].items() if v == 0])
 
         group = None
         for g in user_groups:
