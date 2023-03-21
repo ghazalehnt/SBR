@@ -76,6 +76,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
 #            # TODO: remove later, now for running experiments, enough logging:
 #            config2["dataset"]["load_user_item_text"] =  config["dataset"]["load_user_item_text"] 
             if config != config2:
+                print(f"GivenConfig: {config}")
                 raise ValueError(f"{exp_dir} exists with different config != {config_file}")
         os.makedirs(exp_dir, exist_ok=True)
         json.dump(config, open(join(exp_dir, "config.json"), 'w'), indent=4)
