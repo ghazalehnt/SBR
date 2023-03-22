@@ -1,4 +1,4 @@
-from DeepCoNN import DeepCoNN
+from SBR.model.DeepCoNN import DeepCoNN
 from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.model.vanilla_classifier_precalc_representations_agg_chunks import \
     VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks
