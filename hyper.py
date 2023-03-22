@@ -121,9 +121,11 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
 
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
-                  config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
+                  pretrained_model=config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
+                  word_vector_model=config['model']['word2vec_file'] if 'word2vec_file' in config['model'] else None,
+                  exp_dir=exp_dir if 'word2vec_file' in config['model'] else None)
 
-    model = get_model(config['model'], users, items, device, config['dataset'])
+    model = get_model(config['model'], users, items, device, config['dataset'], exp_dir)
 
     trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
                                 test_only=False, tuning=True,
