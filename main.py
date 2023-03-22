@@ -116,13 +116,15 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
 
     train_dataloader, valid_dataloader, test_dataloader, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
-                  config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None)
+                  pretrained_model=config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
+                  word_vector_model=config['model']['word2vec_file'] if 'word2vec_file' in config['model'] else None,
+                  exp_dir=exp_dir if 'word2vec_file' in config['model'] else None)
     print("Data load done!")
     # needed for item-item relatedness
     temp = {ex: internal for ex, internal in zip(items['item_id'], items['internal_item_id'])}
     json.dump(temp, open(join(exp_dir, "item_internal_ids.json"), 'w'))
 
-    model = get_model(config['model'], users, items, device, config['dataset'])
+    model = get_model(config['model'], users, items, device, config['dataset'], exp_dir)
     print("Get model Done!")
 
     if config['trainer']['optimizer'] == "":

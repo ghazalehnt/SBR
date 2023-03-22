@@ -1,9 +1,10 @@
+from DeepCoNN import DeepCoNN
 from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.model.vanilla_classifier_precalc_representations_agg_chunks import \
     VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks
 
 
-def get_model(config, user_info, item_info, device=None, dataset_config=None):
+def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None):
     if config['name'] == "MF":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
                                               use_item_bias=False, use_user_bias=False)
@@ -62,6 +63,8 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None):
                                                                                       use_ffn=True,
                                                                                       use_item_bias=True,
                                                                                       use_user_bias=False)
+    elif config['name'] == "DeepCoNN":
+        model = DeepCoNN(config, exp_dir)
     else:
         raise ValueError(f"Model is not implemented! model.name = {config['name']}")
     return model
