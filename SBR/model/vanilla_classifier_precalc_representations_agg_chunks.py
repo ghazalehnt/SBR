@@ -46,16 +46,28 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             self.linear_i_1 = torch.nn.Linear(dim1item, model_config['k1'])
             self.linear_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
 
-        # TODO 2 or 1? seperate or single ??
+        # TODO 2 sep trans:
+        # if self.use_transformer:
+        #     dim_user = dim_item = bert_embedding_dim
+        #     if self.append_cf_after: # TODO 2 ways: combine chunks and cf each as a token, or cat cf to chunks and pass this into transformer
+        #         dim_user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
+        #         dim_item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
+        #     uencoder_layer = torch.nn.TransformerEncoderLayer(d_model=dim_user, nhead=8, batch_first=True)
+        #     self.transformer_encoder_user = torch.nn.TransformerEncoder(uencoder_layer, num_layers=6)
+        #     iencoder_layer = torch.nn.TransformerEncoderLayer(d_model=dim_item, nhead=8, batch_first=True)
+        #     self.transformer_encoder_item = torch.nn.TransformerEncoder(iencoder_layer, num_layers=6)
+
+        # TODO single trans:
         if self.use_transformer:
-            dim_user = dim_item = bert_embedding_dim
+            trans_dim = bert_embedding_dim
             if self.append_cf_after: # TODO 2 ways: combine chunks and cf each as a token, or cat cf to chunks and pass this into transformer
-                dim_user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
-                dim_item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
-            uencoder_layer = torch.nn.TransformerEncoderLayer(d_model=dim_user, nhead=8, batch_first=True)
-            self.transformer_encoder_user = torch.nn.TransformerEncoder(uencoder_layer, num_layers=6)
-            iencoder_layer = torch.nn.TransformerEncoderLayer(d_model=dim_item, nhead=8, batch_first=True)
-            self.transformer_encoder_item = torch.nn.TransformerEncoder(iencoder_layer, num_layers=6)
+                trans_dim = bert_embedding_dim + max(self.user_embedding_CF.embedding_dim, self.item_embedding_CF.embedding_dim)
+            self.CLS = torch.rand([1, trans_dim])
+            self.CLS.requires_grad = True
+            encoder_layer = torch.nn.TransformerEncoderLayer(d_model=trans_dim, nhead=8, batch_first=True)
+            self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=6)
+            self.segment_embedding = torch.nn.Embedding(num_embeddings=2, embedding_dim=trans_dim)  # TODO change it to 3 or 4 when changed how cf is appended as another token
+            self.classifier = torch.nn.Linear(trans_dim, 1)
 
         if self.use_item_bias:
             self.item_bias = torch.nn.Parameter(torch.zeros(n_items))
@@ -209,20 +221,32 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if self.chunk_agg_strategy == "max_pool" and self.use_ffn:
             item_reps = torch.stack(item_reps).max(dim=0).values  # TODO or stack dim1 and max dim1
 
-        if self.use_transformer:
-            item_reps = torch.stack(item_reps, dim=1)
-            item_reps = self.transformer_encoder_item(item_reps)
-            user_reps = torch.stack(user_reps, dim=1)
-            user_reps = self.transformer_encoder_item(user_reps)
-            if self.chunk_agg_strategy == "max_pool":
-                item_reps = item_reps.max(dim=1).values
-                user_reps = user_reps.max(dim=1).values
+        # 2 sep trans
+        # if self.use_transformer:
+        #     item_reps = torch.stack(item_reps, dim=1)
+        #     item_reps = self.transformer_encoder_item(item_reps)
+        #     user_reps = torch.stack(user_reps, dim=1)
+        #     user_reps = self.transformer_encoder_item(user_reps)
+        #     if self.chunk_agg_strategy == "max_pool":
+        #         item_reps = item_reps.max(dim=1).values
+        #         user_reps = user_reps.max(dim=1).values
 
-        result = torch.sum(torch.mul(user_reps, item_reps), dim=1)
-        if self.use_item_bias:
-            result = result + self.item_bias[item_ids]
-        if self.use_user_bias:
-            result = result + self.user_bias[user_ids]
-        result = result.unsqueeze(1)
+        # TODO clean the code, similarity for ffn ones are not used for example...
+        if self.use_transformer:
+            user_rep = torch.stack(user_reps, dim=1)
+            item_rep = torch.stack(item_reps, dim=1)
+            cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
+            input_seq = torch.concat([cls, user_rep, item_rep], dim=1)
+            seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]))
+            output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq))
+            cls_out = output_seq[:, 0, :]
+            result = self.classifier(cls_out)
+        else:
+            result = torch.sum(torch.mul(user_reps, item_reps), dim=1)
+            if self.use_item_bias:
+                result = result + self.item_bias[item_ids]
+            if self.use_user_bias:
+                result = result + self.user_bias[user_ids]
+            result = result.unsqueeze(1)
         return result  # do not apply sigmoid here, later in the trainer if we wanted we would
 
