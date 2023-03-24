@@ -49,8 +49,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
 
     _, _, _, users, items, relevance_level, padding_token = \
         load_data(config['dataset'],
-                  config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
-                  True)
+                  pretrained_model=config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
+                  for_precalc=True)
     agg_strategy = config['model']['agg_strategy']
     batch_size = config['model']['precalc_batch_size']
     bert = transformers.AutoModel.from_pretrained(config['model']['pretrained_model'])
