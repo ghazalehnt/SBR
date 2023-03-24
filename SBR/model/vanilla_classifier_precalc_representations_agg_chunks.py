@@ -236,8 +236,9 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             user_rep = torch.stack(user_reps, dim=1)
             item_rep = torch.stack(item_reps, dim=1)
             cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
+            cls = cls.to(self.device)
             input_seq = torch.concat([cls, user_rep, item_rep], dim=1)
-            seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]))
+            seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
             output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq))
             cls_out = output_seq[:, 0, :]
             result = self.classifier(cls_out)
