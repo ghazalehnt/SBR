@@ -60,13 +60,17 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         # TODO single trans:
         if self.use_transformer:
             trans_dim = bert_embedding_dim
-            if self.append_cf_after: # TODO 2 ways: combine chunks and cf each as a token, or cat cf to chunks and pass this into transformer
-                trans_dim = bert_embedding_dim + max(self.user_embedding_CF.embedding_dim, self.item_embedding_CF.embedding_dim)
+            ## this was with cat cf to each chunk embedding:
+            # if self.append_cf_after: # TODO 2 ways: combine chunks and cf each as a token, or cat cf to chunks and pass this into transformer
+            #     trans_dim = bert_embedding_dim + max(self.user_embedding_CF.embedding_dim, self.item_embedding_CF.embedding_dim)
+            # self.segment_embedding = torch.nn.Embedding(num_embeddings=2, embedding_dim=trans_dim)
+            ## this is with having cf as input
+            self.segment_embedding = torch.nn.Embedding(num_embeddings=4 if self.append_cf_after else 2, embedding_dim=trans_dim)
             self.CLS = torch.rand([1, trans_dim])
             self.CLS.requires_grad = True
             encoder_layer = torch.nn.TransformerEncoderLayer(d_model=trans_dim, nhead=8, batch_first=True)
             self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=6)
-            self.segment_embedding = torch.nn.Embedding(num_embeddings=2, embedding_dim=trans_dim)  # TODO change it to 3 or 4 when changed how cf is appended as another token
+
             self.classifier = torch.nn.Linear(trans_dim, 1)
 
         if self.use_item_bias:
@@ -193,10 +197,10 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 user_ch_rep = user_ch_rep.to(self.device)
             else:
                 user_ch_rep = self.chunk_user_reps[c](user_ids)
-#            user_ch_rep = self.chunk_user_reps[c](user_ids)
-            if self.append_cf_after:  # TODO for transormer the same?
-                user_ch_rep = torch.cat([user_ch_rep, self.user_embedding_CF(user_ids)], dim=1)
             if self.use_ffn:
+                # append cf to the end of the ch reps :
+                if self.append_cf_after:
+                    user_ch_rep = torch.cat([user_ch_rep, self.user_embedding_CF(user_ids)], dim=1)
                 user_ch_rep = torch.nn.functional.relu(self.linear_u_1(user_ch_rep))
                 user_ch_rep = self.linear_u_2(user_ch_rep)
             user_reps.append(user_ch_rep)
@@ -212,9 +216,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 item_ch_rep = item_ch_rep.to(self.device)
             else:
                 item_ch_rep = self.chunk_item_reps[c](item_ids)          
-            if self.append_cf_after: # TODO for transormer the same?
-                item_ch_rep = torch.cat([item_ch_rep, self.item_embedding_CF(item_ids)], dim=1)
+
             if self.use_ffn:
+                # append cf to the end of the ch reps :
+                if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
+                    item_ch_rep = torch.cat([item_ch_rep, self.item_embedding_CF(item_ids)], dim=1)
                 item_ch_rep = torch.nn.functional.relu(self.linear_i_1(item_ch_rep))
                 item_ch_rep = self.linear_i_2(item_ch_rep)
             item_reps.append(item_ch_rep)
@@ -237,8 +243,19 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             item_rep = torch.stack(item_reps, dim=1)
             cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
             cls = cls.to(self.device)
-            input_seq = torch.concat([cls, user_rep, item_rep], dim=1)
-            seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
+            if self.append_cf_after:
+                user_cf = torch.zeros(cls.shape, device=self.device)
+                user_cf[:, :, :self.user_embedding_CF.embedding_dim] = self.user_embedding_CF(user_ids).unsqueeze(dim=1)
+                item_cf = torch.zeros(cls.shape, device=self.device)
+                item_cf[:, :, :self.item_embedding_CF.embedding_dim] = self.item_embedding_CF(item_ids).unsqueeze(dim=1)
+                input_seq = torch.concat([cls, user_rep, user_cf, item_rep, item_cf], dim=1)
+                seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] + [2] * item_rep.shape[1] + [3]] * item_ids.shape[0]).to(self.device))
+            else:
+                input_seq = torch.concat([cls, user_rep, item_rep], dim=1)
+                seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
+            # when appending cf to chunk:
+            # seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
+
             output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq))
             cls_out = output_seq[:, 0, :]
             result = self.classifier(cls_out)
