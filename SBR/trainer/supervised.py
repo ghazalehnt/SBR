@@ -6,6 +6,8 @@ from os.path import exists, join
 
 import torch
 from ray import tune
+from torch import autocast
+from torch.cuda.amp import GradScaler
 from torch.optim import Adam, SGD
 from tqdm import tqdm
 import numpy as np
@@ -102,6 +104,9 @@ class SupervisedTrainer:
         # torch.manual_seed(42)
         # torch.cuda.manual_seed(42)
 
+        # Creates a GradScaler once at the beginning of training.
+        scaler = GradScaler()
+
         for epoch in range(self.start_epoch, self.epochs):
             if early_stopping_cnt == self.patience:
                 print(f"Early stopping after {self.patience} epochs not improving!")
@@ -122,28 +127,34 @@ class SupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 self.optimizer.zero_grad()
-                output = self.model(batch)
-                if self.loss_fn._get_name() == "BCEWithLogitsLoss":
-                    # not applying sigmoid before loss bc it is already applied in the loss
-                    loss = self.loss_fn(output, label)
-                    # just apply sigmoid for logging
-                    # tr_outputs.extend(list(torch.sigmoid(output.to('cpu'))))
-                    # tr_labels.extend(label.to('cpu'))
-                else:
-                    if self.sig_output:
-                        output = torch.sigmoid(output)
-                    if self.loss_fn._get_name() == "MarginRankingLoss":
-                        pos_l = label[label == 1]
-                        pos_out = output[:pos_l.shape[0]].squeeze()
-                        neg_out = output[pos_l.shape[0]:].squeeze()
-                        loss = self.loss_fn(pos_out, neg_out, pos_l)
-                    else:
+                # Runs the forward pass with autocasting.
+                with autocast(device_type=self.device, dtype=torch.float16):
+                    output = self.model(batch)
+                    if self.loss_fn._get_name() == "BCEWithLogitsLoss":
+                        # not applying sigmoid before loss bc it is already applied in the loss
                         loss = self.loss_fn(output, label)
-                    # tr_outputs.extend(list(output))
-                    # tr_labels.extend(label)
+                        # just apply sigmoid for logging
+                        # tr_outputs.extend(list(torch.sigmoid(output.to('cpu'))))
+                        # tr_labels.extend(label.to('cpu'))
+                    else:
+                        if self.sig_output:
+                            output = torch.sigmoid(output)
+                        if self.loss_fn._get_name() == "MarginRankingLoss":
+                            pos_l = label[label == 1]
+                            pos_out = output[:pos_l.shape[0]].squeeze()
+                            neg_out = output[pos_l.shape[0]:].squeeze()
+                            loss = self.loss_fn(pos_out, neg_out, pos_l)
+                        else:
+                            loss = self.loss_fn(output, label)
+                        # tr_outputs.extend(list(output))
+                        # tr_labels.extend(label)
 
-                loss.backward()
-                self.optimizer.step()
+                # loss.backward()
+                # self.optimizer.step()
+                scaler.scale(loss).backward()
+                scaler.step(self.optimizer)
+                scaler.update()
+                
                 train_loss += loss
                 total_count += label.size(0)
 
