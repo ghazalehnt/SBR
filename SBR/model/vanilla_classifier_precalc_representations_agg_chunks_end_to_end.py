@@ -92,7 +92,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         if model_config["tune_BERT"] is True:
             self.bert.trainable = True
             self.bert.requires_grad_(True)
-            for param in self.bert.bert.parameters():
+            for param in self.bert.parameters():
                 param.requires_grad = True
         self.bert_embeddings = self.bert.get_input_embeddings()
         BERT_DIM = self.bert_embeddings.embedding_dim
