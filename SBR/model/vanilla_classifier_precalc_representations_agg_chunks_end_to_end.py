@@ -92,10 +92,10 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         if model_config["tune_BERT"] is True:
             self.bert.trainable = True
             self.bert.requires_grad_(True)
-            for param in self.bert.base_model.parameters():  #TODO ??
-                param.requires_grad = False
+            for param in self.bert.bert.parameters():
+                param.requires_grad = True
         self.bert_embeddings = self.bert.get_input_embeddings()
-        BERT_DIM = 768
+        BERT_DIM = self.bert_embeddings.embedding_dim
         self.use_cf = model_config["use_CF"]
         if self.use_cf:
             # TODO segment encoding
@@ -117,7 +117,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         # TODO try with max chunk > 1
         # TODO 1: try with item and user input to single bert
         # this for is on
-        BERT_DIM = 768 # TODO
+        BERT_DIM = self.bert_embeddings.embedding_dim
         user_reps = []
         for c in range(self.max_num_chunks_user):
             input_ids = batch['user_chunks_input_ids'][c]
