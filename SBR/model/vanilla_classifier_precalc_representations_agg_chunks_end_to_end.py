@@ -120,7 +120,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         BERT_DIM = self.bert_embeddings.embedding_dim
         user_reps = []
         for c in range(self.max_num_chunks_user):
-            if len(batch['user_chunks_input_ids']) < c:
+            if len(batch['user_chunks_input_ids']) <= c:
                 input_ids = torch.zeros(input_ids.shape, device=self.device)
                 att_mask = torch.zeros(att_mask.shape, device=self.device)
             else:
@@ -165,7 +165,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
 
         item_reps = []
         for c in range(self.max_num_chunks_item):
-            if len(batch['item_chunks_input_ids']) < c:
+            if len(batch['item_chunks_input_ids']) <= c:
                 input_ids = torch.zeros(input_ids.shape, device=self.device)
                 att_mask = torch.zeros(att_mask.shape, device=self.device)
             else:
