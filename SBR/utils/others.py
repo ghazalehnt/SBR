@@ -2,8 +2,8 @@ from SBR.model.DeepCoNN import DeepCoNN
 from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.model.vanilla_classifier_precalc_representations_agg_chunks import \
     VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks
-from SBR.model.vanilla_classifier_precalc_representations_agg_chunks_end_to_end import \
-    VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndToEnd
+from SBR.model.vanilla_classifier_agg_chunks_end_to_end import \
+    VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd
 
 
 def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None):
@@ -48,24 +48,24 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
                                                                                       use_user_bias=False,
                                                                                       use_transformer=True)
     elif config['name'] == "VanillaBERT_precalc_with_transformersinglenew_endtoend":
-        model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndToEnd(model_config=config,
-                                                                                              users=user_info,
-                                                                                              items=item_info,
-                                                                                              device=device,
-                                                                                              dataset_config=dataset_config,
-                                                                                              use_ffn=False,
-                                                                                              use_item_bias=False,
-                                                                                              use_user_bias=False,
-                                                                                              use_transformer=True)
+        model = VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(model_config=config,
+                                                                                 users=user_info,
+                                                                                 items=item_info,
+                                                                                 device=device,
+                                                                                 dataset_config=dataset_config,
+                                                                                 use_ffn=False,
+                                                                                 use_item_bias=False,
+                                                                                 use_user_bias=False,
+                                                                                 use_transformer=True)
     elif config['name'] == "VanillaBERT_precalc_with_ffn_endtoend":
-        model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndToEnd(model_config=config,
-                                                                                              users=user_info,
-                                                                                              items=item_info,
-                                                                                              device=device,
-                                                                                              dataset_config=dataset_config,
-                                                                                              use_ffn=True,
-                                                                                              use_item_bias=False,
-                                                                                              use_user_bias=False)
+        model = VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(model_config=config,
+                                                                                 users=user_info,
+                                                                                 items=item_info,
+                                                                                 device=device,
+                                                                                 dataset_config=dataset_config,
+                                                                                 use_ffn=True,
+                                                                                 use_item_bias=False,
+                                                                                 use_user_bias=False)
     elif config['name'] == "VanillaBERT_precalc_with_itembias":
         model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
                                                                                       users=user_info,

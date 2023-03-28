@@ -6,10 +6,10 @@ import transformers
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 
-class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndToEnd(torch.nn.Module):
+class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.Module):
     def __init__(self, model_config, users, items, device, dataset_config,
                  use_ffn=False, use_transformer=False, use_item_bias=False, use_user_bias=False):
-        super(VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndToEnd, self).__init__()
+        super(VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd, self).__init__()
         bert_embedding_dim = 768
         n_users = users.shape[0]
         n_items = items.shape[0]
