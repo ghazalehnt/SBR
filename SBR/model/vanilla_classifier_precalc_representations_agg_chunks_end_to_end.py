@@ -121,8 +121,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         user_reps = []
         for c in range(self.max_num_chunks_user):
             if len(batch['user_chunks_input_ids']) <= c:
-                input_ids = torch.zeros(input_ids.shape, device=self.device)
-                att_mask = torch.zeros(att_mask.shape, device=self.device)
+                input_ids = torch.zeros(input_ids.shape, device=self.device, dtype=torch.int64)
+                att_mask = torch.zeros(att_mask.shape, device=self.device, dtype=torch.int64)
             else:
                 input_ids = batch['user_chunks_input_ids'][c]
                 att_mask = batch['user_chunks_attention_mask'][c]
@@ -166,8 +166,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         item_reps = []
         for c in range(self.max_num_chunks_item):
             if len(batch['item_chunks_input_ids']) <= c:
-                input_ids = torch.zeros(input_ids.shape, device=self.device)
-                att_mask = torch.zeros(att_mask.shape, device=self.device)
+                input_ids = torch.zeros(input_ids.shape, device=self.device, dtype=torch.int64)
+                att_mask = torch.zeros(att_mask.shape, device=self.device, dtype=torch.int64)
             else:
                 input_ids = batch['item_chunks_input_ids'][c]
                 att_mask = batch['item_chunks_attention_mask'][c]
