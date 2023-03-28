@@ -90,10 +90,12 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         # end-to-end
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
-            self.bert.trainable = True
             self.bert.requires_grad_(True)
-            for param in self.bert.parameters():
-                param.requires_grad = True
+            # freeze layers other than last one:
+            freeze_modules = [self.bert.embeddings, self.bert.encoder.layer[:11]]
+            for module in freeze_modules:
+                for param in module.parameters():
+                    param.requires_grad = False
         self.bert_embeddings = self.bert.get_input_embeddings()
         BERT_DIM = self.bert_embeddings.embedding_dim
         self.use_cf = model_config["use_CF"]
