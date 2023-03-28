@@ -120,8 +120,12 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
         BERT_DIM = self.bert_embeddings.embedding_dim
         user_reps = []
         for c in range(self.max_num_chunks_user):
-            input_ids = batch['user_chunks_input_ids'][c]
-            att_mask = batch['user_chunks_attention_mask'][c]
+            if len(batch['user_chunks_input_ids']) < c:
+                input_ids = torch.zeros(input_ids.shape, device=self.device)
+                att_mask = torch.zeros(att_mask.shape, device=self.device)
+            else:
+                input_ids = batch['user_chunks_input_ids'][c]
+                att_mask = batch['user_chunks_attention_mask'][c]
             if self.use_cf is True:
                 cf_embeds = self.user_embedding_CF(user_ids)
                 if self.user_embedding_CF.embedding_dim < BERT_DIM:
@@ -161,8 +165,12 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunksEndTo
 
         item_reps = []
         for c in range(self.max_num_chunks_item):
-            input_ids = batch['item_chunks_input_ids'][c]
-            att_mask = batch['item_chunks_attention_mask'][c]
+            if len(batch['item_chunks_input_ids']) < c:
+                input_ids = torch.zeros(input_ids.shape, device=self.device)
+                att_mask = torch.zeros(att_mask.shape, device=self.device)
+            else:
+                input_ids = batch['item_chunks_input_ids'][c]
+                att_mask = batch['item_chunks_attention_mask'][c]
             if self.use_cf is True:
                 cf_embeds = self.item_embedding_CF(item_ids)
                 if self.item_embedding_CF.embedding_dim < BERT_DIM:
