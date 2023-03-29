@@ -54,7 +54,7 @@ class SupervisedTrainer:
         self.validation_user_sample_num = None
         if "enable_autocast" in config:
             self.enable_autocast = config["enable_autocast"]
-        if "validation_user_sample_num" in config:
+        if "validation_user_sample_num" in config and config["validation_user_sample_num"] != "":
             self.validation_user_sample_num = config["validation_user_sample_num"]
 
         if config['loss_fn'] == "BCE":
