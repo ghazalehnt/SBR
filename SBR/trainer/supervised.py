@@ -102,7 +102,7 @@ class SupervisedTrainer:
             valid_users = list(set(valid_dataset_pd[INTERNAL_USER_ID_FIELD]))
 
         if self.validation_user_sample_num is not None:
-            chosen_users = np.random.choice(valid_users, self.validation_user_samples_num, replace=False)
+            chosen_users = np.random.choice(valid_users, self.validation_user_sample_num, replace=False)
             sampled_validation = Dataset.from_pandas(
                 valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
             sampled_dataloader = DataLoader(sampled_validation,
@@ -193,7 +193,7 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
             if self.validation_user_sample_num is not None:
-                chosen_users = np.random.choice(valid_users, self.validation_user_samples_num, replace=False)
+                chosen_users = np.random.choice(valid_users, self.validation_user_sample_num, replace=False)
                 sampled_validation = Dataset.from_pandas(
                     valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
                 sampled_dataloader = DataLoader(sampled_validation,
