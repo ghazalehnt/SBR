@@ -5,10 +5,12 @@ import time
 from os.path import exists, join
 
 import torch
+from datasets import Dataset
 from ray import tune
 from torch import autocast
 from torch.cuda.amp import GradScaler
 from torch.optim import Adam, SGD
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
@@ -48,6 +50,12 @@ class SupervisedTrainer:
         self.users = users
         self.items = items
         self.sig_output = config["sigmoid_output"]
+        self.enable_autocast = False
+        self.validation_user_sample_num = None
+        if "enable_autocast" in config:
+            self.enable_autocast = config["enable_autocast"]
+        if "validation_user_sample_num" in config:
+            self.validation_user_sample_num = config["validation_user_sample_num"]
 
         if config['loss_fn'] == "BCE":
             if self.sig_output is False:
@@ -89,10 +97,9 @@ class SupervisedTrainer:
         early_stopping_cnt = 0
         comparison_op = operator.lt if self.valid_metric == "valid_loss" else operator.gt
 
-        # #TODO not sure about this
-        # _, _, trloss, _, _ = self.predict(train_dataloader)
-        # print(f"Train loss before training: {trloss:.8f}")
-        #
+        if self.validation_user_sample_num is not None:
+            valid_dataset_pd = valid_dataloader.dataset.to_pandas()
+            valid_users = list(set(valid_dataset_pd[INTERNAL_USER_ID_FIELD]))
 
         # outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader)
         # results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
@@ -128,7 +135,7 @@ class SupervisedTrainer:
 
                 self.optimizer.zero_grad()
                 # Runs the forward pass with autocasting.
-                with autocast(device_type=self.device, dtype=torch.float16):
+                with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
                     output = self.model(batch)
                     if self.loss_fn._get_name() == "BCEWithLogitsLoss":
                         # not applying sigmoid before loss bc it is already applied in the loss
@@ -154,7 +161,7 @@ class SupervisedTrainer:
                 scaler.scale(loss).backward()
                 scaler.step(self.optimizer)
                 scaler.update()
-                
+
                 train_loss += loss
                 total_count += label.size(0)
 
@@ -175,7 +182,18 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
-            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
+            if self.validation_user_sample_num is not None:  # TODO add a config
+                chosen_users = np.random.choice(valid_users, self.validation_user_samples_num, replace=False)
+                sampled_validation = Dataset.from_pandas(
+                    valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
+                sampled_dataloader = DataLoader(sampled_validation,
+                                                batch_size=valid_dataloader.batch_size,
+                                                collate_fn=valid_dataloader.collate_fn,
+                                                num_workers=valid_dataloader.num_workers)
+                outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
+            else:
+                outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
+
 #            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
 #                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
             results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
@@ -264,19 +282,22 @@ class SupervisedTrainer:
                 label = batch.pop("label").float()  # setting the type to torch.float32
                 prepare_time = time.perf_counter() - start_time
 
-                output = self.model(batch)
-                if self.loss_fn._get_name() == "BCEWithLogitsLoss":
-                    # not applying sigmoid before loss bc it is already applied in the loss
-                    loss = self.loss_fn(output, label)
-                    # just apply sigmoid for logging
-                    output = torch.sigmoid(output)
-                else:
-                    if self.sig_output:
-                        output = torch.sigmoid(output)
-                    if self.loss_fn._get_name() == "MarginRankingLoss":
-                        loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
-                    else:
+                with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
+                    output = self.model(batch)
+
+                    if self.loss_fn._get_name() == "BCEWithLogitsLoss":
+                        # not applying sigmoid before loss bc it is already applied in the loss
                         loss = self.loss_fn(output, label)
+                        # just apply sigmoid for logging
+                        output = torch.sigmoid(output)
+                    else:
+                        if self.sig_output:
+                            output = torch.sigmoid(output)
+                        if self.loss_fn._get_name() == "MarginRankingLoss":
+                            loss = torch.Tensor([-1])  # cannot calculate margin loss with more than 1 negative per positve
+                        else:
+                            loss = self.loss_fn(output, label)
+
                 eval_loss += loss.item()
                 total_count += label.size(0)  # TODO remove if not used
                 process_time = time.perf_counter() - start_time - prepare_time
