@@ -100,8 +100,6 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         BERT_DIM = self.bert_embeddings.embedding_dim
         self.use_cf = model_config["use_CF"]
         if self.use_cf:
-            # TODO segment encoding
-            # self.bert_seg_embedding = torch.nn.Embedding(num_embeddings=2, embedding_dim=768)
             CF_model_weights = torch.load(model_config['CF_model_path'], map_location=device)['model_state_dict']
             embedding_dim = CF_model_weights['user_embedding.weight'].shape[-1]
             if embedding_dim > BERT_DIM:
@@ -139,7 +137,6 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
                 # insert cf embedding after the especial CLS token:
                 concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
                 att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-                # TODO segment encoding
                 output_u = self.bert.forward(inputs_embeds=concat_ids,
                                              attention_mask=att_mask)
             else:
