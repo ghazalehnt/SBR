@@ -1,9 +1,13 @@
+import random
 from os.path import join
 
 import pandas as pd
 import numpy as np
 
 if __name__ == "__main__":
+    random.seed(42)
+    np.random.seed(42)
+
     datapath = ""
     num_users = 100
     pos_file = "validation.csv"
