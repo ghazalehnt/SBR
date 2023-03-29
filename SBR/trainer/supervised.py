@@ -101,20 +101,20 @@ class SupervisedTrainer:
             valid_dataset_pd = valid_dataloader.dataset.to_pandas()
             valid_users = list(set(valid_dataset_pd[INTERNAL_USER_ID_FIELD]))
 
-        if self.validation_user_sample_num is not None:
-            chosen_users = np.random.choice(valid_users, self.validation_user_sample_num, replace=False)
-            sampled_validation = Dataset.from_pandas(
-                valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
-            sampled_dataloader = DataLoader(sampled_validation,
-                                            batch_size=valid_dataloader.batch_size,
-                                            collate_fn=valid_dataloader.collate_fn,
-                                            num_workers=valid_dataloader.num_workers)
-            outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
-        else:
-            outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
-        results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
-        results = {f"valid_{k}": v for k, v in results.items()}
-        print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+        # if self.validation_user_sample_num is not None:
+        #     chosen_users = np.random.choice(valid_users, self.validation_user_sample_num, replace=False)
+        #     sampled_validation = Dataset.from_pandas(
+        #         valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
+        #     sampled_dataloader = DataLoader(sampled_validation,
+        #                                     batch_size=valid_dataloader.batch_size,
+        #                                     collate_fn=valid_dataloader.collate_fn,
+        #                                     num_workers=valid_dataloader.num_workers)
+        #     outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
+        # else:
+        #     outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
+        # results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
+        # results = {f"valid_{k}": v for k, v in results.items()}
+        # print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
 
         # random.seed(42)
         # np.random.seed(42)
