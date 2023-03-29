@@ -968,7 +968,7 @@ def load_split_dataset(config, for_precalc=False):
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
-                "validation": join(config['dataset_path'], "validation.csv"),
+                "validation": join(config['dataset_path'], f'{config["alternative_pos_validation_file"]}.csv' if ("alternative_pos_validation_file" in config and config["alternative_pos_validation_file"] != "") else "validation.csv"),
                 "test": join(config['dataset_path'], "test.csv")}
     split_datasets = {}
     filtered_out_user_item_pairs_by_limit = defaultdict(set)
