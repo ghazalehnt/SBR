@@ -33,6 +33,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if self.append_cf_after:
             CF_model_weights = torch.load(model_config['append_CF_after_model_path'], map_location=device)[
                 'model_state_dict']
+            # note: no need to match item and user ids only due to them being created with the same framework where we sort ids.
+            # otherwise there needs to be a matching
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'], freeze=True)
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
 
@@ -267,7 +269,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
             # when appending cf to chunk:
             # seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
 
-            output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq), mask=mask)
+            output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq), src_key_padding_mask=mask)
             cls_out = output_seq[:, 0, :]
             result = self.classifier(cls_out)
         else:
@@ -278,4 +280,3 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 result = result + self.user_bias[user_ids]
             result = result.unsqueeze(1)
         return result  # do not apply sigmoid here, later in the trainer if we wanted we would
-
