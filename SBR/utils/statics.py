@@ -12,7 +12,7 @@ map_user_item_text = {
     "interaction.review_text": "r",
     "interaction.prompted": "p",
     "interaction.prompted_keywords": "k",
-    "user.chatgpt": "chatgpt"
+    "user.chatgpt": "h"
 }
 
 reverse_map_user_item_text = {
@@ -32,7 +32,7 @@ reverse_map_user_item_text = {
         "r": "interaction.review_text",
         "p": "interaction.prompted",
         "k": "interaction.prompted_keywords",
-        "chatgpt": "user.chatgpt"
+        "h": "user.chatgpt"
     },
     "CGR": {
         "t": "item.title",
