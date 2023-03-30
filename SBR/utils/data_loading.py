@@ -1191,6 +1191,7 @@ def load_split_dataset(config, for_precalc=False):
         user_remaining_text_fields.append('text')
     if len(user_remaining_text_fields) > 0:
         user_info['text'] = user_info[user_remaining_text_fields].agg('. '.join, axis=1)
+        user_info['text'] = user_info['text'].apply(lambda x: x.replace("<end of review>", ""))
         if not config['case_sensitive']:
             user_info['text'] = user_info['text'].apply(str.lower)
         if config['normalize_negation']:
