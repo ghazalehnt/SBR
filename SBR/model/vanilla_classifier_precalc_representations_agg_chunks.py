@@ -79,7 +79,7 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if self.use_user_bias:
             self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
 
-        self.chunk_agg_strategy = model_config['chunk_agg_strategy']
+        self.chunk_agg_strategy = model_config['chunk_agg_strategy'] if 'chunk_agg_strategy' in model_config else None
         max_num_chunks_user = dataset_config['max_num_chunks_user']
         max_num_chunks_item = dataset_config['max_num_chunks_item']
 
@@ -116,11 +116,11 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                         f".pkl"
         if os.path.exists(os.path.join(prec_path, user_rep_file)):
             user_chunk_reps_dict = torch.load(os.path.join(prec_path, user_rep_file), map_location=torch.device('cpu'))
-            user_chunk_reps = []
+            user_chunks_reps = []
             cnt = 0
             for u in users.sort('user_id'):
                 ex_user_id = u["user_id"]
-                user_chunk_reps.append(user_chunk_reps_dict[ex_user_id])
+                user_chunks_reps.append(user_chunk_reps_dict[ex_user_id])
                 if cnt != u[INTERNAL_USER_ID_FIELD]:
                     raise RuntimeError("wrong user!")
                 cnt += 1
@@ -154,30 +154,34 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 f"Precalculated item embedding does not exist! {os.path.join(prec_path, item_rep_file)}")
 
         self.chunk_user_reps = {}
+        self.user_chunk_masks = torch.zeros((n_users, max_num_chunks_user))
         for c in range(max_num_chunks_user):
             ch_rep = []
-            for user_chunks in user_chunk_reps:
+            for i, user_chunks in zip(range(n_users), user_chunks_reps):
                 if c < len(user_chunks):
                     ch_rep.append(user_chunks[c])
+                    self.user_chunk_masks[i][c] = 1
                 else:
-                    if self.chunk_agg_strategy == "max_pool":
+                    if self.use_ffn and self.chunk_agg_strategy == "max_pool":
                         ch_rep.append(user_chunks[0])  # if user has fewer than c chunks, add its chunk0
                     else:
-                        raise NotImplementedError()
+                        ch_rep.append(torch.zeros(user_chunks[0].shape))
             self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'])
 #            self.chunk_user_reps[c].to(device)
 
         self.chunk_item_reps = {}
+        self.item_chunk_masks = torch.zeros((n_items, max_num_chunks_item))
         for c in range(max_num_chunks_item):
             ch_rep = []
-            for item_chunks in item_chunks_reps:
+            for i, item_chunks in zip(range(n_items), item_chunks_reps):
                 if c < len(item_chunks):
                     ch_rep.append(item_chunks[c])
+                    self.item_chunk_masks[i][c] = 1
                 else:
-                    if self.chunk_agg_strategy == "max_pool":
+                    if self.use_ffn and self.chunk_agg_strategy == "max_pool":
                         ch_rep.append(item_chunks[0])  # if item has fewer than c chunks, add its chunk0
                     else:
-                        raise NotImplementedError()
+                        ch_rep.append(torch.zeros(item_chunks[0].shape))
             self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep), freeze=model_config['freeze_prec_reps'])
 #            self.chunk_item_reps[c].to(device)
 
@@ -241,6 +245,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if self.use_transformer:
             user_rep = torch.stack(user_reps, dim=1)
             item_rep = torch.stack(item_reps, dim=1)
+            user_rep_mask = self.user_chunk_masks[user_ids]
+            item_rep_mask = self.item_chunk_masks[item_ids]
             cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
             cls = cls.to(self.device)
             if self.append_cf_after:
@@ -250,13 +256,18 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
                 item_cf[:, :, :self.item_embedding_CF.embedding_dim] = self.item_embedding_CF(item_ids).unsqueeze(dim=1)
                 input_seq = torch.concat([cls, user_rep, user_cf, item_rep, item_cf], dim=1)
                 seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] + [2] * item_rep.shape[1] + [3]] * item_ids.shape[0]).to(self.device))
+                mask = torch.concat([torch.ones((user_ids.shape[0], 1), device=self.device),
+                                     user_rep_mask, torch.ones((user_ids.shape[0], 1), device=self.device),
+                                     item_rep_mask, torch.ones((user_ids.shape[0], 1), device=self.device)], dim=1)
             else:
                 input_seq = torch.concat([cls, user_rep, item_rep], dim=1)
                 seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
+                mask = torch.concat([torch.ones((user_ids.shape[0], 1), device=self.device),
+                                     user_rep_mask, item_rep_mask], dim=1)
             # when appending cf to chunk:
             # seg_seq = self.segment_embedding(torch.LongTensor([[0] + [0] * user_rep.shape[1] + [1] * item_rep.shape[1]] * item_ids.shape[0]).to(self.device))
 
-            output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq))
+            output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq), mask=mask)
             cls_out = output_seq[:, 0, :]
             result = self.classifier(cls_out)
         else:
