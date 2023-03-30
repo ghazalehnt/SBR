@@ -247,8 +247,8 @@ class VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(torc
         if self.use_transformer:
             user_rep = torch.stack(user_reps, dim=1)
             item_rep = torch.stack(item_reps, dim=1)
-            user_rep_mask = self.user_chunk_masks[user_ids]
-            item_rep_mask = self.item_chunk_masks[item_ids]
+            user_rep_mask = self.user_chunk_masks[user_ids].to(self.device)
+            item_rep_mask = self.item_chunk_masks[item_ids].to(self.device)
             cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
             cls = cls.to(self.device)
             if self.append_cf_after:
