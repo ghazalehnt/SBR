@@ -47,7 +47,7 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
                                                                                       use_item_bias=False,
                                                                                       use_user_bias=False,
                                                                                       use_transformer=True)
-    elif config['name'] == "VanillaBERT_precalc_with_transformersinglenew_endtoend":
+    elif config['name'] == "VanillaBERT_transformersinglenew_endtoend":
         model = VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(model_config=config,
                                                                                  users=user_info,
                                                                                  items=item_info,
@@ -57,7 +57,7 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
                                                                                  use_item_bias=False,
                                                                                  use_user_bias=False,
                                                                                  use_transformer=True)
-    elif config['name'] == "VanillaBERT_precalc_with_ffn_endtoend":
+    elif config['name'] == "VanillaBERT_ffn_endtoend":
         model = VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(model_config=config,
                                                                                  users=user_info,
                                                                                  items=item_info,
