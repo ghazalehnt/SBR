@@ -35,6 +35,8 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         if self.append_cf_after:
             CF_model_weights = torch.load(model_config['append_CF_after_model_path'], map_location=device)[
                 'model_state_dict']
+            # note: no need to match item and user ids only due to them being created with the same framework where we sort ids.
+            # otherwise there needs to be a matching
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'], freeze=True)
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
 
@@ -81,7 +83,7 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         if self.use_user_bias:
             self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
 
-        self.chunk_agg_strategy = model_config['chunk_agg_strategy']
+        self.chunk_agg_strategy = model_config['chunk_agg_strategy'] if 'chunk_agg_strategy' in model_config else None
 
         self.max_num_chunks_user = dataset_config['max_num_chunks_user']
         self.max_num_chunks_item = dataset_config['max_num_chunks_item']
@@ -208,8 +210,8 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         if self.chunk_agg_strategy == "max_pool" and self.use_ffn:
             item_reps = torch.stack(item_reps).max(dim=0).values
 
-        # TODO clean the code, similarity for ffn ones are not it used for example...
         if self.use_transformer:
+            # TODO masking the non exsitant chunks, if more than 1 is used! not now though
             user_rep = torch.stack(user_reps, dim=1)
             item_rep = torch.stack(item_reps, dim=1)
             cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
