@@ -82,20 +82,12 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         json.dump(config, open(join(exp_dir, "config.json"), 'w'), indent=4)
     elif op == "test":
         config = json.load(open(join(result_folder, "config.json"), 'r'))
-        # TODO: this should also be removed, it was written to accomodate earlier runs
-        if "chunk_size" in config["dataset"]:
-            if "user_chunk_size" not in config["dataset"]:
-                config["dataset"]["user_chunk_size"] = config["dataset"]["chunk_size"] 
-            if "item_chunk_size" not in config["dataset"]:
-                config["dataset"]["item_chunk_size"] = config["dataset"]["chunk_size"]
-        ###
         test_only = True
         exp_dir = config["experiment_dir"]
         if given_neg_files["validation"] is not None:
             config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
         if given_neg_files["test"] is not None:
             config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
-        config["dataset"]["load_user_item_text"] = False
     else:
         raise ValueError("op not defined!")
 
@@ -158,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result forler, to evaluate')
     parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
     parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
-    parser.add_argument('--testtime_validation_neg_strategy', '-v', default=None, help='valid neg strategy, only for op == test')
+    #parser.add_argument('--testtime_validation_neg_strategy', '-v', default=None, help='valid neg strategy, only for op == test')
     parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
     parser.add_argument('--trainer_lr', default=None, help='trainer learning rate')
     parser.add_argument('--train_batch_size', default=None, help='train_batch_size')
@@ -166,6 +158,7 @@ if __name__ == '__main__':
     parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
     parser.add_argument('--op', type=str, help='operation train/test/trainonly')
     args, _ = parser.parse_known_args()
+    args.testtime_validation_neg_strategy = None
 
     if args.op in ["train", "trainonly"]:
         if not os.path.exists(args.config_file):
