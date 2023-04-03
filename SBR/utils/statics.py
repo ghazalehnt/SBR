@@ -10,9 +10,11 @@ map_user_item_text = {
     "interaction.reviewText": "r",
     "interaction.review": "r",
     "interaction.review_text": "r",
-    "interaction.prompted": "p",
-    "interaction.prompted_keywords": "k",
-    "user.chatgpt": "h"
+    "interaction.model_keywords": "m",
+    "interaction.instructional_keywords": "i",
+    "interaction.t5": "5",
+    "user.chatgpt": "h",
+    "user.summarizer": "s"
 }
 
 reverse_map_user_item_text = {
@@ -21,18 +23,18 @@ reverse_map_user_item_text = {
         "c": "item.category",
         "d": "item.description",
         "s": "interaction.summary",
-        "r": "interaction.reviewText",
-        "p": "interaction.prompted",
-        "k": "interaction.prompted_keywords"
+        "r": "interaction.reviewText"
     },
     "GR_UCSD": {
         "t": "item.title",
         "g": "item.genres",
         "d": "item.description",
         "r": "interaction.review_text",
-        "p": "interaction.prompted",
-        "k": "interaction.prompted_keywords",
-        "h": "user.chatgpt"
+        "m": "interaction.model_keywords",
+        "i": "interaction.instructional_keywords",
+        "5": "interaction.t5",
+        "h": "user.chatgpt",
+        "s": "user.summarizer"
     },
     "CGR": {
         "t": "item.title",
