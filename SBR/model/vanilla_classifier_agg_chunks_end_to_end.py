@@ -87,8 +87,8 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
 
         self.max_num_chunks_user = dataset_config['max_num_chunks_user']
         self.max_num_chunks_item = dataset_config['max_num_chunks_item']
-        # if max_num_chunks_user > 1 or max_num_chunks_item > 1:
-        #     raise ValueError("max chunk should be set to 1 ")  # TODO test this though
+        if self.max_num_chunks_user > 1 or self.max_num_chunks_item > 1:
+            raise ValueError("max chunk should be set to 1 ")  # TODO for now
         # end-to-end
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
