@@ -85,10 +85,9 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
 
         self.chunk_agg_strategy = model_config['chunk_agg_strategy'] if 'chunk_agg_strategy' in model_config else None
 
-        self.max_num_chunks_user = dataset_config['max_num_chunks_user']
-        self.max_num_chunks_item = dataset_config['max_num_chunks_item']
-        if self.max_num_chunks_user > 1 or self.max_num_chunks_item > 1:
-            raise ValueError("max chunk should be set to 1 ")  # TODO for now
+        if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
+            raise ValueError("max chunk should be set to 1 ")
+
         # end-to-end
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
@@ -116,105 +115,85 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         user_ids = batch[INTERNAL_USER_ID_FIELD].squeeze(1)
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
 
-        # TODO try with max chunk > 1
-        # TODO 1: try with item and user input to single bert
-        # this for is on
         BERT_DIM = self.bert_embeddings.embedding_dim
-        user_reps = []
-        for c in range(self.max_num_chunks_user):
-            if len(batch['user_chunks_input_ids']) <= c:
-                input_ids = torch.zeros(input_ids.shape, device=self.device, dtype=torch.int64)
-                att_mask = torch.zeros(att_mask.shape, device=self.device, dtype=torch.int64)
-            else:
-                input_ids = batch['user_chunks_input_ids'][c]
-                att_mask = batch['user_chunks_attention_mask'][c]
-            if self.use_cf is True:
-                cf_embeds = self.user_embedding_CF(user_ids)
-                if self.user_embedding_CF.embedding_dim < BERT_DIM:
-                    cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM-cf_embeds.shape[1]), device=cf_embeds.device)], dim=1)
-                cf_embeds = cf_embeds.unsqueeze(1)
-                token_embeddings = self.bert_embeddings.forward(input_ids)
-                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-                other_tokens = token_embeddings[:, 1:]
-                # insert cf embedding after the especial CLS token:
-                concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
-                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-                output_u = self.bert.forward(inputs_embeds=concat_ids,
-                                             attention_mask=att_mask)
-            else:
-                output_u = self.bert.forward(input_ids=input_ids,
-                                             attention_mask=att_mask)
-            if self.agg_strategy == "CLS":
-                user_rep = output_u.pooler_output
-            elif self.agg_strategy == "mean_last":
-                tokens_embeddings = output_u.last_hidden_state
-                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
-                tokens_embeddings = tokens_embeddings * mask
-                sum_tokons = torch.sum(tokens_embeddings, dim=1)
-                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
-                user_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
+        c = 0  # TODO ONLY HAVE ONE CHUNK ANYWAYS, won't work with more
 
-            if self.use_ffn:
-                # append cf to the end of the ch reps :
-                if self.append_cf_after:
-                    user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
-                user_rep = torch.nn.functional.relu(self.linear_u_1(user_rep))
-                user_rep = self.linear_u_2(user_rep)
-            user_reps.append(user_rep)
-        if self.chunk_agg_strategy == "max_pool" and self.use_ffn:
-            user_reps = torch.stack(user_reps).max(dim=0).values
+        input_ids = batch['user_chunks_input_ids'][c]
+        att_mask = batch['user_chunks_attention_mask'][c]
+        if self.use_cf is True:
+            cf_embeds = self.user_embedding_CF(user_ids)
+            if self.user_embedding_CF.embedding_dim < BERT_DIM:
+                cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM-cf_embeds.shape[1]), device=cf_embeds.device)], dim=1)
+            cf_embeds = cf_embeds.unsqueeze(1)
+            token_embeddings = self.bert_embeddings.forward(input_ids)
+            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+            other_tokens = token_embeddings[:, 1:]
+            # insert cf embedding after the especial CLS token:
+            concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
+            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+            output_u = self.bert.forward(inputs_embeds=concat_ids,
+                                         attention_mask=att_mask)
+        else:
+            output_u = self.bert.forward(input_ids=input_ids,
+                                         attention_mask=att_mask)
 
-        item_reps = []
-        for c in range(self.max_num_chunks_item):
-            if len(batch['item_chunks_input_ids']) <= c:
-                input_ids = torch.zeros(input_ids.shape, device=self.device, dtype=torch.int64)
-                att_mask = torch.zeros(att_mask.shape, device=self.device, dtype=torch.int64)
-            else:
-                input_ids = batch['item_chunks_input_ids'][c]
-                att_mask = batch['item_chunks_attention_mask'][c]
-            if self.use_cf is True:
-                cf_embeds = self.item_embedding_CF(item_ids)
-                if self.item_embedding_CF.embedding_dim < BERT_DIM:
-                    cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM - cf_embeds.shape[1]), device=cf_embeds.device)], dim=1)
-                cf_embeds = cf_embeds.unsqueeze(1)
-                token_embeddings = self.bert_embeddings.forward(input_ids)
-                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-                other_tokens = token_embeddings[:, 1:]
-                # insert cf embedding after the especial CLS token:
-                concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
-                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-                # TODO segment encoding
-                output_i = self.bert.forward(inputs_embeds=concat_ids,
-                                             attention_mask=att_mask)
-            else:
-                output_i = self.bert.forward(input_ids=input_ids,
-                                             attention_mask=att_mask)
-            if self.agg_strategy == "CLS":
-                item_rep = output_i.pooler_output
-            elif self.agg_strategy == "mean_last":
-                tokens_embeddings = output_i.last_hidden_state
-                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
-                tokens_embeddings = tokens_embeddings * mask
-                sum_tokons = torch.sum(tokens_embeddings, dim=1)
-                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
-                item_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
+        if self.agg_strategy == "CLS":
+            user_rep = output_u.pooler_output
+        elif self.agg_strategy == "mean_last":
+            tokens_embeddings = output_u.last_hidden_state
+            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+            tokens_embeddings = tokens_embeddings * mask
+            sum_tokons = torch.sum(tokens_embeddings, dim=1)
+            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
+            user_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
 
-            if self.use_ffn:
-                # append cf to the end of the ch reps :
-                if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
-                    item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
-                item_rep = torch.nn.functional.relu(self.linear_i_1(item_rep))
-                item_rep = self.linear_i_2(item_rep)
+        if self.use_ffn:
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:
+                user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
+            user_rep = torch.nn.functional.relu(self.linear_u_1(user_rep))
+            user_rep = self.linear_u_2(user_rep)
 
-            item_reps.append(item_rep)
-        if self.chunk_agg_strategy == "max_pool" and self.use_ffn:
-            item_reps = torch.stack(item_reps).max(dim=0).values
+        input_ids = batch['item_chunks_input_ids'][c]
+        att_mask = batch['item_chunks_attention_mask'][c]
+        if self.use_cf is True:
+            cf_embeds = self.item_embedding_CF(item_ids)
+            if self.item_embedding_CF.embedding_dim < BERT_DIM:
+                cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM - cf_embeds.shape[1]), device=cf_embeds.device)], dim=1)
+            cf_embeds = cf_embeds.unsqueeze(1)
+            token_embeddings = self.bert_embeddings.forward(input_ids)
+            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+            other_tokens = token_embeddings[:, 1:]
+            # insert cf embedding after the especial CLS token:
+            concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
+            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+            # TODO segment encoding
+            output_i = self.bert.forward(inputs_embeds=concat_ids,
+                                         attention_mask=att_mask)
+        else:
+            output_i = self.bert.forward(input_ids=input_ids,
+                                         attention_mask=att_mask)
+        if self.agg_strategy == "CLS":
+            item_rep = output_i.pooler_output
+        elif self.agg_strategy == "mean_last":
+            tokens_embeddings = output_i.last_hidden_state
+            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+            tokens_embeddings = tokens_embeddings * mask
+            sum_tokons = torch.sum(tokens_embeddings, dim=1)
+            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
+            item_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
+
+        if self.use_ffn:
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
+                item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
+            item_rep = torch.nn.functional.relu(self.linear_i_1(item_rep))
+            item_rep = self.linear_i_2(item_rep)
 
         if self.use_transformer:
-            # TODO masking the non exsitant chunks, if more than 1 is used! not now though
-            user_rep = torch.stack(user_reps, dim=1)
-            item_rep = torch.stack(item_reps, dim=1)
             cls = self.CLS.repeat(user_ids.shape[0], 1, 1)
+            user_rep = user_rep.unsqueeze(1)  # when we had more chunks, this was just there
+            item_rep = item_rep.unsqueeze(1)
             cls = cls.to(self.device)
             if self.append_cf_after:
                 user_cf = torch.zeros(cls.shape, device=self.device)
@@ -233,7 +212,7 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
             cls_out = output_seq[:, 0, :]
             result = self.classifier(cls_out)
         else:
-            result = torch.sum(torch.mul(user_reps, item_reps), dim=1)
+            result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
             if self.use_item_bias:
                 result = result + self.item_bias[item_ids]
             if self.use_user_bias:
