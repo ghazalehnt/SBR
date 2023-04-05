@@ -5,6 +5,22 @@ import transformers
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
+class FactorizationMachine(torch.nn.Module):
+
+    def __init__(self, p, k):
+        super().__init__()
+        self.v = torch.nn.Parameter(torch.rand(p, k) / 10)
+        self.linear = torch.nn.Linear(p, 1, bias=True)
+        self.dropout = torch.nn.Dropout(0.5)
+
+    def forward(self, x):
+        linear_part = self.linear(x)  # input shape(batch_size, cnn_out_dim), out shape(batch_size, 1)
+        inter_part1 = torch.mm(x, self.v) ** 2
+        inter_part2 = torch.mm(x ** 2, self.v ** 2)
+        pair_interactions = torch.sum(inter_part1 - inter_part2, dim=1, keepdim=True)
+        pair_interactions = self.dropout(pair_interactions)
+        output = linear_part + 0.5 * pair_interactions
+        return output  # out shape(batch_size, 1)
 
 class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.Module):
     def __init__(self, model_config, users, items, device, dataset_config,
@@ -20,6 +36,8 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         self.use_user_bias = use_user_bias
         self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
         self.agg_strategy = model_config['agg_strategy']
+        self.use_mlp = model_config["use_mlp"] if "use_mlp" in model_config else False
+        self.use_factorization = model_config["use_factorization"] if "use_factorization" in model_config else False
 
         self.device = device
 
@@ -109,6 +127,16 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
                 print("CF embedding dim was smaller than BERT dim, therefore will be filled with  0's.")
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+
+        if self.use_mlp:
+            dim1user = dim1item = bert_embedding_dim
+            self.linear_1 = torch.nn.Linear(dim1user + dim1item, model_config['k1'])
+            self.linear_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
+            self.linear_3 = torch.nn.Linear(model_config['k2'], 1)
+
+        if self.use_factorization:
+            dim1user = dim1item = bert_embedding_dim
+            self.fm = FactorizationMachine(dim1user + dim1item, 10)
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
@@ -211,6 +239,14 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
             output_seq = self.transformer_encoder(torch.add(input_seq, seg_seq))
             cls_out = output_seq[:, 0, :]
             result = self.classifier(cls_out)
+        elif self.use_mlp:
+            result = torch.cat((user_rep, item_rep), dim=1)
+            result = torch.nn.functional.relu(self.linear_1(result))
+            result = torch.nn.functional.relu(self.linear_2(result))
+            result = self.linear_3(result)
+        elif self.use_factorization:
+            result = torch.cat((user_rep, item_rep), dim=1)
+            result = self.fm(result)
         else:
             result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
             if self.use_item_bias:
