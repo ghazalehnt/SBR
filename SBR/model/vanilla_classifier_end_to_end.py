@@ -1,9 +1,8 @@
-import os.path
-
 import torch
 import transformers
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+
 
 class FactorizationMachine(torch.nn.Module):
 
@@ -22,10 +21,12 @@ class FactorizationMachine(torch.nn.Module):
         output = linear_part + 0.5 * pair_interactions
         return output  # out shape(batch_size, 1)
 
-class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.Module):
+
+class VanillaClassifierUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
     def __init__(self, model_config, users, items, device, dataset_config,
-                 use_ffn=False, use_transformer=False, use_item_bias=False, use_user_bias=False):
-        super(VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd, self).__init__()
+                 use_ffn=False, use_transformer=False, use_item_bias=False, use_user_bias=False,
+                 use_mlp=False, use_factorization=False):
+        super(VanillaClassifierUserTextProfileItemTextProfileEndToEnd, self).__init__()
         bert_embedding_dim = 768
         n_users = users.shape[0]
         n_items = items.shape[0]
@@ -36,8 +37,8 @@ class VanillaClassifierUserTextProfileItemTextProfileAggChunksEndToEnd(torch.nn.
         self.use_user_bias = use_user_bias
         self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
         self.agg_strategy = model_config['agg_strategy']
-        self.use_mlp = model_config["use_mlp"] if "use_mlp" in model_config else False
-        self.use_factorization = model_config["use_factorization"] if "use_factorization" in model_config else False
+        self.use_mlp = use_mlp
+        self.use_factorization = use_factorization
 
         self.device = device
 
