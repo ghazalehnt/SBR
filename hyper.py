@@ -123,7 +123,8 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
         load_data(config['dataset'],
                   pretrained_model=config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
                   word_vector_model=config['model']['word2vec_file'] if 'word2vec_file' in config['model'] else None,
-                  exp_dir=exp_dir if 'word2vec_file' in config['model'] else None)
+                  exp_dir=exp_dir if 'word2vec_file' in config['model'] else None,
+                  joint=True if config["model"]["name"] in ["VanillaBERT_endtoend_joint"] else False)
 
     model = get_model(config['model'], users, items, device, config['dataset'], exp_dir)
 

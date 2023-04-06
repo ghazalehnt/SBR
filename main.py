@@ -110,7 +110,8 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
         load_data(config['dataset'],
                   pretrained_model=config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
                   word_vector_model=config['model']['word2vec_file'] if 'word2vec_file' in config['model'] else None,
-                  exp_dir=exp_dir if 'word2vec_file' in config['model'] else None)
+                  exp_dir=exp_dir if 'word2vec_file' in config['model'] else None,
+                  joint=True if config["model"]["name"] in ["VanillaBERT_endtoend_joint"] else False)
     print("Data load done!")
     # needed for item-item relatedness
     temp = {ex: internal for ex, internal in zip(items['item_id'], items['internal_item_id'])}

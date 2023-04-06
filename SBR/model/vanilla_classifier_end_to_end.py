@@ -30,7 +30,6 @@ class VanillaClassifierUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         bert_embedding_dim = 768
         n_users = users.shape[0]
         n_items = items.shape[0]
-
         self.use_ffn = use_ffn
         self.use_transformer = use_transformer
         self.use_item_bias = use_item_bias
@@ -41,6 +40,10 @@ class VanillaClassifierUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         self.use_factorization = use_factorization
 
         self.device = device
+
+        if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
+            raise ValueError("max chunk should be set to 1 ")
+
 
         # either ffn or transformer:
         if self.use_ffn and self.use_transformer:
@@ -103,9 +106,6 @@ class VanillaClassifierUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             self.user_bias = torch.nn.Parameter(torch.zeros(n_users))
 
         self.chunk_agg_strategy = model_config['chunk_agg_strategy'] if 'chunk_agg_strategy' in model_config else None
-
-        if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
-            raise ValueError("max chunk should be set to 1 ")
 
         # end-to-end
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])

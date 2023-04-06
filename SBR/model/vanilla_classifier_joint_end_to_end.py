@@ -12,9 +12,7 @@ class VanillaClassifierUserTextProfileItemTextProfileJointEndToEnd(torch.nn.Modu
         bert_embedding_dim = 768
         n_users = users.shape[0]
         n_items = items.shape[0]
-
         self.agg_strategy = model_config['agg_strategy']
-
         self.device = device
 
         if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
@@ -52,51 +50,13 @@ class VanillaClassifierUserTextProfileItemTextProfileJointEndToEnd(torch.nn.Modu
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
 
         BERT_DIM = self.bert_embeddings.embedding_dim
-        c = 0  # TODO ONLY HAVE ONE CHUNK ANYWAYS, won't work with more
-
-        user_input_ids = batch['user_chunks_input_ids'][c]
-        user_att_mask = batch['user_chunks_attention_mask'][c]
-        item_input_ids = batch['item_chunks_input_ids'][c]
-        item_att_mask = batch['item_chunks_attention_mask'][c]
+        input_ids = batch['input_ids']
+        att_mask = batch['attention_mask']
 
         if self.use_cf is True:
-            user_cf_embeds = self.user_embedding_CF(user_ids)
-            if self.user_embedding_CF.embedding_dim < BERT_DIM:
-                user_cf_embeds = torch.concat([user_cf_embeds, torch.zeros((user_cf_embeds.shape[0], BERT_DIM-user_cf_embeds.shape[1]), device=user_cf_embeds.device)], dim=1)
-            user_cf_embeds = user_cf_embeds.unsqueeze(1)
-            user_token_embeddings = self.bert_embeddings.forward(user_input_ids)
-            cls_tokens = user_token_embeddings[:, 0].unsqueeze(1)
-            user_other_tokens = user_token_embeddings[:, 1:]
-            # insert cf embedding after the especial CLS token:
-            user_concat_ids = torch.concat([torch.concat([cls_tokens, user_cf_embeds], dim=1), user_other_tokens], dim=1)
-            user_att_mask = torch.concat([torch.ones((user_input_ids.shape[0], 1), device=user_att_mask.device), user_att_mask], dim=1)
-
-            item_cf_embeds = self.item_embedding_CF(item_ids)
-            if self.item_embedding_CF.embedding_dim < BERT_DIM:
-                item_cf_embeds = torch.concat([item_cf_embeds, torch.zeros((item_cf_embeds.shape[0], BERT_DIM - item_cf_embeds.shape[1]), device=item_cf_embeds.device)], dim=1)
-            item_cf_embeds = item_cf_embeds.unsqueeze(1)
-            item_token_embeddings = self.bert_embeddings.forward(item_input_ids)
-            item_other_tokens = item_token_embeddings[:, 1:]
-            item_concat_ids = torch.concat([item_cf_embeds, item_other_tokens], dim=1)
-            item_att_mask = torch.concat([torch.ones((item_input_ids.shape[0], 1), device=item_att_mask.device), item_att_mask], dim=1)
-
-            sep_tokens = self.bert_embeddings.forward(torch.tensor([102], device=self.device)).repeat(user_ids.shape[0], 1, 1)
-
-            concat_ids = torch.concat([user_concat_ids, sep_tokens, item_concat_ids], dim=1)
-            att_mask = torch.concat([user_att_mask, item_att_mask], dim=1)  # item att mask has 1 extra for cls which is removed and sep token which is added.
-            seg_seq = self.segment_embedding(
-                torch.LongTensor([[0] * (user_input_ids.shape[1] + 1) + [1] * (item_input_ids.shape[1] - 1)]).to(
-                    self.device))
-            output = self.bert.forward(inputs_embeds=torch.add(concat_ids, seg_seq),
-                                       attention_mask=att_mask)
+            raise NotImplementedError("this part should be checked and changed!")
         else:
-            sep_tokens = torch.tensor([102], device=self.device).repeat(user_input_ids.shape[0], 1) # TODO sep token
-            seg_seq = self.segment_embedding(torch.LongTensor([[0] * (user_input_ids.shape[1]+1) + [1] * (item_input_ids.shape[1]-1)]).to(
-                    self.device))
-            input_ids = torch.concat([user_input_ids, sep_tokens, item_input_ids[:, 1:]], dim=1)
-            att_mask = torch.concat([user_att_mask, item_att_mask], dim=1)  # item att mask has 1 extra for cls which is removed and sep token which is added.
-            token_embeddings = torch.add(self.bert_embeddings.forward(input_ids), seg_seq)
-            output = self.bert.forward(inputs_embeds=token_embeddings,
+            output = self.bert.forward(input_ids=input_ids,
                                        attention_mask=att_mask)
 
         if self.agg_strategy == "CLS":
