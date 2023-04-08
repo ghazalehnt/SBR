@@ -890,10 +890,14 @@ def load_split_dataset(config, for_precalc=False):
         item_text_fields = []
 
     # read users and items, create internal ids for them to be used
-    # TODO manual profile loaded here?
+    for field in user_text_fields:
+        topkgenres = 100000
+        if field.startswith("user.sorted_genres_"):
+            topkgenres = int(field[field.rindex("_")+1:])
+            user_text_fields[user_text_fields.index(field)] = "user.sorted_genres"
     keep_fields = ["user_id"]
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if "user." in field])
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if "user." in field])
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if field.startswith("user.")])
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if field.startswith("user.")])
     keep_fields = list(set(keep_fields))
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
     user_info = user_info.sort_values("user_id").reset_index(drop=True) # this is crucial, as the precomputing is done with internal ids
@@ -901,11 +905,24 @@ def load_split_dataset(config, for_precalc=False):
     user_info = user_info.fillna('')
     user_info = user_info.rename(
         columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
-                 "user." in field})
+                 field.startswith("user.")})
+    if 'user.sorted_genres' in user_info.columns:
+        user_info['user.sorted_genres'] = user_info['user.sorted_genres'].apply(
+            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
+                                 g in x.split(",")][:topkgenres]))
+    keep_fields = [field[field.index("userprofile.")+len("userprofile."):] for field in user_text_fields if field.startswith("userprofile.")]
+    if len(keep_fields) > 1:
+        raise ValueError("more than 1 userprofile fields ?")
+    elif len(keep_fields) == 1:
+        keep_fields = keep_fields[0]
+        up = pd.read_csv(join(config['dataset_path'], f"users_profile_{keep_fields}.csv"), dtype=str)
+        up = up.fillna('')
+        up = up.rename(columns={"text": f"userprofile.{keep_fields}"})
+        user_info = pd.merge(user_info, up, on="user_id")
 
     keep_fields = ["item_id"]
-    keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if "item." in field])
-    keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if "item." in field])
+    keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if field.startswith("item.")])
+    keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if field.startswith("item.")])
     keep_fields = list(set(keep_fields))
     tie_breaker = None
     if len(user_text_fields) > 0 and config['user_item_text_tie_breaker'] != "":
@@ -935,7 +952,7 @@ def load_split_dataset(config, for_precalc=False):
     item_info = item_info.fillna('')
     item_info = item_info.rename(
         columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
-                 "item." in field})
+                 field.startswith("item.")})
     if 'item.genres' in item_info.columns:
         item_info['item.genres'] = item_info['item.genres'].apply(
             lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
@@ -1013,10 +1030,10 @@ def load_split_dataset(config, for_precalc=False):
 
         df = df.rename(
             columns={field[field.index("interaction.") + len("interaction."):]: field for field in user_text_fields if
-                     "interaction." in field})
+                     field.startswith("interaction.")})
         df = df.rename(
             columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
-                     "interaction." in field})
+                     field.startswith("interaction.")})
 
         # text profile:
         if sp == 'train':
@@ -1026,12 +1043,12 @@ def load_split_dataset(config, for_precalc=False):
                 sort_reviews = config['user_item_text_choice']
 
             for field in user_text_fields:
-                if "interaction." in field:
+                if field.startswith("interaction."):
                     df[field] = df[field].fillna('')
             ## USER:
             # This code works for user text fields from interaction and item file
-            user_item_text_fields = [field for field in user_text_fields if "item." in field]
-            user_inter_text_fields = [field for field in user_text_fields if "interaction." in field]
+            user_item_text_fields = [field for field in user_text_fields if field.startswith("item.")]
+            user_inter_text_fields = [field for field in user_text_fields if field.startswith("interaction.")]
             user_item_inter_text_fields = user_item_text_fields.copy()
             user_item_inter_text_fields.extend(user_inter_text_fields)
 
@@ -1129,8 +1146,8 @@ def load_split_dataset(config, for_precalc=False):
 
             ## ITEM:
             # This code works for item text fields from interaction and user file
-            item_user_text_fields = [field for field in item_text_fields if "user." in field]
-            item_inter_text_fields = [field for field in item_text_fields if "interaction." in field]
+            item_user_text_fields = [field for field in item_text_fields if field.startswith("user.")]
+            item_inter_text_fields = [field for field in item_text_fields if field.startswith("interaction.")]
             item_user_inter_text_fields = item_user_text_fields.copy()
             item_user_inter_text_fields.extend(item_inter_text_fields)
 
@@ -1169,9 +1186,8 @@ def load_split_dataset(config, for_precalc=False):
         df = df.drop(columns=remove_fields)
         split_datasets[sp] = df
 
-    # TODO the SBERT match with item desc should also be applied here?? guess not
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
-    user_remaining_text_fields = [field for field in user_text_fields if field.startswith("user.")]
+    user_remaining_text_fields = [field for field in user_text_fields if (field.startswith("user.") or field.startswith("userprofile."))]
     if 'text' in user_info.columns:
         user_remaining_text_fields.append('text')
     if len(user_remaining_text_fields) > 0:

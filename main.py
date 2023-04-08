@@ -12,7 +12,7 @@ from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.unsupervised import UnSupervisedTrainer
-from SBR.utils.statics import get_profile, map_user_item_text
+from SBR.utils.statics import get_profile, get_rev_map
 
 
 def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
@@ -62,7 +62,7 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                 exp_dir_params.append(f"f-{temp}")
             elif isinstance(config[p1][p2], list):
                 if p2 in ["item_text", "user_text"]:
-                    exp_dir_params.append('-'.join([map_user_item_text[v] for v in config[p1][p2]]))
+                    exp_dir_params.append(';'.join([get_rev_map(config['dataset']['name'])[v] for v in config[p1][p2]]))
                 else:
                     exp_dir_params.append('-'.join(config[p1][p2]))
             else:

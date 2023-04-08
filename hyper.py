@@ -16,7 +16,7 @@ from tensorboardX import SummaryWriter
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.supervised import SupervisedTrainer
-from SBR.utils.statics import get_profile, map_user_item_text
+from SBR.utils.statics import get_profile, get_rev_map
 
 
 def training_function(tuning_config, stationary_config_file, exp_root_dir, data_root_dir,
@@ -81,7 +81,7 @@ def training_function(tuning_config, stationary_config_file, exp_root_dir, data_
             exp_dir_params.append(f"f-{temp}")
         elif isinstance(config[p1][p2], list):
             if p2 in ["item_text", "user_text"]:
-                exp_dir_params.append('-'.join([map_user_item_text[v] for v in config[p1][p2]]))
+                exp_dir_params.append('-'.join([get_rev_map(config['dataset']['name'])[v] for v in config[p1][p2]]))
             else:
                 exp_dir_params.append('-'.join(config[p1][p2]))
         else:
