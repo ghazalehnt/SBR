@@ -51,4 +51,4 @@ def get_rev_map(dataset):
 
 def get_profile(dataset, shortened):
     global user_item_text
-    return [user_item_text[dataset][i] for i in shortened.split(";")]
+    return [user_item_text[dataset][i] for i in shortened.split("-")]
