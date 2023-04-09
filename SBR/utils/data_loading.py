@@ -176,7 +176,8 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                                  "padding": False  # TODO should be fixed later for more chunks ...  to pad correctly
                                                  })
             if LOG_PROFILES:
-                user_info.to_pandas()[["user_id", "text"]].to_csv(join(config['dataset_path'], f"users_profile_{'-'.join(config['user_text'])}_{config['user_text_filter']}{'_i' + '-'.join(config['item_text']) if config['user_text_filter'] in ['item_sentence_SBERT'] else ''}.csv"), index=False)
+                if not exists(join(config['dataset_path'], f"users_profile_{'-'.join(config['user_text'])}_{config['user_text_filter']}{'_i' + '-'.join(config['item_text']) if config['user_text_filter'] in ['item_sentence_SBERT'] else ''}.csv")):
+                    user_info.to_pandas()[["user_id", "text"]].to_csv(join(config['dataset_path'], f"users_profile_{'-'.join(config['user_text'])}_{config['user_text_filter']}{'_i' + '-'.join(config['item_text']) if config['user_text_filter'] in ['item_sentence_SBERT'] else ''}.csv"), index=False)
             user_info = user_info.remove_columns(['text'])
         if 'text' in item_info.column_names:
             item_info = item_info.map(tokenize_function, batched=True,
@@ -187,7 +188,8 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                                  "padding": False # TODO should be fixed later for more chunks ...  to pad correctly
                                                  })
             if LOG_PROFILES:
-                item_info.to_pandas()[["item_id", "text"]].to_csv(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv"), index=False)
+                if not exists(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv")):
+                    item_info.to_pandas()[["item_id", "text"]].to_csv(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv"), index=False)
             item_info = item_info.remove_columns(['text'])
     elif word_vector_model is not None and config["load_tokenized_text_in_batch"] is True:
         tokenizer = get_tokenizer("basic_english")
