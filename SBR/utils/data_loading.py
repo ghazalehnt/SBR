@@ -885,8 +885,8 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
 
 
 def load_split_dataset(config, for_precalc=False):
-    user_text_fields = config['user_text']
-    item_text_fields = config['item_text']
+    user_text_fields = config['user_text'].copy()
+    item_text_fields = config['item_text'].copy()
     if config['load_user_item_text'] is False:
         user_text_fields = []
         item_text_fields = []
