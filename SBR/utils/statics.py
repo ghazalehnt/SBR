@@ -25,6 +25,10 @@ user_item_text = {
         "up_tsr_sb": "userprofile.item.title-interaction.summary-interaction.reviewText_item_sentence_SBERT_iitem.title-item.category",
         "up_tsr_i": "userprofile.item.title-interaction.summary-interaction.reviewText_idf_sentence",
         "up_tsr_3": "userprofile.item.title-interaction.summary-interaction.reviewText_tf-idf_3",
+        "up_d_r": "userprofile.item.description_random_sentence",
+        "up_d_sf": "userprofile.item.description_item_sentence_SBERT_iitem.title-item.category-item.description",
+        "up_d_i": "userprofile.item.description_idf_sentence",
+        "up_d_3": "userprofile.item.description_tf-idf_3",
 
         "mk_sr": "interaction.model_keywords_sr",
         "ch_sr": "user.chatgpt_sr",
