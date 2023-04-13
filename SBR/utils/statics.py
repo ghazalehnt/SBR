@@ -68,6 +68,10 @@ user_item_text = {
         "up_tr_sb": "userprofile.item.title-interaction.review_text_item_sentence_SBERT_iitem.title-item.genres",
         "up_tr_i": "userprofile.item.title-interaction.review_text_idf_sentence",
         "up_tr_3": "userprofile.item.title-interaction.review_text_tf-idf_3",
+        "up_d_r": "userprofile.item.description_random_sentence",
+        "up_d_sf": "userprofile.item.description_item_sentence_SBERT_iitem.title-item.genres-item.description",
+        "up_d_i": "userprofile.item.description_idf_sentence",
+        "up_d_3": "userprofile.item.description_tf-idf_3",
 
         "mk_r": "interaction.model_keywords_r",
         "ch_r": "user.chatgpt_r",
