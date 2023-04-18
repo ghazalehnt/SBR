@@ -72,10 +72,15 @@ class DeepCoNN(torch.nn.Module):
         self.cnn_u = CNN(config, word_dim=self.embedding.embedding_dim)
         self.cnn_i = CNN(config, word_dim=self.embedding.embedding_dim)
         self.fm = FactorizationMachine(config["cnn_out_dim"] * 2, 10)
+        self.max_tokens = config["max_tokens"] if "max_tokens" in config else None
 
     def forward(self, batch):
-        user_review = batch["user_tokenized_text"]
-        item_review = batch["item_tokenized_text"]
+        if self.max_tokens is not None:
+            user_review = batch["user_tokenized_text"][:, :self.max_tokens]
+            item_review = batch["item_tokenized_text"][:, :self.max_tokens]
+        else:
+            user_review = batch["user_tokenized_text"]
+            item_review = batch["item_tokenized_text"]
 
         u_vec = self.embedding(user_review)
         i_vec = self.embedding(item_review)
