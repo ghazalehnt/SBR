@@ -316,8 +316,8 @@ class CollateNegSamplesRandomOpt(object):
             temp_item = pd.concat([batch_df, temp_item], axis=1)
             temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
                                                   "chunks_attention_mask": "item_chunks_attention_mask"})
-            temp = pd.merge(temp_user[INTERNAL_USER_ID_FIELD, 'label', 'user_chunks_input_ids', 'user_chunks_attention_mask'],
-                            temp_item[INTERNAL_ITEM_ID_FIELD, 'label', 'item_chunks_input_ids', 'item_chunks_attention_mask'],
+            temp = pd.merge(temp_user[[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label', 'user_chunks_input_ids', 'user_chunks_attention_mask']],
+                            temp_item[[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD,  'label', 'item_chunks_input_ids', 'item_chunks_attention_mask']],
                             on=[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label'])
             cols_to_pad = ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
                            "item_chunks_attention_mask"]
