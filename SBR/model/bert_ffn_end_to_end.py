@@ -59,10 +59,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
 
         BERT_DIM = self.bert_embeddings.embedding_dim
-        c = 0  # ONLY HAVE ONE CHUNK
 
-        input_ids = batch['user_chunks_input_ids'][c]
-        att_mask = batch['user_chunks_attention_mask'][c]
+        input_ids = batch['user_input_ids']
+        att_mask = batch['user_attention_mask']
         if self.use_cf is True:
             cf_embeds = self.user_embedding_CF(user_ids)
             cf_embeds = cf_embeds.to(self.device)
@@ -97,10 +96,11 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         user_rep = torch.nn.functional.relu(self.linear_u_1(user_rep))
         user_rep = self.linear_u_2(user_rep)
 
-        input_ids = batch['item_chunks_input_ids'][c]
-        att_mask = batch['item_chunks_attention_mask'][c]
+        input_ids = batch['item_input_ids']
+        att_mask = batch['item_attention_mask']
         if self.use_cf is True:
             cf_embeds = self.item_embedding_CF(item_ids)
+            cf_embeds = cf_embeds.to(self.device)
             if self.item_embedding_CF.embedding_dim < BERT_DIM:
                 cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM - cf_embeds.shape[1]), device=cf_embeds.device)], dim=1)
             cf_embeds = cf_embeds.unsqueeze(1)

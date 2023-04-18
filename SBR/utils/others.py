@@ -6,6 +6,7 @@ from SBR.model.vanilla_classifier_end_to_end import \
     VanillaClassifierUserTextProfileItemTextProfileEndToEnd
 from SBR.model.vanilla_classifier_joint_end_to_end import \
     VanillaClassifierUserTextProfileItemTextProfileJointEndToEnd
+from SBR.model.bert_ffn_end_to_end import BertFFNUserTextProfileItemTextProfileEndToEnd
 
 
 def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None):
@@ -49,12 +50,9 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
                                                                         dataset_config=dataset_config,
                                                                         use_transformer=True)
     elif config['name'] == "VanillaBERT_ffn_endtoend":
-        model = VanillaClassifierUserTextProfileItemTextProfileEndToEnd(model_config=config,
-                                                                        users=user_info,
-                                                                        items=item_info,
-                                                                        device=device,
-                                                                        dataset_config=dataset_config,
-                                                                        use_ffn=True)
+        model = BertFFNUserTextProfileItemTextProfileEndToEnd(model_config=config,
+                                                              device=device,
+                                                              dataset_config=dataset_config)
     elif config['name'] == "VanillaBERT_endtoend_dotproduct":
         model = VanillaClassifierUserTextProfileItemTextProfileEndToEnd(model_config=config,
                                                                         users=user_info,
