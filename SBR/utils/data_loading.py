@@ -343,7 +343,9 @@ class CollateNegSamplesRandomOpt(object):
                 .reset_index().drop(columns=['index'])
             temp_item = pd.concat([batch_df, temp_item], axis=1)
             temp_item = temp_item.rename(columns={"tokenized_text": "item_tokenized_text"})
-            temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+            temp = pd.merge(temp_user[[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label', 'user_tokenized_text']],
+                            temp_item[[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label', 'item_tokenized_text']],
+                            on=['label', 'internal_user_id', 'internal_item_id'])
             cols_to_pad = ["user_tokenized_text", "item_tokenized_text"]
             # pad ,  the resulting tensor is batch * tokens -> bcs later we want to do batchwise
             for col in cols_to_pad:
