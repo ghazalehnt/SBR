@@ -116,10 +116,10 @@ class SupervisedTrainer:
         # results = {f"valid_{k}": v for k, v in results.items()}
         # print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
 
-        # random.seed(42)
-        # np.random.seed(42)
-        # torch.manual_seed(42)
-        # torch.cuda.manual_seed(42)
+        random.seed(42)
+        np.random.seed(42)
+        torch.manual_seed(42)
+        torch.cuda.manual_seed(42)
 
         # Creates a GradScaler once at the beginning of training.
         scaler = GradScaler()
@@ -147,6 +147,10 @@ class SupervisedTrainer:
                 # Runs the forward pass with autocasting.
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
                     output = self.model(batch)
+                    # has_nan = torch.any(torch.isnan(output))
+                    # print("output Has NaN:", has_nan)
+                    # has_inf = torch.any(torch.isinf(output))
+                    # print("output Has INF:", has_inf)
                     if self.loss_fn._get_name() == "BCEWithLogitsLoss":
                         # not applying sigmoid before loss bc it is already applied in the loss
                         loss = self.loss_fn(output, label)
@@ -237,7 +241,7 @@ class SupervisedTrainer:
                             best_epoch=self.best_epoch,
                             epoch=epoch)
 
-    def evaluate(self, test_dataloader, valid_dataloader):
+    def evaluate_dataloader(self, eval_dataloader, eval_output_path):
         # load the best model from file.
         # because we may call evaluate right after fit and in this case need to reload the best model!
         checkpoint = torch.load(self.best_model_path, map_location=self.device)
@@ -247,31 +251,18 @@ class SupervisedTrainer:
         self.best_saved_valid_metric = checkpoint['best_valid_metric']
         print("best model loaded!")
 
-        outputs, ground_truth, test_loss, internal_user_ids, internal_item_ids = self.predict(test_dataloader)
+        outputs, ground_truth, loss, internal_user_ids, internal_item_ids = self.predict(eval_dataloader)
         log_results(ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items,
-                    self.test_output_path['ground_truth'],
-                    f"{self.test_output_path['predicted']}_e-{self.best_epoch}.json",
-                    f"{self.test_output_path['log']}_e-{self.best_epoch}.txt" if "log" in self.test_output_path else None)
-#        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
-#        results["loss"] = test_loss
-#        results = {f"test_{k}": v for k, v in results.items()}
-#        for k, v in results.items():
-#            self.logger.add_scalar(f'final_results/{k}', v)
-#        print(f"\nTest results - best epoch {self.best_epoch}: {results}")
+                    eval_output_path['ground_truth'],
+                    f"{eval_output_path['predicted']}_e-{self.best_epoch}.json",
+                    f"{eval_output_path['log']}_e-{self.best_epoch}.txt" if "log" in eval_output_path else None)
 
-        #outputs, ground_truth, valid_loss, internal_user_ids, internal_item_ids = self.predict(valid_dataloader)
-        #log_results(self.best_valid_output_path, ground_truth, outputs, internal_user_ids, internal_item_ids,
-        #            self.users, self.items,
-        #            self.best_valid_output_path['ground_truth'],
-        #            f"{self.best_valid_output_path['predicted']}_e-{self.best_epoch}.json",
-        #            f"{self.best_valid_output_path['log']}_e-{self.best_epoch}.txt" if "log" in self.best_valid_output_path else None)
-#        results = calculate_metrics(ground_truth, outputs, internal_user_ids, internal_item_ids, self.relevance_level)
-#        results["loss"] = valid_loss
-#        results = {f"validation_{k}": v for k, v in results.items()}
-#        for k, v in results.items():
-#            self.logger.add_scalar(f'final_results/{k}', v)
-#        print(f"\nValidation results - best epoch {self.best_epoch}: {results}")
+    def evaluate(self, test_dataloader, valid_dataloader):
+        self.evaluate_dataloader(test_dataloader, self.test_output_path)
+
+        # commented out for faster run:
+        # self.evaluate_dataloader(valid_dataloader, self.test_output_path)
 
     def predict(self, eval_dataloader, low_mem=False):
         # bring models to evaluation mode

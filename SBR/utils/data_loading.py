@@ -11,8 +11,6 @@ import torch
 import torchtext
 import transformers
 from datasets import Dataset, DatasetDict
-from sentence_splitter import SentenceSplitter
-from sentence_transformers import SentenceTransformer, util
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 import numpy as np
@@ -20,7 +18,6 @@ from torchtext.data import get_tokenizer
 import gensim
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
-from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf, filter_user_profile_random_sentences
 
 goodreads_rating_mapping = {
     'did not like it': 1,
@@ -30,134 +27,36 @@ goodreads_rating_mapping = {
     'it was amazing': 5
 }
 
-LOG_PROFILES = True
-
-
 def tokenize_function_torchtext(examples, tokenizer, field, vocab):
     result = [vocab(tokenizer(text)) for text in examples[field]]
     examples[f"tokenized_{field}"] = result
     return examples
 
 
-def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks, item_per_chunk=False, padding="max_length"):
-    if item_per_chunk:
-        tokenizer.add_tokens("<ENDOFITEM>")
-        result = tokenizer(
-            examples[field],
-            truncation=False
-        )
-        eoi_token = tokenizer.convert_tokens_to_ids(["<ENDOFITEM>"])[0]
+def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks, padding):
+    result = tokenizer(
+        examples[field],
+        truncation=True,
+        max_length=max_length,
+        return_overflowing_tokens=True,
+        padding=padding  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
+    )
 
-        # we need to pad and chunk manually
-        examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
-        examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
-        for i in range(len(examples["user_id"])):
-            # 1:-1 to remove the cls and sep tokens
-            temp = result["input_ids"][i][1:-1]
-            if len(temp) == 0:
-                examples['chunks_input_ids'][i].append([tokenizer.cls_token_id] + [tokenizer.sep_token_id]
-                                                       + [0] * (max_length - 2))
-                examples['chunks_attention_mask'][i].append([1] * 2 + [0] * (max_length - 2))
-                continue
-
-            start_idx = 0
-            while start_idx < len(temp):
-                eoi_idx = temp.index(eoi_token, start_idx)
-                chunk = temp[start_idx:eoi_idx]
-                chunk = [tokenizer.cls_token_id] + chunk[:max_length-2] + [tokenizer.sep_token_id]
-                examples['chunks_input_ids'][i].append(chunk + [0] * (max_length - len(chunk)))
-                examples['chunks_attention_mask'][i].append([1] * len(chunk) + [0] * (max_length - len(chunk)))
-                start_idx = eoi_idx + 1
-    else:
-        result = tokenizer(
-            examples[field],
-            truncation=True,
-            max_length=max_length,
-            return_overflowing_tokens=True,
-            padding=padding  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
-        )
-
-        sample_map = result.pop("overflow_to_sample_mapping")
-        # Here they expand other fields of the data to match the number of chunks... repeating user id ...
-        # this creates new examples, is it something we want? IDK maybe
-        # for key, values in examples.items():
-        #     result[key] = [values[i] for i in sample_map]
-        examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
-        examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
-        for i, j in zip(sample_map, range(len(result['input_ids']))):
-            if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
-                examples['chunks_input_ids'][i].append(result['input_ids'][j])
-                examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
+    sample_map = result.pop("overflow_to_sample_mapping")
+    examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
+    examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
+    for i, j in zip(sample_map, range(len(result['input_ids']))):
+        if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
+            examples['chunks_input_ids'][i].append(result['input_ids'][j])
+            examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
     return examples
-
-
-# def sentencize_function(samples, sentencizer=None, doc_desc_field="text",
-#                         case_sensitive=True, normalize_negation=True):
-#     sent_ret = []
-#
-#     for text in samples[doc_desc_field]:
-#         sents = []
-#         for s in sentencizer.split(text=text):
-#             if not case_sensitive:
-#                 s = s.lower()
-#             if normalize_negation:
-#                 s = s.replace("n't", " not")
-#             sents.append(s)
-#         sent_ret.append(sents)
-#     return {f"sentences_{doc_desc_field}": sent_ret}
-
-
-def sentencize(text, sentencizer, case_sensitive, normalize_negation):
-    sents = []
-    for s in sentencizer.split(text=text):
-        if not case_sensitive:
-            s = s.lower()
-        if normalize_negation:
-            s = s.replace("n't", " not")
-        sents.append(s)
-    return sents
-
-
-def filter_user_profile(dataset_config, user_info):
-    # filtering the user profile
-    # filter-type1.1 idf_sentence
-    # TODO having "idf_sentence_unique" and "idf_sentence_repeating" how about random_sentence? SBERT? For SBERT as it is a round robin, it is a bit weird! we choose genres from book1, then choose another sentence from book2 since genre is covered?
-    # TODO I think more important than the uniqueness is the split of genres into sentences each not all together
-    if dataset_config['user_text_filter'] == "idf_sentence":
-        user_info = filter_user_profile_idf_sentences(dataset_config, user_info)
-    # filter-type1 idf: we can have idf_1_all, idf_2_all, idf_3_all, idf_1-2_all, ..., idf_1-2-3_all, idf_1_unique, ...
-    # filter-type2 tf-idf: tf-idf_1, ..., tf-idf_1-2-3
-    elif dataset_config['user_text_filter'].startswith("idf_") or \
-            dataset_config['user_text_filter'].startswith("tf-idf_"):
-        user_info = filter_user_profile_idf_tf(dataset_config, user_info)
-    elif dataset_config['user_text_filter'] == "random_sentence":
-        user_info = filter_user_profile_random_sentences(dataset_config, user_info)
-    else:
-        raise ValueError(
-            f"filtering method not implemented, or belong to another script! {dataset_config['user_text_filter']}")
-
-    return Dataset.from_pandas(user_info, preserve_index=False)
 
 
 def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc=False, exp_dir=None, joint=False):
     start = time.time()
     print("Start: load dataset...")
-    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
-        temp_cs = config['case_sensitive']
-        config['case_sensitive'] = True
     datasets, user_info, item_info, filtered_out_user_item_pairs_by_limit = load_split_dataset(config, for_precalc)
-    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
-        config['case_sensitive'] = temp_cs
-        # since cs was turned off while reading the dataset for user-text to remain intact. user text will change in the followup filder_user_profile function.
-        # but item text should be change now latest.
-        if temp_cs is False and 'text' in item_info.column_names:
-            item_info = item_info.map(lambda example: {"text": example["text"].lower()})
     print(f"Finish: load dataset in {time.time()-start}")
-
-    # apply filter:
-    if 'text' in user_info.column_names and config['user_text_filter'] != "":
-        if config['user_text_filter'] not in ["item_sentence_SBERT", "item_per_chunk"]:
-            user_info = filter_user_profile(config, user_info)
 
     # tokenize when needed:
     return_padding_token = None
@@ -172,12 +71,8 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                                  # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
                                                  "max_length": config["user_chunk_size"],
                                                  "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None,
-                                                 "item_per_chunk": True if config["user_text_filter"] == "item_per_chunk" else False,
                                                  "padding": False  # TODO should be fixed later for more chunks ...  to pad correctly
                                                  })
-            if LOG_PROFILES:
-                if not exists(join(config['dataset_path'], f"users_profile_{'-'.join(config['user_text'])}_{config['user_text_filter']}{'_i' + '-'.join(config['item_text']) if config['user_text_filter'] in ['item_sentence_SBERT'] else ''}.csv")):
-                    user_info.to_pandas()[["user_id", "text"]].to_csv(join(config['dataset_path'], f"users_profile_{'-'.join(config['user_text'])}_{config['user_text_filter']}{'_i' + '-'.join(config['item_text']) if config['user_text_filter'] in ['item_sentence_SBERT'] else ''}.csv"), index=False)
             user_info = user_info.remove_columns(['text'])
         if 'text' in item_info.column_names:
             item_info = item_info.map(tokenize_function, batched=True,
@@ -187,9 +82,6 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                                  "max_num_chunks": config['max_num_chunks_item'] if "max_num_chunks_item" in config else None,
                                                  "padding": False # TODO should be fixed later for more chunks ...  to pad correctly
                                                  })
-            if LOG_PROFILES:
-                if not exists(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv")):
-                    item_info.to_pandas()[["item_id", "text"]].to_csv(join(config['dataset_path'], f"item_profile_{'-'.join(config['item_text'])}.csv"), index=False)
             item_info = item_info.remove_columns(['text'])
     elif word_vector_model is not None and config["load_tokenized_text_in_batch"] is True:
         tokenizer = get_tokenizer("basic_english")
@@ -233,32 +125,6 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                                           cur_used_items, user_info,
                                                           item_info, padding_token=padding_token, joint=joint)
             print(f"Finish: train collate_fn initialize {time.time() - start}")
-        # elif config['training_neg_sampling_strategy'] == "randomc":
-        #     print("Start: train collate_fn initialize...")
-        #     cur_used_items = user_used_items['train'].copy()
-        #     train_collate_fn = CollateNegSamplesRandomOptOrdered(config['training_neg_samples'],
-        #                                                          cur_used_items, user_info,
-        #                                                          item_info, padding_token=padding_token)
-        #     print(f"Finish: train collate_fn initialize {time.time() - start}")
-        # elif config['training_neg_sampling_strategy'] == "random_w_jac":
-        #     print("Start: train collate_fn initialize...")
-        #     cur_used_items = user_used_items['train'].copy()
-        #     train_collate_fn = CollateNegSamplesRandomOptJaccardWeightedLabels(config['training_neg_samples'],
-        #                                                                        cur_used_items, user_used_items['train'],
-        #                                                                        config['item_userset_file'],
-        #                                                                        user_info,
-        #                                                                        item_info, padding_token=padding_token)
-        #     print(f"Finish: train collate_fn initialize {time.time() - start}")
-        # elif config['training_neg_sampling_strategy'].startswith("random_w_cl_"):
-        #     print("Start: train collate_fn initialize...")
-        #     cur_used_items = user_used_items['train'].copy()
-        #     pos_cl_prior = float(config['training_neg_sampling_strategy'][config['training_neg_sampling_strategy'].index("random_w_cl_")+len("random_w_cl_"):])
-        #     train_collate_fn = CollateNegSamplesRandomOptClassPriorWeightedLabels(config['training_neg_samples'],
-        #                                                                           cur_used_items,
-        #                                                                           pos_cl_prior,
-        #                                                                           user_info,
-        #                                                                           item_info, padding_token=padding_token)
-        #     print(f"Finish: train collate_fn initialize {time.time() - start}")
         elif config['training_neg_sampling_strategy'].startswith("random_w_CF_dot_"):
             cur_used_items = user_used_items['train'].copy()
             label_weight_name = config['training_neg_sampling_strategy']
@@ -431,7 +297,7 @@ class CollateNegSamplesRandomOpt(object):
             temp_item = pd.concat([batch_df, temp_item], axis=1)
             temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
                                                   "chunks_attention_mask": "item_chunks_attention_mask"})
-            temp = pd.merge(temp_user, temp_item, on=['label', 'internal_user_id', 'internal_item_id'])
+            temp = pd.merge(temp_user, temp_item, on=[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label'])
             cols_to_pad = ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
                            "item_chunks_attention_mask"]
             if self.joint:
@@ -451,6 +317,7 @@ class CollateNegSamplesRandomOpt(object):
                 for col in cols_to_pad:
                     for i in range(len(temp[col])):
                         temp[col][i] = pad_sequence([torch.tensor(t) for t in temp[col][i]], batch_first=True, padding_value=self.padding_token)
+                        # temp.loc[:, col].loc[i] = pad_sequence([torch.tensor(t) for t in temp.loc[:, col].loc[i]], batch_first=True, padding_value=self.padding_token)  TODO make this better
 
                     max_len_0 = max([tensor.shape[0] for tensor in temp[col]])
                     max_len_1 = max([tensor.shape[1] for tensor in temp[col]])
@@ -885,56 +752,31 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
 
 
 def load_split_dataset(config, for_precalc=False):
-    user_text_fields = config['user_text'].copy()
-    item_text_fields = config['item_text'].copy()
+    user_text_file_name = config['user_text_file_name']
+    item_text_file_name = config['item_text_file_name']
     if config['load_user_item_text'] is False:
-        user_text_fields = []
-        item_text_fields = []
+        user_text_file_name = None
+        item_text_file_name = None
 
-    # read users and items, create internal ids for them to be used
-    for field in user_text_fields:
-        topkgenres = 100000
-        if field.startswith("user.sorted_genres_"):
-            topkgenres = int(field[field.rindex("_")+1:])
-            user_text_fields[user_text_fields.index(field)] = "user.sorted_genres"
     keep_fields = ["user_id"]
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if field.startswith("user.")])
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if field.startswith("user.")])
-    keep_fields = list(set(keep_fields))
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
     user_info = user_info.sort_values("user_id").reset_index(drop=True) # this is crucial, as the precomputing is done with internal ids
     user_info[INTERNAL_USER_ID_FIELD] = np.arange(0, user_info.shape[0])
-    user_info = user_info.fillna('')
-    user_info = user_info.rename(
-        columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
-                 field.startswith("user.")})
-    if 'user.sorted_genres' in user_info.columns:
-        user_info['user.sorted_genres'] = user_info['user.sorted_genres'].apply(
-            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
-                                 g in x.split(",")][:topkgenres]))
-    keep_fields = [field[field.index("userprofile.")+len("userprofile."):] for field in user_text_fields if field.startswith("userprofile.")]
-    if len(keep_fields) > 1:
-        raise ValueError("more than 1 userprofile fields ?")
-    elif len(keep_fields) == 1:
-        keep_fields = keep_fields[0]
-        up = pd.read_csv(join(config['dataset_path'], f"users_profile_{keep_fields}.csv"), dtype=str)
-        up = up.fillna('')
-        up = up.rename(columns={"text": f"userprofile.{keep_fields}"})
-        user_info = pd.merge(user_info, up, on="user_id")
+    if len(user_info["user_id"]) != len(set(user_info["user_id"])):
+        raise ValueError("problem in users.csv file")
+    print(f"num users = {len(user_info[INTERNAL_USER_ID_FIELD])}")
+    up = pd.read_csv(join(config['dataset_path'], f"users_profile_{user_text_file_name}.csv"), dtype=str)
+    up = up.fillna('')
+    if len(up["user_id"]) != len(set(user_info["user_id"])):
+        raise ValueError(f"problem in users_profile_{user_text_file_name}.csv file")
+    user_info = pd.merge(user_info, up, on="user_id")
+    user_info['text'] = user_info['text'].apply(lambda x: x.replace("<end of review>", ""))
+    if not config['case_sensitive']:
+        user_info['text'] = user_info['text'].apply(str.lower)
+    if config['normalize_negation']:
+        user_info['text'] = user_info['text'].replace("n\'t", " not", regex=True)
 
     keep_fields = ["item_id"]
-    keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if field.startswith("item.")])
-    keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if field.startswith("item.")])
-    keep_fields = list(set(keep_fields))
-    tie_breaker = None
-    if len(user_text_fields) > 0 and config['user_item_text_tie_breaker'] != "":
-        if config['user_item_text_tie_breaker'].startswith("item."):
-            tie_breaker = config['user_item_text_tie_breaker']
-            tie_breaker = tie_breaker[tie_breaker.index("item.") + len("item."):]
-            keep_fields.extend([tie_breaker])
-        else:
-            raise ValueError(f"tie-breaker value: {config['user_item_text_tie_breaker']}")
-
     if not for_precalc and config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
         if config["name"] == "Amazon":
             keep_fields.append("category")
@@ -943,18 +785,24 @@ def load_split_dataset(config, for_precalc=False):
         else:
             raise NotImplementedError()
     item_info = pd.read_csv(join(config['dataset_path'], "items.csv"), usecols=keep_fields, low_memory=False, dtype=str)
-    if tie_breaker is not None:
-        if tie_breaker in ["avg_rating", "average_rating"]:
-            item_info[tie_breaker] = item_info[tie_breaker].astype(float)
-        else:
-            raise NotImplementedError(f"tie-break {tie_breaker} not implemented")
-        item_info[tie_breaker] = item_info[tie_breaker].fillna(0)
     item_info = item_info.sort_values("item_id").reset_index(drop=True)  # this is crucial, as the precomputing is done with internal ids
     item_info[INTERNAL_ITEM_ID_FIELD] = np.arange(0, item_info.shape[0])
+    if len(item_info["item_id"]) != len(set(item_info["item_id"])):
+        raise ValueError("problem in items.csv file")
+    print(f"num items = {len(item_info[INTERNAL_ITEM_ID_FIELD])}")
     item_info = item_info.fillna('')
-    item_info = item_info.rename(
-        columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
-                 field.startswith("item.")})
+    ip = pd.read_csv(join(config['dataset_path'], f"item_profile_{item_text_file_name}.csv"), dtype=str)
+    ip = ip.fillna('')
+    if len(ip["item_id"]) != len(set(item_info["item_id"])):
+        raise ValueError(f"problem in item_profile_{item_text_file_name}.csv file")
+    item_info = pd.merge(item_info, ip, on="item_id")
+    item_info['text'] = item_info['text'].apply(lambda x: x.replace("<end of review>", ""))
+    if not config['case_sensitive']:
+        item_info['text'] = item_info['text'].apply(str.lower)
+    if config['normalize_negation']:
+        item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
+
+
     if 'item.genres' in item_info.columns:
         item_info['item.genres'] = item_info['item.genres'].apply(
             lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
@@ -964,11 +812,6 @@ def load_split_dataset(config, for_precalc=False):
             item_info['item.category'] = item_info['item.category'].apply(
                 lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
                 .replace("[", "").replace("]", "").strip())
-        if 'item.description' in item_info.columns:
-            item_info['item.description'] = item_info['item.description'].apply(
-                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
-                .replace("[", "").replace("]", "").strip())
-
 
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
@@ -977,7 +820,7 @@ def load_split_dataset(config, for_precalc=False):
     split_datasets = {}
     filtered_out_user_item_pairs_by_limit = defaultdict(set)
     for sp, file in sp_files.items():
-        df = pd.read_csv(file, dtype=str)  # rating:float64
+        df = pd.read_csv(file, usecols=["user_id", "item_id", "rating"], dtype=str)  # rating:float64   TODO label?
         # book limit:
         if sp == 'train' and config['limit_training_data'] != "":
             if config['limit_training_data'].startswith("max_book"):
@@ -1029,187 +872,8 @@ def load_split_dataset(config, for_precalc=False):
         df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         df = df.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         df = df.drop(columns=["user_id", "item_id"])
-
-        df = df.rename(
-            columns={field[field.index("interaction.") + len("interaction."):]: field for field in user_text_fields if
-                     field.startswith("interaction.")})
-        df = df.rename(
-            columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
-                     field.startswith("interaction.")})
-
-        # text profile:
-        if sp == 'train':
-            # concat and move the user/item text fields to user and item info:
-            sort_reviews = ""
-            if len(user_text_fields) > 0:
-                sort_reviews = config['user_item_text_choice']
-
-            for field in user_text_fields:
-                if field.startswith("interaction."):
-                    df[field] = df[field].fillna('')
-            ## USER:
-            # This code works for user text fields from interaction and item file
-            user_item_text_fields = [field for field in user_text_fields if field.startswith("item.")]
-            user_inter_text_fields = [field for field in user_text_fields if field.startswith("interaction.")]
-            user_item_inter_text_fields = user_item_text_fields.copy()
-            user_item_inter_text_fields.extend(user_inter_text_fields)
-
-            if len(user_item_inter_text_fields) > 0:
-                user_item_merge_fields = [INTERNAL_ITEM_ID_FIELD]
-                user_item_merge_fields.extend(user_item_text_fields)
-                if tie_breaker in ["avg_rating", "average_rating"]:
-                    user_item_merge_fields.append(tie_breaker)
-
-                user_inter_merge_fields = [INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']
-                user_inter_merge_fields.extend(user_inter_text_fields)
-
-                temp = df[user_inter_merge_fields].\
-                    merge(item_info[user_item_merge_fields], on=INTERNAL_ITEM_ID_FIELD)
-                if sort_reviews.startswith("pos_rating_sorted_"):
-                    pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
-                    temp = temp[temp['rating'] >= pos_threshold]
-                # before sorting them based on rating, etc., let's append each row's field together (e.g. title. genres. review.)
-                if config['user_text_filter'] == "item_per_chunk":
-                    temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1) + "<ENDOFITEM>"
-                else:
-                    temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
-
-                if config['user_text_filter'] in ["item_sentence_SBERT"]:
-                    # first we sort the items based on the ratings, tie-breaker
-                    if tie_breaker is None:
-                        temp = temp.sort_values(['rating'], ascending=[False])
-                    else:
-                        temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False])
-
-                    # sentencize the user text (r, tgr, ...)
-                    sent_splitter = SentenceSplitter(language='en')
-                    temp['sentences_text'] = temp.apply(lambda row: sentencize(row['text'], sent_splitter,
-                                                                               config['case_sensitive'],
-                                                                               config['normalize_negation']), axis=1)
-                    temp = temp.drop(columns=['text'])
-                    temp = temp.drop(columns=user_text_fields)
-
-                    # load SBERT
-                    sbert = SentenceTransformer("all-mpnet-base-v2")  # TODO hard coded
-                    # "all-MiniLM-L12-v2"
-                    # "all-MiniLM-L6-v2"
-                    print("sentence transformer loaded!")
-
-                    user_texts = []
-                    for user_idx in list(user_info.index):
-                        user = user_info.loc[user_idx][INTERNAL_USER_ID_FIELD]
-                        if user != user_idx:
-                            raise ValueError("user id and index does not match!")
-                        user_items = []
-                        user_item_temp = temp[temp[INTERNAL_USER_ID_FIELD] == user]
-                        for item_id, sents in zip(user_item_temp[INTERNAL_ITEM_ID_FIELD], user_item_temp['sentences_text']):
-                            if len(sents) == 0:
-                                continue
-                            item = item_info.loc[item_id]
-                            if item_id != item[INTERNAL_ITEM_ID_FIELD]:
-                                raise ValueError("item id and index does not match!")
-                            item_text = '. '.join(list(item[item_text_fields]))
-                            scores = util.dot_score(sbert.encode(item_text), sbert.encode(sents))
-                            user_items.append([sent for score, sent in sorted(zip(scores[0], sents), reverse=True)])
-                        user_text = []
-                        cnts = {i: 0 for i in range(len(user_items))}
-                        while True:
-                            remaining = False
-                            for i in range(len(user_items)):
-                                if cnts[i] == len(user_items[i]):
-                                    continue
-                                remaining = True
-                                user_text.append(user_items[i][cnts[i]])
-                                cnts[i] += 1
-                            if not remaining:
-                                break
-                        user_texts.append(' '.join(user_text))
-                    user_info['text'] = user_texts
-                    print(f"user text matching with item done!")
-                else:
-                    if sort_reviews == "":
-                        temp = temp.groupby(INTERNAL_USER_ID_FIELD)['text']
-                    else:
-                        if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
-
-                            if tie_breaker is None:
-                                temp = temp.sort_values('rating', ascending=False).groupby(
-                                    INTERNAL_USER_ID_FIELD)['text']
-                            elif tie_breaker in ["avg_rating", "average_rating"]:
-                                temp = temp.sort_values(['rating', tie_breaker], ascending=[False, False]).groupby(
-                                    INTERNAL_USER_ID_FIELD)['text']
-                            else:
-                                raise ValueError("Not implemented!")
-                        else:
-                            raise ValueError("Not implemented!")
-                    temp = temp.apply('. '.join).reset_index()
-                    user_info = user_info.merge(temp, "left", on=INTERNAL_USER_ID_FIELD)
-                    user_info['text'] = user_info['text'].fillna('')
-
-            ## ITEM:
-            # This code works for item text fields from interaction and user file
-            item_user_text_fields = [field for field in item_text_fields if field.startswith("user.")]
-            item_inter_text_fields = [field for field in item_text_fields if field.startswith("interaction.")]
-            item_user_inter_text_fields = item_user_text_fields.copy()
-            item_user_inter_text_fields.extend(item_inter_text_fields)
-
-            if len(item_user_inter_text_fields) > 0:
-                item_user_merge_fields = [INTERNAL_USER_ID_FIELD]
-                item_user_merge_fields.extend(item_user_text_fields)
-
-                item_inter_merge_fields = [INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'rating']
-                item_inter_merge_fields.extend(item_inter_text_fields)
-
-                temp = df[item_inter_merge_fields]. \
-                    merge(user_info[item_user_merge_fields], on=INTERNAL_USER_ID_FIELD)
-                if sort_reviews.startswith("pos_rating_sorted_"):  # Todo sort_review field in config new?
-                    pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
-                    temp = temp[temp['rating'] >= pos_threshold]
-                # before sorting them based on rating, etc., let's append each row's field together
-                temp['text'] = temp[item_user_inter_text_fields].agg('. '.join, axis=1)
-
-                if sort_reviews == "":
-                    temp = temp.groupby(INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
-                else:
-                    if sort_reviews == "rating_sorted" or sort_reviews.startswith("pos_rating_sorted_"):
-                        temp = temp.sort_values('rating', ascending=False).groupby(
-                            INTERNAL_ITEM_ID_FIELD)['text'].apply('. '.join).reset_index()
-                    else:
-                        raise ValueError("Not implemented!")
-
-                item_info = item_info.merge(temp, "left", on=INTERNAL_ITEM_ID_FIELD)
-                item_info['text'] = item_info['text'].fillna('')
-
-        # remove the rest
-        remove_fields = df.columns
-        print(f"interaction fields: {remove_fields}")
-        keep_fields = ["label", INTERNAL_ITEM_ID_FIELD, INTERNAL_USER_ID_FIELD]
-        remove_fields = list(set(remove_fields) - set(keep_fields))
-        df = df.drop(columns=remove_fields)
         split_datasets[sp] = df
 
-    # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
-    user_remaining_text_fields = [field for field in user_text_fields if (field.startswith("user.") or field.startswith("userprofile."))]
-    if 'text' in user_info.columns:
-        user_remaining_text_fields.append('text')
-    if len(user_remaining_text_fields) > 0:
-        user_info['text'] = user_info[user_remaining_text_fields].agg('. '.join, axis=1)
-        user_info['text'] = user_info['text'].apply(lambda x: x.replace("<end of review>", ""))
-        if not config['case_sensitive']:
-            user_info['text'] = user_info['text'].apply(str.lower)
-        if config['normalize_negation']:
-            user_info['text'] = user_info['text'].replace("n\'t", " not", regex=True)
-        user_info = user_info.drop(columns=[field for field in user_text_fields if field.startswith("user.")])
-
-    item_remaining_text_fields = [field for field in item_text_fields if field.startswith("item.")]
-    if 'text' in item_info.columns:
-        item_remaining_text_fields.append('text')
-    if len(item_remaining_text_fields) > 0:
-        item_info['text'] = item_info[item_remaining_text_fields].agg('. '.join, axis=1)
-        if not config['case_sensitive']:
-            item_info['text'] = item_info['text'].apply(str.lower)
-        if config['normalize_negation']:
-            item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
     if not for_precalc and config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
         if config["name"] == "Amazon":
             if 'category' not in item_info.columns:
@@ -1219,58 +883,12 @@ def load_split_dataset(config, for_precalc=False):
                 item_info['genres'] = item_info['item.genres']
         else:
             raise NotImplementedError()
-    item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
 
     # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
-    user_item_jaccard_index = None
-    user_item_sim = None
     if not for_precalc and config['validation_neg_sampling_strategy'].startswith("f:"):
-        label_weight = 0
-        if "-" in config['validation_neg_sampling_strategy']:
-            fname = config['validation_neg_sampling_strategy'][2:config['validation_neg_sampling_strategy'].index("-")]
-            label_weight_name = config['validation_neg_sampling_strategy'][config['validation_neg_sampling_strategy'].index("-")+1:]
-            # if label_weight_name.startswith("w_cl_"):
-            #     label_weight = float(label_weight[label_weight.index("w_cl_")+len("w_cl_"):])
-            # elif label_weight_name.startswith("w_jac"):
-            #     label_weight = None
-            #     # use the precalculated user-eval-item relatedness as this is timely!
-            #     user_item_jaccard_index = pickle.load(
-            #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
-            if label_weight_name.startswith("w_CF_dot_"):
-                label_weight = None
-                # w_CF_dot_-19_71
-                oldmax = int(label_weight_name[label_weight_name.rindex("_")+1:])
-                oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_")+len("w_CF_dot_"):label_weight_name.rindex("_")])
-                sim_st = "dot"
-                user_item_sim = pickle.load(open(join(config['dataset_path'], f"eval_user_item_CF_sim_{sim_st}_scaled_{oldmin}-{oldmax}.pkl"), 'rb'))  # TODO rm config["CF_item_item_prec_sims"] all over
-            else:
-                raise NotImplementedError(f"{label_weight} not implemented")
-        else:
-            fname = config['validation_neg_sampling_strategy'][2:]
+        fname = config['validation_neg_sampling_strategy'][2:]
         negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
-        if label_weight is not None:
-            negs['label'] = label_weight
-        else:
-            labels = []
-            if label_weight_name.startswith("w_CF_dot_"):
-                for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                    labels.append(user_item_sim[user][unlabeled_item])
-            # elif cosine:
-                # if label_weight_name.startswith("w_CF_cosine"):
-                #     # transform the range from -1-1 to 0-1:
-                #     s = (s+1)/2  #  s = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
-                #     # then apply scaling if given
-                #     s *= scaling_factor
-                #     s = min(1, s)  # if the scaling factor > 1
-                #     sims.append(s)
-            # elif label_weight_name.startswith("w_jac"):
-            #     for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-            #         avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
-            #         # the higher the more related to positives
-            #         # e.g. 0 is good negative, 0.8 is mostlypositive.
-            #         # So we directly assign it instead of the label
-            #         labels.append(avg_relatedness)
-            negs['label'] = labels
+        negs['label'] = 0  # used to have weightes for weighted evaluation, but then removed that code
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
@@ -1280,47 +898,9 @@ def load_split_dataset(config, for_precalc=False):
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
     if not for_precalc and config['test_neg_sampling_strategy'].startswith("f:"):
-        label_weight = 0
-        if "-" in config['test_neg_sampling_strategy']:
-            fname = config['test_neg_sampling_strategy'][2:config['test_neg_sampling_strategy'].index("-")]
-            label_weight_name = config['test_neg_sampling_strategy'][
-                                config['test_neg_sampling_strategy'].index("-") + 1:]
-            # if label_weight_name.startswith("w_cl_"):
-            #     label_weight = float(label_weight[label_weight.index("w_cl_")+len("w_cl_"):])
-            # elif label_weight_name.startswith("w_jac"):
-            #     label_weight = None
-                # use the precalculated user-eval-item relatedness as this is timely!
-                # if user_item_jaccard_index is None:
-                #     user_item_jaccard_index = pickle.load(
-                #         open(join(config['dataset_path'], config['user_item_jaccard_index_file']), 'rb'))
-            if label_weight_name.startswith("w_CF_dot"):
-                label_weight = None
-                oldmax = int(label_weight_name[label_weight_name.rindex("_")+1:])
-                oldmin = int(label_weight_name[label_weight_name.index("w_CF_dot_")+len("w_CF_dot_"):label_weight_name.rindex("_")])
-                sim_st = "dot"
-                if user_item_sim is None:
-                    user_item_sim = pickle.load(open(
-                        join(config['dataset_path'], f"eval_user_item_CF_sim_{sim_st}_scaled_{oldmin}-{oldmax}.pkl"), 'rb'))  # TODO rm config["CF_item_item_prec_sims"] all over
-            else:
-                raise NotImplementedError(f"{label_weight} not implemented")
-        else:
-            fname = config['test_neg_sampling_strategy'][2:]
+        fname = config['test_neg_sampling_strategy'][2:]
         negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
-        if label_weight is not None:
-            negs['label'] = label_weight
-        else:
-            labels = []
-            if label_weight_name.startswith("w_CF_dot_"):
-                for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-                    labels.append(user_item_sim[user][unlabeled_item])
-            # elif label_weight_name.startswith("w_jac"):
-            #     for user, unlabeled_item in zip(negs['user_id'], negs['item_id']):
-            #         avg_relatedness = user_item_jaccard_index[user][unlabeled_item]
-            #         # the higher the more related to positives
-            #         # e.g. 0 is good negative, 0.8 is mostlypositive.
-            #         # So we directly assign it instead of the label
-            #         labels.append(avg_relatedness)
-            negs['label'] = labels
+        negs['label'] = 0  # used to have weightes for weighted evaluation, but then removed that code
         negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
@@ -1335,35 +915,3 @@ def load_split_dataset(config, for_precalc=False):
     return DatasetDict(split_datasets), Dataset.from_pandas(user_info, preserve_index=False), \
            Dataset.from_pandas(item_info, preserve_index=False), filtered_out_user_item_pairs_by_limit
 
-
-
-# load_data({"dataset_path": "/home/ghazaleh/workspace/SBR/data/GR_read_5-folds/toy_dataset/",
-#             "binary_interactions": True, "name": "CGR", "batch_size": 8})
-### returing all chunks:  return_overflowing_tokens
-# def tokenize_and_split(examples):
-#     return tokenizer(
-#         examples["review"],
-#         truncation=True,
-#         max_length=128,
-#         return_overflowing_tokens=True,
-#     )
-# tokenized_dataset = drug_dataset.map(tokenize_and_split, batched=True)
-### but this gives error because some fields of the dataset are longer than others (input id)
-### we can remove other fields and just have our new dataset:
-# tokenized_dataset = drug_dataset.map(
-#     tokenize_and_split, batched=True, remove_columns=drug_dataset["train"].column_names
-# )
-### or we can extend the old dataset features to match the new feature size
-# def tokenize_and_split(examples):
-#     result = tokenizer(
-#         examples["review"],
-#         truncation=True,
-#         max_length=128,
-#         return_overflowing_tokens=True,
-#     )
-#     # Extract mapping between new and old indices
-#     sample_map = result.pop("overflow_to_sample_mapping")
-#     for key, values in examples.items():
-#         result[key] = [values[i] for i in sample_map]
-#     return result
-# tokenized_dataset = drug_dataset.map(tokenize_and_split, batched=True)

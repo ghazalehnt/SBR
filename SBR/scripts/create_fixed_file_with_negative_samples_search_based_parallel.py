@@ -3,7 +3,7 @@ import csv
 import os
 import pickle
 import random
-from collections import  defaultdict
+from collections import defaultdict
 import time
 
 import pandas as pd

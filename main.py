@@ -12,11 +12,10 @@ from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.unsupervised import UnSupervisedTrainer
-from SBR.utils.statics import get_profile, get_rev_map
 
 
-def main(op, config_file=None, result_folder=None, given_user_text_filter=None, given_limit_training_data=None,
-         given_neg_files=None, given_lr=None, given_tbs=None, given_user_text=None, given_item_text=None, given_k1k2=None):
+def main(op, config_file=None, result_folder=None, given_limit_training_data=None, given_neg_files=None, given_lr=None,
+         given_tbs=None, given_user_text_file_name=None, given_item_text_file_name=None, given_k1k2=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -27,18 +26,16 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
     test_only = False
     if op in ["train", "trainonly"]:
         config = json.load(open(config_file, 'r'))
-        if given_user_text_filter is not None:
-            config['dataset']['user_text_filter'] = given_user_text_filter
         if given_limit_training_data is not None:
             config['dataset']['limit_training_data'] = given_limit_training_data
         if given_lr is not None:
             config['trainer']['lr'] = given_lr
         if given_tbs is not None:
             config['dataset']['train_batch_size'] = given_tbs
-        if given_user_text is not None:
-            config['dataset']['user_text'] = get_profile(config['dataset']['name'], given_user_text)
-        if given_item_text is not None:
-            config['dataset']['item_text'] = get_profile(config['dataset']['name'], given_item_text)
+        if given_user_text_file_name is not None:
+            config['dataset']['user_text_file_name'] = given_user_text_file_name
+        if given_item_text_file_name is not None:
+            config['dataset']['item_text_file_name'] = given_item_text_file_name
         if given_k1k2 is not None:
             config["model"]["k1"] = given_k1k2
             config["model"]["k2"] = given_k1k2
@@ -64,10 +61,10 @@ def main(op, config_file=None, result_folder=None, given_user_text_filter=None, 
                 temp = temp[temp.index("f:test_neg_")+len("f:test_neg_"):]
                 exp_dir_params.append(f"f-{temp}")
             elif isinstance(config[p1][p2], list):
-                if p2 in ["item_text", "user_text"]:
-                    exp_dir_params.append('-'.join([get_rev_map(config['dataset']['name'])[v] for v in config[p1][p2]]))
-                else:
-                    exp_dir_params.append('-'.join(config[p1][p2]))
+                # if p2 in ["user_text_file_name", "item_text_file_name"]:
+                #     exp_dir_params.append('-'.join([get_rev_map(config['dataset']['name'])[v] for v in config[p1][p2]]))
+                # else:
+                exp_dir_params.append('-'.join(config[p1][p2]))
             else:
                 exp_dir_params.append(str(config[p1][p2]))
         exp_dir = join(config['experiment_root'], "_".join(exp_dir_params))
@@ -152,14 +149,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result forler, to evaluate')
-    parser.add_argument('--user_text_filter', type=str, default=None, help='user_text_filter used only if given, otherwise read from the config')
     parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
     #parser.add_argument('--testtime_validation_neg_strategy', '-v', default=None, help='valid neg strategy, only for op == test')
     parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
     parser.add_argument('--trainer_lr', default=None, help='trainer learning rate')
     parser.add_argument('--train_batch_size', default=None, help='train_batch_size')
-    parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
-    parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
+    parser.add_argument('--user_text_file_name', default=None, help='user_text_file_name')
+    parser.add_argument('--item_text_file_name', default=None, help='item_text_file_name')
     parser.add_argument('--model_k1k2', type=int, default=None, help='model.k1k2')
     parser.add_argument('--op', type=str, help='operation train/test/trainonly')
     args, _ = parser.parse_known_args()
@@ -172,11 +168,12 @@ if __name__ == '__main__':
             raise ValueError(f"OP==train does not accept result_folder")
         if args.testtime_validation_neg_strategy or args.testtime_test_neg_strategy:
             raise ValueError(f"OP==train does not accept test-time eval neg strategies.")
-        main(op=args.op, config_file=args.config_file, given_user_text_filter=args.user_text_filter,
+        main(op=args.op, config_file=args.config_file,
              given_limit_training_data=args.limit_training_data,
              given_lr=float(args.trainer_lr) if args.trainer_lr is not None else args.trainer_lr,
              given_tbs=int(args.train_batch_size) if args.train_batch_size is not None else args.train_batch_size,
-             given_user_text=args.user_text, given_item_text=args.item_text, given_k1k2=args.model_k1k2)
+             given_user_text_file_name=args.user_text_file_name, given_item_text_file_name=args.item_text_file_name,
+             given_k1k2=args.model_k1k2)
     elif args.op == "test":
         if not os.path.exists(join(args.result_folder, "config.json")):
             raise ValueError(f"Result folder does not exist: {args.config_file}")
