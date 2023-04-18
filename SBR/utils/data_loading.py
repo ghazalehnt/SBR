@@ -33,6 +33,25 @@ def tokenize_function_torchtext(examples, tokenizer, field, vocab):
     return examples
 
 
+def tokenize_function_many_chunks(examples, tokenizer, field, max_length, max_num_chunks, padding):
+    result = tokenizer(
+        examples[field],
+        truncation=True,
+        max_length=max_length,
+        return_overflowing_tokens=True,
+        padding=padding  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
+    )
+
+    sample_map = result.pop("overflow_to_sample_mapping")
+    examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
+    examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
+    for i, j in zip(sample_map, range(len(result['input_ids']))):
+        if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
+            examples['chunks_input_ids'][i].append(result['input_ids'][j])
+            examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
+    return examples
+
+
 def tokenize_function(examples, tokenizer, field, max_length, max_num_chunks, padding):
     result = tokenizer(
         examples[field],
@@ -297,7 +316,9 @@ class CollateNegSamplesRandomOpt(object):
             temp_item = pd.concat([batch_df, temp_item], axis=1)
             temp_item = temp_item.rename(columns={"chunks_input_ids": "item_chunks_input_ids",
                                                   "chunks_attention_mask": "item_chunks_attention_mask"})
-            temp = pd.merge(temp_user, temp_item, on=[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label'])
+            temp = pd.merge(temp_user[INTERNAL_USER_ID_FIELD, 'label', 'user_chunks_input_ids', 'user_chunks_attention_mask'],
+                            temp_item[INTERNAL_ITEM_ID_FIELD, 'label', 'item_chunks_input_ids', 'item_chunks_attention_mask'],
+                            on=[INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, 'label'])
             cols_to_pad = ["user_chunks_input_ids", "user_chunks_attention_mask", "item_chunks_input_ids",
                            "item_chunks_attention_mask"]
             if self.joint:
@@ -317,7 +338,7 @@ class CollateNegSamplesRandomOpt(object):
                 for col in cols_to_pad:
                     for i in range(len(temp[col])):
                         temp[col][i] = pad_sequence([torch.tensor(t) for t in temp[col][i]], batch_first=True, padding_value=self.padding_token)
-                        # temp.loc[:, col].loc[i] = pad_sequence([torch.tensor(t) for t in temp.loc[:, col].loc[i]], batch_first=True, padding_value=self.padding_token)  TODO make this better
+                        # temp.loc[:, col].loc[i] = pad_sequence([torch.tensor(t) for t in temp.loc[:, col].loc[i]], batch_first=True, padding_value=self.padding_token)  #TODO make this better
 
                     max_len_0 = max([tensor.shape[0] for tensor in temp[col]])
                     max_len_1 = max([tensor.shape[1] for tensor in temp[col]])
