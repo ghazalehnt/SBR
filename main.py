@@ -80,14 +80,15 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
                 raise ValueError(f"{exp_dir} exists with different config != {config_file}")
         os.makedirs(exp_dir, exist_ok=True)
         json.dump(config, open(join(exp_dir, "config.json"), 'w'), indent=4)
-    elif op == "test":
+    elif op in ["test", "log"]:
         config = json.load(open(join(result_folder, "config.json"), 'r'))
         test_only = True
         exp_dir = config["experiment_dir"]
-        if given_neg_files["validation"] is not None:
-            config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
-        if given_neg_files["test"] is not None:
-            config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
+        if given_neg_files is not None:
+            if given_neg_files["validation"] is not None:
+                config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
+            if given_neg_files["test"] is not None:
+                config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
     else:
         raise ValueError("op not defined!")
 
@@ -143,6 +144,12 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
             trainer.fit(train_dataloader, valid_dataloader)
         elif op == "test":
             trainer.evaluate(test_dataloader, valid_dataloader)
+        elif op == "log":
+            trainer.user_bert_out = join(exp_dir, "user_bert_out.json")
+            trainer.user_ffn_out = join(exp_dir, "user_ffn_out.json")
+            trainer.item_bert_out = join(exp_dir, "item_bert_out.json")
+            trainer.item_ffn_out = join(exp_dir, "item_ffn_out.json")
+            trainer.log()
 
 
 if __name__ == '__main__':
@@ -182,5 +189,9 @@ if __name__ == '__main__':
         main(op=args.op, result_folder=args.result_folder,
              given_neg_files={"validation": args.testtime_validation_neg_strategy,
                               "test": args.testtime_test_neg_strategy})
-
-
+    elif args.op == "log":
+        if not os.path.exists(join(args.result_folder, "config.json")):
+            raise ValueError(f"Result folder does not exist: {args.config_file}")
+        if args.config_file:
+            raise ValueError(f"OP==test does not accept config_file")
+        main(op=args.op, result_folder=args.result_folder)

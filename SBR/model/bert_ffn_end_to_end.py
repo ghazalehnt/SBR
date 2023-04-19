@@ -53,6 +53,29 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
+    def log(self, batch, user=True):
+        input_ids = batch['input_ids']
+        att_mask = batch['attention_mask']
+        output = self.bert.forward(input_ids=input_ids,
+                                   attention_mask=att_mask)
+        if self.agg_strategy == "CLS":
+            bert_rep = output.pooler_output
+        elif self.agg_strategy == "mean_last":
+            tokens_embeddings = output.last_hidden_state
+            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+            tokens_embeddings = tokens_embeddings * mask
+            sum_tokons = torch.sum(tokens_embeddings, dim=1)
+            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
+            bert_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
+
+        if user:
+            ffn_rep = torch.nn.functional.relu(self.linear_u_1(bert_rep))
+            ffn_rep = self.linear_u_2(ffn_rep)
+        else:
+            ffn_rep = torch.nn.functional.relu(self.linear_i_1(bert_rep))
+            ffn_rep = self.linear_i_2(ffn_rep)
+        return bert_rep, ffn_rep
+
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
         user_ids = batch[INTERNAL_USER_ID_FIELD].squeeze(1)

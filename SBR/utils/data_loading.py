@@ -242,6 +242,26 @@ def jaccard_index(X, Y):
     return d
 
 
+class CollateUserItem(object):
+    def __init__(self):
+        self.padding_token = 0
+
+    def __call__(self, batch):
+        batch_df = pd.DataFrame(batch)
+        ret = {}
+        cols_to_pad = ["input_ids", "attention_mask"]
+        for col in cols_to_pad:
+            ret[col] = pad_sequence([torch.tensor(t) for t in batch_df[col]], batch_first=True, padding_value=self.padding_token)
+        for col in batch_df.columns:
+            if col in ret:
+                continue
+            if col in ["user_id", "item_id"]:
+                ret[col] = batch_df[col]
+                continue
+            ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
+        return ret
+
+
 class CollateNegSamplesRandomOpt(object):
     def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None, joint=False):
         self.num_neg_samples = num_neg_samples

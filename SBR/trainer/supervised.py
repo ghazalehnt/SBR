@@ -1,3 +1,4 @@
+import json
 import operator
 import os
 import random
@@ -16,6 +17,7 @@ import numpy as np
 
 from SBR.utils.metrics import calculate_metrics, log_results
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
+from SBR.utils.data_loading import CollateUserItem
 
 
 class SupervisedTrainer:
@@ -323,3 +325,30 @@ class SupervisedTrainer:
         ground_truth = torch.tensor(ground_truth)
         outputs = torch.tensor(outputs)
         return outputs, ground_truth, eval_loss, user_ids, item_ids
+
+    def log(self):
+        ret_bert_out = {}
+        ret_ffn_out = {}
+        dataloader = DataLoader(self.users,
+                                     batch_size=1,
+                                     collate_fn=CollateUserItem())
+        for batch in dataloader:
+            id = batch.pop("user_id")
+            bert_out, ffn_out = self.model.log(batch)
+            ret_bert_out[id.item()] = bert_out[0].detach().tolist()
+            ret_ffn_out[id.item()] = ffn_out[0].detach().tolist()
+        json.dump(ret_bert_out, open(self.user_bert_out, 'w'))
+        json.dump(ret_bert_out, open(self.user_ffn_out, 'w'))
+
+        ret_bert_out = {}
+        ret_ffn_out = {}
+        dataloader = DataLoader(self.items,
+                                     batch_size=1,
+                                     collate_fn=CollateUserItem())
+        for batch in dataloader:
+            id = batch.pop("item_id")
+            bert_out, ffn_out = self.model.log(batch)
+            ret_bert_out[id.item()] = bert_out[0].detach().tolist()
+            ret_ffn_out[id.item()] = ffn_out[0].detach().tolist()
+        json.dump(ret_bert_out, open(self.item_bert_out, 'w'))
+        json.dump(ret_bert_out, open(self.item_ffn_out, 'w'))
