@@ -330,27 +330,29 @@ class SupervisedTrainer:
         ret_bert_out = {}
         ret_ffn_out = {}
         dataloader = DataLoader(self.users,
-                                     batch_size=1,
-                                     collate_fn=CollateUserItem())
+                                batch_size=512,
+                                collate_fn=CollateUserItem())
         for batch in dataloader:
-            id = batch.pop("user_id")
+            ids = batch.pop("user_id")
             batch = {k: v.to(self.device) for k, v in batch.items()}
             bert_out, ffn_out = self.model.log(batch)
-            ret_bert_out[id.item()] = bert_out[0].detach().tolist()
-            ret_ffn_out[id.item()] = ffn_out[0].detach().tolist()
+            for i in range(len(ids)):
+                ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
+                ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
         json.dump(ret_bert_out, open(self.user_bert_out, 'w'))
         json.dump(ret_bert_out, open(self.user_ffn_out, 'w'))
 
         ret_bert_out = {}
         ret_ffn_out = {}
         dataloader = DataLoader(self.items,
-                                     batch_size=1,
-                                     collate_fn=CollateUserItem())
+                                batch_size=512,
+                                collate_fn=CollateUserItem())
         for batch in dataloader:
-            id = batch.pop("item_id")
+            ids = batch.pop("item_id")
             batch = {k: v.to(self.device) for k, v in batch.items()}
             bert_out, ffn_out = self.model.log(batch)
-            ret_bert_out[id.item()] = bert_out[0].detach().tolist()
-            ret_ffn_out[id.item()] = ffn_out[0].detach().tolist()
+            for i in range(len(ids)):
+                ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
+                ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
         json.dump(ret_bert_out, open(self.item_bert_out, 'w'))
         json.dump(ret_bert_out, open(self.item_ffn_out, 'w'))
