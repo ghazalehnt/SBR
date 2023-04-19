@@ -65,24 +65,34 @@ def load_split_dataset(config):
         if not field.startswith("user.") and not field.startswith("item.") and not field.startswith("interaction."):
             raise ValueError(f"{field} in item text field is wrong")
     # read users and items, create internal ids for them to be used
-    for field in user_text_fields:
-        topkgenres = 100000
-        if field.startswith("user.sorted_genres_"):
-            topkgenres = int(field[field.rindex("_")+1:])
-            user_text_fields[user_text_fields.index(field)] = "user.sorted_genres"
     keep_fields = ["user_id"]
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if field.startswith("user.")])
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if field.startswith("user.")])
+    for field in user_text_fields:
+        topkgenres = None
+        if field.startswith("user.sorted_genres_"):
+            keep_fields.append("sorted_genres")
+            topkgenres = int(field[field.rindex("_")+1:])
+            break
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if field.startswith("user.") and not field.startswith("user.sorted_genres_")])
+    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if field.startswith("user.") and not field.startswith("user.sorted_genres_")])
     keep_fields = list(set(keep_fields))
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
     user_info = user_info.fillna('')
+    if 'sorted_genres' in user_info.columns:
+        if topkgenres is not None:
+            user_info[f'sorted_genres_{topkgenres}'] = user_info['sorted_genres'].apply(
+                lambda x: ", ".join(
+                    [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip()
+                     for
+                     g in x.split(",")][:topkgenres]))
+            user_info = user_info.drop(columns=["sorted_genres"])
+        else:
+            user_info['sorted_genres'] = user_info['sorted_genres'].apply(
+            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
+                                 g in x.split(",")]))
     user_info = user_info.rename(
         columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
                  field.startswith("user.")})
-    if 'user.sorted_genres' in user_info.columns:
-        user_info['user.sorted_genres'] = user_info['user.sorted_genres'].apply(
-            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
-                                 g in x.split(",")][:topkgenres]))
+
     keep_fields = [field[field.index("userprofile.")+len("userprofile."):] for field in user_text_fields if field.startswith("userprofile.")]
     if len(keep_fields) > 1:
         raise ValueError("more than 1 userprofile fields ?")

@@ -23,9 +23,9 @@ def main(config_file=None, given_user_text_filter=None, given_limit_training_dat
     if given_limit_training_data is not None:
         config['dataset']['limit_training_data'] = given_limit_training_data
     if given_user_text is not None:
-        config['dataset']['user_text'] = given_user_text
+        config['dataset']['user_text'] = given_user_text.split(",")
     if given_item_text is not None:
-        config['dataset']['item_text'] = given_item_text
+        config['dataset']['item_text'] = given_item_text.split(",")
     if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
         DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
                          config["dataset"]["dataset_path"].index(">")+1]
