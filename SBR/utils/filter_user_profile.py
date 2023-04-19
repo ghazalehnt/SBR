@@ -170,14 +170,12 @@ def filter_user_profile_random_sentences(dataset_config, user_info):
     phrase_sizes = set([1])
     sent_splitter = SentenceSplitter(language='en')
 
-    user_info = user_info.map(sentencize_function_torchtext, fn_kwargs={
-        'case_sensitive': dataset_config['case_sensitive'],
-        'normalize_negation': dataset_config['normalize_negation'],
-        'sentencizer': sent_splitter
-    },
-                              batched=True)
+    user_info["sentences_text"] = user_info['text'].apply(lambda x:
+                                                          sentencize_function_torchtext(x,
+                                                                                        case_sensitive=dataset_config['case_sensitive'],
+                                                                                        normalize_negation=dataset_config['normalize_negation'],
+                                                                                        sentencizer=sent_splitter))
 
-    user_info = user_info.to_pandas()
     user_info['text'] = user_info['sentences_text'].apply(lambda x: " ".join(random.sample(list(x), len(x))))
     user_info = user_info.drop(columns=['sentences_text'])
     return user_info
@@ -207,21 +205,16 @@ def tokenize_by_sent_function_torchtext(samples, tokenizer=None, sentencizer=Non
     return {f"sentences_{doc_desc_field}": sent_ret, f"tokenized_sentences_{doc_desc_field}": sent_tokens_ret}
 
 
-def sentencize_function_torchtext(samples, sentencizer=None, doc_desc_field="text",
+def sentencize_function_torchtext(text, sentencizer=None,
                                         case_sensitive=True, normalize_negation=True):
-    sent_ret = []
-
-    for text in samples[doc_desc_field]:
-        sents = []
-        for s in sentencizer.split(text=text):
-            if not case_sensitive:
-                s = s.lower()
-            if normalize_negation:
-                s = s.replace("n't", " not")
-            sents.append(s)
-        sent_ret.append(sents)
-
-    return {f"sentences_{doc_desc_field}": sent_ret}
+    sents = []
+    for s in sentencizer.split(text=text):
+        if not case_sensitive:
+            s = s.lower()
+        if normalize_negation:
+            s = s.replace("n't", " not")
+        sents.append(s)
+    return sents
 
 
 def sort_sentences(samples, idf_weights=None):
