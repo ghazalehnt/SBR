@@ -334,6 +334,7 @@ class SupervisedTrainer:
                                      collate_fn=CollateUserItem())
         for batch in dataloader:
             id = batch.pop("user_id")
+            batch = {k: v.to(self.device) for k, v in batch.items()}
             bert_out, ffn_out = self.model.log(batch)
             ret_bert_out[id.item()] = bert_out[0].detach().tolist()
             ret_ffn_out[id.item()] = ffn_out[0].detach().tolist()
@@ -347,6 +348,7 @@ class SupervisedTrainer:
                                      collate_fn=CollateUserItem())
         for batch in dataloader:
             id = batch.pop("item_id")
+            batch = {k: v.to(self.device) for k, v in batch.items()}
             bert_out, ffn_out = self.model.log(batch)
             ret_bert_out[id.item()] = bert_out[0].detach().tolist()
             ret_ffn_out[id.item()] = ffn_out[0].detach().tolist()
