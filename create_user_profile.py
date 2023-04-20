@@ -6,7 +6,7 @@ from os.path import join, exists
 
 import torch
 import numpy as np
-from data_loading_create_profile import load_split_dataset
+from SBR.utils.data_loading_create_profile import load_split_dataset
 
 
 def main(config_file=None, given_user_text_filter=None, given_limit_training_data=None,
