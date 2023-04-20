@@ -146,7 +146,7 @@ def filter_user_profile_idf_sentences(dataset_config, user_info):
         for tokens in sent:
             for token in tokens:
                 if len(token.split()) > 0:
-                    vocab[len(token.split())].append(token)
+                    vocab[len(token.split())].append(token.lower())
     vocab = {n: set(v) for n, v in vocab.items()}
 
     # now load idf weights:
@@ -154,7 +154,7 @@ def filter_user_profile_idf_sentences(dataset_config, user_info):
     idf_weights = {}
     for n in phrase_sizes:
         ngram_file = join(idf_ngram_path,
-                          f"{n}_gram_casesensitive-{dataset_config['case_sensitive']}-{df_agg}_year-{idf_ngram_year}_alphabetic-{idf_ngram_alpha}.json")
+                          f"{n}_gram_casesensitive-{False}-{df_agg}_year-{idf_ngram_year}_alphabetic-{idf_ngram_alpha}.json")
         temp = json.load(open(ngram_file, 'r'))
         # filter for the vocab at hand:
         temp = {k: v for k, v in temp.items() if k in vocab[n]}
@@ -227,7 +227,8 @@ def sort_sentences(samples, idf_weights=None):
         for i in range(0, len(sentences)):
             # todo consider 0 for out of ngram?
             # w = [idf_weights[token] if token in idf_weights else 0 for token in sentences_tokens[i]]
-            w = [idf_weights[token] for token in sentences_tokens[i] if token in idf_weights]
+            # we make sure we use lower case for idf calc
+            w = [idf_weights[token.lower()] for token in sentences_tokens[i] if token.lower() in idf_weights]
             if len(w) > 0:
                 s_weights[i] = sum(w)/len(w)
             else:
