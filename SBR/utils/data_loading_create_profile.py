@@ -225,7 +225,7 @@ def load_split_dataset(config):
                                                                        config['case_sensitive'],
                                                                        config['normalize_negation']), axis=1)
             temp = temp.drop(columns=['text'])
-            temp = temp.drop(columns=user_text_fields)
+            temp = temp.drop(columns=[field for field in user_text_fields if not field.startswith("user.") and not field.startswith("userprofile.")])
 
             # load SBERT
             sbert = SentenceTransformer("all-mpnet-base-v2")  # TODO hard coded
@@ -234,18 +234,13 @@ def load_split_dataset(config):
             print("sentence transformer loaded!")
 
             user_texts = []
-            for user_idx in list(user_info.index):
-                user = user_info.loc[user_idx]["user_id"]
-                if user != user_idx:
-                    raise ValueError("user id and index does not match!")
+            for user_id in list(user_info["user_id"]):
                 user_items = []
-                user_item_temp = temp[temp["user_id"] == user]
+                user_item_temp = temp[temp["user_id"] == user_id]
                 for item_id, sents in zip(user_item_temp["item_id"], user_item_temp['sentences_text']):
                     if len(sents) == 0:
                         continue
-                    item = item_info.loc[item_id]
-                    if item_id != item["item_id"]:
-                        raise ValueError("item id and index does not match!")
+                    item = item_info[item_info["item_id"] == item_id].reset_index().loc[0]
                     item_text = '. '.join(list(item[item_text_fields]))
                     scores = util.dot_score(sbert.encode(item_text), sbert.encode(sents))
                     user_items.append([sent for score, sent in sorted(zip(scores[0], sents), reverse=True)])
