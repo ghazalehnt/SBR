@@ -340,7 +340,7 @@ class SupervisedTrainer:
                 ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
                 ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
         json.dump(ret_bert_out, open(self.user_bert_out, 'w'))
-        json.dump(ret_bert_out, open(self.user_ffn_out, 'w'))
+        json.dump(ret_ffn_out, open(self.user_ffn_out, 'w'))
 
         ret_bert_out = {}
         ret_ffn_out = {}
@@ -355,4 +355,4 @@ class SupervisedTrainer:
                 ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
                 ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
         json.dump(ret_bert_out, open(self.item_bert_out, 'w'))
-        json.dump(ret_bert_out, open(self.item_ffn_out, 'w'))
+        json.dump(ret_ffn_out, open(self.item_ffn_out, 'w'))
