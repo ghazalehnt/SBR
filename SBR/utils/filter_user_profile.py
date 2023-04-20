@@ -3,6 +3,7 @@ import random
 from collections import Counter
 from os.path import join
 
+from datasets import Dataset
 from sentence_splitter import SentenceSplitter
 from torchtext.data import get_tokenizer
 
@@ -128,6 +129,8 @@ def filter_user_profile_idf_sentences(dataset_config, user_info):
     # unique_phrases = True  # todo this should be optional to weigh sentences based on their unique terms or repeated?
     sent_splitter = SentenceSplitter(language='en')
 
+    user_info = Dataset.from_pandas(user_info)
+
     tokenizer = get_tokenizer("spacy")
     user_info = user_info.map(tokenize_by_sent_function_torchtext, fn_kwargs={
         'tokenizer': tokenizer,
@@ -201,7 +204,7 @@ def tokenize_by_sent_function_torchtext(samples, tokenizer=None, sentencizer=Non
             sent_tokens.append(tokens)
         sent_ret.append(sents)
         sent_tokens_ret.append(sent_tokens)
-        
+
     return {f"sentences_{doc_desc_field}": sent_ret, f"tokenized_sentences_{doc_desc_field}": sent_tokens_ret}
 
 

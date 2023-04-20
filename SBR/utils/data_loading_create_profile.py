@@ -318,6 +318,12 @@ def load_split_dataset(config):
         item_info = item_info.merge(temp, "left", on="item_id")
         item_info['text'] = item_info['text'].fillna('')
 
+    # apply filter:  maybe put this beofre the user fields like genre is read so those are always w/o filter
+    if 'text' in user_info.columns and config['user_text_filter'] != "":
+        if config['user_text_filter'] not in ["item_sentence_SBERT", "item_per_chunk"]:
+            user_info = filter_user_profile(config, user_info)
+
+    # text sorting for user is already applied, so next would just be on top:  TODO what if it is from a userprofile file ??? IDK check what we want
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
     user_remaining_text_fields = [field for field in user_text_fields if (field.startswith("user.") or field.startswith("userprofile."))]
     if 'text' in user_info.columns:
@@ -348,10 +354,5 @@ def load_split_dataset(config):
         # but item text should be change now latest.
         if temp_cs is False and 'text' in item_info.columns:
             item_info['text'] = item_info['text'].apply(lambda x: {x.lower()})
-
-    # apply filter:
-    if 'text' in user_info.columns and config['user_text_filter'] != "":
-        if config['user_text_filter'] not in ["item_sentence_SBERT", "item_per_chunk"]:
-            user_info = filter_user_profile(config, user_info)
 
     return user_info, item_info
