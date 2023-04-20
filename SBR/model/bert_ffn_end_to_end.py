@@ -53,7 +53,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
 
-    def log(self, batch, user=True):
+    def log(self, batch, which):
         input_ids = batch['input_ids']
         att_mask = batch['attention_mask']
         output = self.bert.forward(input_ids=input_ids,
@@ -68,12 +68,14 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
             bert_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
 
-        if user:
+        if which == "user":
             ffn_rep = torch.nn.functional.relu(self.linear_u_1(bert_rep))
             ffn_rep = self.linear_u_2(ffn_rep)
-        else:
+        elif which == "item":
             ffn_rep = torch.nn.functional.relu(self.linear_i_1(bert_rep))
             ffn_rep = self.linear_i_2(ffn_rep)
+        else:
+            raise ValueError("user or item?")
         return bert_rep, ffn_rep
 
     def forward(self, batch):

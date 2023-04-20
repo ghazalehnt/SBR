@@ -335,7 +335,7 @@ class SupervisedTrainer:
         for batch in dataloader:
             ids = batch.pop("user_id")
             batch = {k: v.to(self.device) for k, v in batch.items()}
-            bert_out, ffn_out = self.model.log(batch)
+            bert_out, ffn_out = self.model.log(batch, "user")
             for i in range(len(ids)):
                 ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
                 ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
@@ -350,7 +350,7 @@ class SupervisedTrainer:
         for batch in dataloader:
             ids = batch.pop("item_id")
             batch = {k: v.to(self.device) for k, v in batch.items()}
-            bert_out, ffn_out = self.model.log(batch)
+            bert_out, ffn_out = self.model.log(batch, "item")
             for i in range(len(ids)):
                 ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
                 ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
