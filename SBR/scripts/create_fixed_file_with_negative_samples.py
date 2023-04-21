@@ -6,6 +6,9 @@ import time
 from collections import Counter, defaultdict
 import pandas as pd
 
+ITEM_ID_FIELD = "item_id"
+USER_ID_FIELD = "user_id"
+
 
 def load_data(dataset_path):
     ret = defaultdict()
@@ -15,12 +18,9 @@ def load_data(dataset_path):
 
 
 def get_user_used_items(datasets):
-    used_items = {}
+    used_items = defaultdict(lambda: defaultdict(set))
     for split in datasets.keys():
-        used_items[split] = {}
-        for user_iid, item_iid in zip(datasets[split]['user_id'], datasets[split]['item_id']):
-            if user_iid not in used_items[split]:
-                used_items[split][user_iid] = set()
+        for user_iid, item_iid in zip(datasets[split][USER_ID_FIELD], datasets[split][ITEM_ID_FIELD]):
             used_items[split][user_iid].add(item_iid)
 
     return used_items
@@ -55,7 +55,7 @@ def neg_sampling(data, used_items, strategy, num_neg_samples):
     return samples
 
 
-def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
+def neg_sampling_opt(data, used_items, num_neg_samples):
     all_items = []  # ????
     for items in used_items.values():
         all_items.extend(items)
@@ -66,7 +66,7 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
     start_time = time.time()
     for user_id in user_counter.keys():
         num_pos = user_counter[user_id]
-        max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)  # what is this ? why all items are created from used items? not really all items? robably not that big of a diff but still
+        max_num_user_neg_samples = min(len(all_items), num_pos * num_neg_samples)
         if max_num_user_neg_samples < num_pos * num_neg_samples:
             print(f"WARN: user {user_id} needed {num_pos * num_neg_samples} samples,"
                   f"but all_items are {len(all_items)}")
@@ -101,40 +101,38 @@ def neg_sampling_opt(data, used_items, strategy, num_neg_samples):
     return samples
 
 
-def main(dataset_path, strategy, num_neg_samples):
+def main(dataset_path, eval_set, num_neg_samples):
     datasets = load_data(dataset_path)
     user_used_items = get_user_used_items(datasets)
 
     used_items = user_used_items['train'].copy()
     for user_id, cur_user_items in user_used_items['validation'].items():
-        if user_id in used_items:
-            used_items[user_id] = used_items[user_id].union(cur_user_items)
-        else:
-            used_items[user_id] = set()
-    validation_samples = neg_sampling_opt(datasets['validation'], used_items, strategy, num_neg_samples)
-    with open(os.path.join(dataset_path, f'validation_neg_{strategy}_{num_neg_samples}.csv'), 'w') as f:
-        writer = csv.writer(f)
-        writer.writerow(['user_id', 'item_id', 'label'])
-        writer.writerows(validation_samples)
-    print("validation done")
+        used_items[user_id] = used_items[user_id].union(cur_user_items)
 
-    for user_id, cur_user_items in user_used_items['test'].items():
-        if user_id in used_items:
-            used_items[user_id] = used_items[user_id].union(cur_user_items)
-        else:
-            used_items[user_id] = set()
-    test_samples = neg_sampling_opt(datasets['test'], used_items, strategy, num_neg_samples)
-    with open(os.path.join(dataset_path, f'test_neg_{strategy}_{num_neg_samples}.csv'), 'w') as f:
+    if eval_set == "test":
+        for user_id, cur_user_items in user_used_items['test'].items():
+            if user_id in used_items:
+                used_items[user_id] = used_items[user_id].union(cur_user_items)
+            else:
+                used_items[user_id] = set()
+
+    neg_samples = neg_sampling_opt(datasets[eval_set], used_items, num_neg_samples)
+    with open(os.path.join(dataset_path, f'{eval_set}_negatives_standard_evaluation_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['user_id', 'item_id', 'label'])
-        writer.writerows(test_samples)
+        writer.writerows(neg_samples)
+    print(f"neg sampling standard for {eval_set} done")
 
 
 if __name__ == "__main__":
     random.seed(42)
     parser = argparse.ArgumentParser()
-    parser.add_argument('dataset_folder', type=str, help='path to dataset')
-    parser.add_argument('ns', type=int, help='number of negative samples')
+    parser.add_argument('--dataset_folder', type=str, help='path to dataset')
+    parser.add_argument('--set', type=str, help='test or validation')
+    parser.add_argument('--ns', type=int, help='number of negative samples')
     args, _ = parser.parse_known_args()
 
-    main(args.dataset_folder, "random", args.ns)
+    if args.set not in ["validation", "test"]:
+        raise ValueError(f"{args.set} given value is wrong.")
+
+    main(args.dataset_folder, args.set, args.ns)
