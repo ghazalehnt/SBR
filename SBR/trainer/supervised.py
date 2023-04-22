@@ -10,7 +10,7 @@ from datasets import Dataset
 from ray import tune
 from torch import autocast
 from torch.cuda.amp import GradScaler
-from torch.optim import Adam, SGD
+from torch.optim import Adam, SGD, AdamW
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
@@ -88,6 +88,8 @@ class SupervisedTrainer:
         if not test_only:
             if config['optimizer'] == "Adam":
                 self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
+            elif config['optimizer'] == "AdamW":
+                self.optimizer = AdamW(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
             elif config['optimizer'] == "SGD":
                 self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'], momentum=config['momentum'], nesterov=config['nesterov'])
             else:
@@ -139,6 +141,8 @@ class SupervisedTrainer:
             # for loop going through dataset
             # tr_outputs = []
             # tr_labels = []
+            # for debug:
+            # log_user_texts = {}
             for batch_idx, batch in pbar:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -149,6 +153,18 @@ class SupervisedTrainer:
                 # Runs the forward pass with autocasting.
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
                     output = self.model(batch)
+                    # # for debug:
+                    # if len(output) == 2:
+                    #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
+                    #     user_text = output[1].copy()
+                    #     for uidx in range(len(user_ex_ids)):
+                    #         if user_ex_ids[uidx] in log_user_texts:
+                    #             if log_user_texts[user_ex_ids[uidx]] != user_text[uidx]:
+                    #                 print("WHATTTT????")
+                    #         else:
+                    #             log_user_texts[user_ex_ids[uidx]] = user_text[uidx]
+                    #     output = output[0]
+
                     # has_nan = torch.any(torch.isnan(output))
                     # print("output Has NaN:", has_nan)
                     # has_inf = torch.any(torch.isinf(output))
@@ -189,6 +205,7 @@ class SupervisedTrainer:
                     f'loss: {loss.item():.8f},  epoch: {epoch}/{self.epochs}'
                     f'prep: {prepare_time:.4f}, process: {process_time:.4f}')
                 start_time = time.perf_counter()
+            # print(log_user_texts)
             train_loss /= total_count
 #            with open(join(self.train_output_log, f"train_output_{epoch}.log"), "w") as f:
 #                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
@@ -278,6 +295,7 @@ class SupervisedTrainer:
         pbar = tqdm(enumerate(eval_dataloader), total=len(eval_dataloader), disable=True if self.tuning else False)
 
         start_time = time.perf_counter()
+        # log_user_texts = {}
         with torch.no_grad():
             for batch_idx, batch in pbar:
                 # data preparation
@@ -287,6 +305,17 @@ class SupervisedTrainer:
 
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
                     output = self.model(batch)
+                    # # for debug:
+                    # if len(output) == 2:
+                    #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
+                    #     user_text = output[1].copy()
+                    #     for uidx in range(len(user_ex_ids)):
+                    #         if user_ex_ids[uidx] in log_user_texts:
+                    #             if log_user_texts[user_ex_ids[uidx]] != user_text[uidx]:
+                    #                 print("WHATTTT????")
+                    #         else:
+                    #             log_user_texts[user_ex_ids[uidx]] = user_text[uidx]
+                    #     output = output[0]
 
                     if self.loss_fn._get_name() == "BCEWithLogitsLoss":
                         # not applying sigmoid before loss bc it is already applied in the loss
@@ -322,6 +351,7 @@ class SupervisedTrainer:
                 start_time = time.perf_counter()
 
             eval_loss /= total_count
+        # print(log_user_texts)
         ground_truth = torch.tensor(ground_truth)
         outputs = torch.tensor(outputs)
         return outputs, ground_truth, eval_loss, user_ids, item_ids
