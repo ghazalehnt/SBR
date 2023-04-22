@@ -86,12 +86,21 @@ class SupervisedTrainer:
         self.model.to(device)
         
         if not test_only:
+            if "bert_lr" in config:
+                bert_params = self.model.bert.parameters()
+                bert_param_names = [f"bert.{k[0]}" for k in self.model.bert.named_parameters()]
+                other = [v for k, v in self.model.named_parameters() if k not in bert_param_names]
+                opt_params = [
+                    {'params': other},
+                    {'params': bert_params, 'lr': config["bert_lr"]}]
+            else:
+                opt_params = self.model.parameters()
             if config['optimizer'] == "Adam":
-                self.optimizer = Adam(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
+                self.optimizer = Adam(opt_params, lr=config['lr'], weight_decay=config['wd'])
             elif config['optimizer'] == "AdamW":
-                self.optimizer = AdamW(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'])
+                self.optimizer = AdamW(opt_params, lr=config['lr'], weight_decay=config['wd'])
             elif config['optimizer'] == "SGD":
-                self.optimizer = SGD(self.model.parameters(), lr=config['lr'], weight_decay=config['wd'], momentum=config['momentum'], nesterov=config['nesterov'])
+                self.optimizer = SGD(opt_params, lr=config['lr'], weight_decay=config['wd'], momentum=config['momentum'], nesterov=config['nesterov'])
             else:
                 raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
             if exists(self.best_model_path):
@@ -179,10 +188,20 @@ class SupervisedTrainer:
                         if self.sig_output:
                             output = torch.sigmoid(output)
                         if self.loss_fn._get_name() == "MarginRankingLoss":
-                            pos_l = label[label == 1]
-                            pos_out = output[:pos_l.shape[0]].squeeze()
-                            neg_out = output[pos_l.shape[0]:].squeeze()
-                            loss = self.loss_fn(pos_out, neg_out, pos_l)
+                            pos_idx = set((label == 1).nonzero(as_tuple=True)[0].tolist())
+                            x1 = []
+                            x2 = []
+                            y = []
+                            for uid in set([k[0] for k in batch[INTERNAL_USER_ID_FIELD].tolist()]):
+                                u_idxs = set((batch[INTERNAL_USER_ID_FIELD] == uid).nonzero(as_tuple=True)[0].tolist())
+                                pos_u_idx = u_idxs.intersection(pos_idx)
+                                neg_u_idx = u_idxs - pos_u_idx
+                                for pos in pos_u_idx:
+                                    for neg in neg_u_idx:
+                                        x1.append(pos)
+                                        x2.append(neg)
+                                        y.append(1)
+                            loss = self.loss_fn(output[x1], output[x2], torch.tensor(y).unsqueeze(1))
                         else:
                             loss = self.loss_fn(output, label)
                         # tr_outputs.extend(list(output))
