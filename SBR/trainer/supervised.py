@@ -191,7 +191,6 @@ class SupervisedTrainer:
                             pos_idx = set((label == 1).nonzero(as_tuple=True)[0].tolist())
                             x1 = []
                             x2 = []
-                            y = []
                             for uid in set([k[0] for k in batch[INTERNAL_USER_ID_FIELD].tolist()]):
                                 u_idxs = set((batch[INTERNAL_USER_ID_FIELD] == uid).nonzero(as_tuple=True)[0].tolist())
                                 pos_u_idx = u_idxs.intersection(pos_idx)
@@ -200,8 +199,7 @@ class SupervisedTrainer:
                                     for neg in neg_u_idx:
                                         x1.append(pos)
                                         x2.append(neg)
-                                        y.append(1)
-                            loss = self.loss_fn(output[x1], output[x2], torch.tensor(y).unsqueeze(1))
+                            loss = self.loss_fn(output[x1], output[x2], torch.ones((len(x1), 1), device=self.device))
                         else:
                             loss = self.loss_fn(output, label)
                         # tr_outputs.extend(list(output))
