@@ -29,13 +29,13 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
             dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
 
-        self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0])]
+        self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
-            self.user_linear_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k]))
+            self.user_linear_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k], device=self.device))
 
-        self.item_linear_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0])]
+        self.item_linear_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0], device=self.device)]
         for k in range(1, len(model_config["item_k"])):
-            self.item_linear_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k]))
+            self.item_linear_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k], device=self.device))
 
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:

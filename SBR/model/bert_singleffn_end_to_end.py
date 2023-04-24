@@ -26,10 +26,10 @@ class BertSignleFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         dim1 = 2 * bert_embedding_dim
         if self.append_cf_after:
             dim1 = dim1 + self.user_embedding_CF.embedding_dim + self.item_embedding_CF.embedding_dim
-        self.ffn = [torch.nn.Linear(dim1, model_config["k"][0])]
+        self.ffn = [torch.nn.Linear(dim1, model_config["k"][0], device=self.device)]
         for k in range(1, len(model_config["k"])):
-            self.ffn.append(torch.nn.Linear(model_config["k"][k-1], model_config["k"][k]))
-        self.ffn.append(torch.nn.Linear(model_config['k'][-1], 1))
+            self.ffn.append(torch.nn.Linear(model_config["k"][k-1], model_config["k"][k], device=self.device))
+        self.ffn.append(torch.nn.Linear(model_config['k'][-1], 1, device=self.device))
 
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
