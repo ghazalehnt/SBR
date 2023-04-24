@@ -39,6 +39,10 @@ def filter_user_profile(dataset_config, user_info):
     # filter-type2 tf-idf: tf-idf_1, ..., tf-idf_1-2-3
     elif dataset_config['user_text_filter'].startswith("idf_") or \
             dataset_config['user_text_filter'].startswith("tf-idf_"):
+        if dataset_config['case_sensitive'] == True:
+            raise ValueError("we don't want to do case_sensitive ngrams")
+        if dataset_config['normalize_negation'] == False:
+            raise ValueError("we don't want to do not normalize_negation ngrams")
         user_info = filter_user_profile_idf_tf(dataset_config, user_info)
     elif dataset_config['user_text_filter'] == "random_sentence":
         user_info = filter_user_profile_random_sentences(dataset_config, user_info)
@@ -126,6 +130,9 @@ def load_split_dataset(config):
     item_info = item_info.fillna('')
     item_info = item_info.rename(
         columns={field[field.index("item.") + len("item."):]: field for field in item_text_fields if
+                 field.startswith("item.")})
+    item_info = item_info.rename(
+        columns={field[field.index("item.") + len("item."):]: field for field in user_text_fields if
                  field.startswith("item.")})
     if 'item.genres' in item_info.columns:
         item_info['item.genres'] = item_info['item.genres'].apply(
