@@ -3,6 +3,7 @@ import transformers
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
+# DEBUG = True
 
 class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
     def __init__(self, model_config, device, dataset_config):
@@ -27,10 +28,14 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         if self.append_cf_after:
             dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
             dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
-        self.linear_u_1 = torch.nn.Linear(dim1user, model_config['k1'])
-        self.linear_u_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
-        self.linear_i_1 = torch.nn.Linear(dim1item, model_config['k1'])
-        self.linear_i_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
+
+        self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0])]
+        for k in range(1, len(model_config["user_k"])):
+            self.user_linear_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k]))
+
+        self.item_linear_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0])]
+        for k in range(1, len(model_config["item_k"])):
+            self.item_linear_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k]))
 
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
@@ -52,6 +57,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 print("CF embedding dim was smaller than BERT dim, therefore will be filled with  0's.")
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'])
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'])
+        # # for debug:
+        # if DEBUG:
+        #     self.tokenizer = transformers.AutoTokenizer.from_pretrained(model_config['pretrained_model'])
 
     def log(self, batch, which):
         input_ids = batch['input_ids']
@@ -69,11 +77,15 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             bert_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
 
         if which == "user":
-            ffn_rep = torch.nn.functional.relu(self.linear_u_1(bert_rep))
-            ffn_rep = self.linear_u_2(ffn_rep)
+            ffn_rep = bert_rep.copy()
+            for k in range(len(self.user_linear_layers)-1):
+                ffn_rep = torch.nn.functional.relu(self.user_linear_layers[k](ffn_rep))
+            ffn_rep = self.user_linear_layers[-1](ffn_rep)
         elif which == "item":
-            ffn_rep = torch.nn.functional.relu(self.linear_i_1(bert_rep))
-            ffn_rep = self.linear_i_2(ffn_rep)
+            ffn_rep = bert_rep.copy()
+            for k in range(len(self.item_linear_layers) - 1):
+                ffn_rep = torch.nn.functional.relu(self.item_linear_layers[k](ffn_rep))
+            ffn_rep = self.item_linear_layers[-1](ffn_rep)
         else:
             raise ValueError("user or item?")
         return bert_rep, ffn_rep
@@ -87,6 +99,12 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
 
         input_ids = batch['user_input_ids']
         att_mask = batch['user_attention_mask']
+
+        # user_text = []
+        # if DEBUG:
+        #     for uid, ui in zip(user_ids, input_ids):
+        #         user_text.append(" ".join(self.tokenizer.convert_ids_to_tokens(ui)))
+
         if self.use_cf is True:
             cf_embeds = self.user_embedding_CF(user_ids)
             cf_embeds = cf_embeds.to(self.device)
@@ -118,8 +136,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         # append cf to the end of the ch reps :
         if self.append_cf_after:
             user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
-        user_rep = torch.nn.functional.relu(self.linear_u_1(user_rep))
-        user_rep = self.linear_u_2(user_rep)
+        for k in range(len(self.user_linear_layers) - 1):
+            user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
+        user_rep = self.user_linear_layers[-1](user_rep)
 
         input_ids = batch['item_input_ids']
         att_mask = batch['item_attention_mask']
@@ -154,10 +173,11 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         # append cf to the end of the ch reps :
         if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
             item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
-        item_rep = torch.nn.functional.relu(self.linear_i_1(item_rep))
-        item_rep = self.linear_i_2(item_rep)
+        for k in range(len(self.item_linear_layers) - 1):
+            item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
+        item_rep = self.item_linear_layers[-1](item_rep)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
-        return result  # do not apply sigmoid here, later in the trainer if we wanted we would
+        return result  #, user_text  # user_text for debug  # do not apply sigmoid here, later in the trainer if we wanted we would
 
