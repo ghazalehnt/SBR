@@ -26,9 +26,10 @@ class BertSignleFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         dim1 = 2 * bert_embedding_dim
         if self.append_cf_after:
             dim1 = dim1 + self.user_embedding_CF.embedding_dim + self.item_embedding_CF.embedding_dim
-        self.linear_1 = torch.nn.Linear(dim1, model_config['k1'])
-        self.linear_2 = torch.nn.Linear(model_config['k1'], model_config['k2'])
-        self.linear_3 = torch.nn.Linear(model_config['k2'], 1)
+        self.ffn = [torch.nn.Linear(dim1, model_config["k"][0])]
+        for k in range(1, len(model_config["k"])):
+            self.ffn.append(torch.nn.Linear(model_config["k"][k-1], model_config["k"][k]))
+        self.ffn.append(torch.nn.Linear(model_config['k'][-1], 1))
 
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
@@ -144,8 +145,8 @@ class BertSignleFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
 
         result = torch.cat((user_rep, item_rep), dim=1)
-        result = torch.nn.functional.relu(self.linear_1(result))
-        result = torch.nn.functional.relu(self.linear_2(result))
-        result = self.linear_3(result)
+        for k in range(len(self.ffn) - 1):
+            result = torch.nn.functional.relu(self.ffn[k](result))
+        result = self.ffn[-1](result)
         return result  # do not apply sigmoid here, later in the trainer if we wanted we would
 
