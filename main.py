@@ -12,7 +12,7 @@ from SBR.trainer.supervised import SupervisedTrainer
 from SBR.utils.data_loading import load_data
 from SBR.utils.others import get_model
 from SBR.trainer.unsupervised import UnSupervisedTrainer
-from SBR.utils.statics import shorten_names
+from SBR.utils.statics import shorten_names, shorten_strategies
 
 
 def main(op, config_file=None, result_folder=None, given_limit_training_data=None, given_neg_files=None, given_lr=None,
@@ -62,8 +62,12 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
                 temp = temp[temp.index("f:test_neg_")+len("f:test_neg_"):]
                 exp_dir_params.append(f"f-{temp}")
             elif param == "dataset.user_text_file_name" or param == "dataset.item_text_file_name":
-                temp = config[p1][p2]
-                exp_dir_params.append('-'.join([shorten_names[t] if t in shorten_names else t for t in temp.split('-')]))
+                temp = config[p1][p2].copy()
+                for s, v in shorten_strategies.items():
+                    temp = temp.replace(s, v)
+                for s, v in shorten_names.items():
+                    temp = temp.replace(s, v)
+                exp_dir_params.append(temp)
             elif isinstance(config[p1][p2], list):
                 # if p2 in ["user_text_file_name", "item_text_file_name"]:
                 #     exp_dir_params.append('-'.join([get_rev_map(config['dataset']['name'])[v] for v in config[p1][p2]]))
