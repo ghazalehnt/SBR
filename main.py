@@ -62,7 +62,7 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
                 temp = temp[temp.index("f:test_neg_")+len("f:test_neg_"):]
                 exp_dir_params.append(f"f-{temp}")
             elif param == "dataset.user_text_file_name" or param == "dataset.item_text_file_name":
-                temp = config[p1][p2].copy()
+                temp = config[p1][p2]
                 for s, v in shorten_strategies.items():
                     temp = temp.replace(s, v)
                 for s, v in shorten_names.items():
