@@ -26,11 +26,7 @@ def get_user_used_items(datasets):
     return used_items
 
 
-def neg_sampling(data, used_items, strategy, num_neg_samples):
-    all_items = []
-    for items in used_items.values():
-        all_items.extend(items)
-    all_items = set(all_items)
+def neg_sampling(data, used_items, strategy, num_neg_samples, all_items):
     samples = []
     user_counter = Counter(data['user_id'])
     cnt = 1
@@ -55,11 +51,7 @@ def neg_sampling(data, used_items, strategy, num_neg_samples):
     return samples
 
 
-def neg_sampling_opt(data, used_items, num_neg_samples):
-    all_items = []  # ????
-    for items in used_items.values():
-        all_items.extend(items)
-    all_items = list(set(all_items))
+def neg_sampling_opt(data, used_items, num_neg_samples, all_items):
     samples = []
     user_counter = Counter(data['user_id'])
     user_cnt = 1
@@ -116,7 +108,20 @@ def main(dataset_path, eval_set, num_neg_samples):
             else:
                 used_items[user_id] = set()
 
-    neg_samples = neg_sampling_opt(datasets[eval_set], used_items, num_neg_samples)
+    # pool of items (all seen/unseen items)
+    temp_items = pd.read_csv(os.path.join(dataset_path, "items.csv"), dtype=str)
+    all_items = set(temp_items["item_id"])
+    # sanity check:
+    check = []  # ????
+    for user_items in user_used_items.values():
+        for items in user_items.values():
+            check.extend(items)
+    check = list(set(check))
+
+    if len(all_items) != len(check):
+        raise ValueError("all items in items.csv and all used items are not the same!")
+
+    neg_samples = neg_sampling_opt(datasets[eval_set], used_items, num_neg_samples, all_items)
     with open(os.path.join(dataset_path, f'{eval_set}_negatives_standard_evaluation_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['user_id', 'item_id', 'label'])

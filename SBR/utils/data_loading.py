@@ -266,11 +266,8 @@ class CollateNegSamplesRandomOpt(object):
     def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None, joint=False):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
-        # pool of all items is created from seen training items:
-        all_items = []
-        for items in self.used_items.values():
-            all_items.extend(items)
-        self.all_items = list(set(all_items))
+        # pool of all items is created from both seen and unseen items:
+        self.all_items = list(set(item_info[INTERNAL_ITEM_ID_FIELD]))
         self.user_info = user_info.to_pandas()
         self.item_info = item_info.to_pandas()
         self.padding_token = padding_token
@@ -420,11 +417,8 @@ class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
                  user_info=None, item_info=None, padding_token=None, joint=False):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
-        # pool of all items is created from seen training items:
-        all_items = []
-        for items in self.used_items.values():
-            all_items.extend(items)
-        self.all_items = list(set(all_items))
+        # pool of all items is created from both seen and unseen items:
+        self.all_items = list(set(item_info[INTERNAL_ITEM_ID_FIELD]))
         self.padding_token = padding_token
         self.user_training_items = user_training_items
         temp = torch.load(cf_checkpoint_file, map_location=torch.device('cpu'))['model_state_dict']['item_embedding.weight']
@@ -492,7 +486,6 @@ class CollateNegSamplesGenresOpt(CollateNegSamplesRandomOpt):
     def __init__(self, strategy, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None, joint=False):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
-        # pool of all items is created from seen training items:
         self.user_info = user_info.to_pandas()
         self.item_info = item_info.to_pandas()
         genres_field = 'category' if 'category' in self.item_info.columns else 'genres'
