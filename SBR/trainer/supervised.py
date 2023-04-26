@@ -32,9 +32,10 @@ class SupervisedTrainer:
         self.relevance_level = relevance_level
         self.valid_metric = config['valid_metric']
         self.patience = config['early_stopping_patience'] if ('early_stopping_patience' in config and config['early_stopping_patience'] != '') else None
-        self.best_model_path = join(exp_dir, 'best_model.pth')
+        self.do_validation = config["do_validation"]
         self.best_model_train_path = None
         self.last_model_path = None
+        self.best_model_path = join(exp_dir, 'best_model.pth')
         if "save_best_train" in config and config["save_best_train"] is True:
             self.best_model_train_path = join(exp_dir, 'best_model_tr_loss.pth')
         if "save_every_epoch" in config and config["save_every_epoch"] is True:
@@ -255,50 +256,53 @@ class SupervisedTrainer:
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
             self.logger.add_scalar('epoch_metrics/train_loss', train_loss, epoch)
 
-            if self.validation_user_sample_num is not None:
-                chosen_users = np.random.choice(valid_users, self.validation_user_sample_num, replace=False)
-                sampled_validation = Dataset.from_pandas(
-                    valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
-                sampled_dataloader = DataLoader(sampled_validation,
-                                                batch_size=valid_dataloader.batch_size,
-                                                collate_fn=valid_dataloader.collate_fn,
-                                                num_workers=valid_dataloader.num_workers)
-                outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
-            else:
-                outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
+            if self.do_validation:
+                if self.validation_user_sample_num is not None:
+                    chosen_users = np.random.choice(valid_users, self.validation_user_sample_num, replace=False)
+                    sampled_validation = Dataset.from_pandas(
+                        valid_dataset_pd[valid_dataset_pd[INTERNAL_USER_ID_FIELD].isin(chosen_users)], preserve_index=False)
+                    sampled_dataloader = DataLoader(sampled_validation,
+                                                    batch_size=valid_dataloader.batch_size,
+                                                    collate_fn=valid_dataloader.collate_fn,
+                                                    num_workers=valid_dataloader.num_workers)
+                    outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
+                else:
+                    outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
 
-#            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
-#                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
-            results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
-            results["loss"] = valid_loss
-            results = {f"valid_{k}": v for k, v in results.items()}
-            for k, v in results.items():
-                self.logger.add_scalar(f'epoch_metrics/{k}', v, epoch)
-            print(f"Valid loss epoch {epoch}: {valid_loss} - {self.valid_metric} = {results[self.valid_metric]:.6f}\n")
+    #            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
+    #                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
+                results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
+                results["loss"] = valid_loss
+                results = {f"valid_{k}": v for k, v in results.items()}
+                for k, v in results.items():
+                    self.logger.add_scalar(f'epoch_metrics/{k}', v, epoch)
+                print(f"Valid loss epoch {epoch}: {valid_loss} - {self.valid_metric} = {results[self.valid_metric]:.6f}\n")
 
-            if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
-                self.best_saved_valid_metric = results[self.valid_metric]
-                self.best_epoch = epoch
-                if self.save_checkpoint:
-                    checkpoint = {
-                        'epoch': self.best_epoch,
-                        'best_valid_metric': self.best_saved_valid_metric,
-                        'model_state_dict': self.model.state_dict(),
-                        'optimizer_state_dict': self.optimizer.state_dict(),
-                        }
-                    torch.save(checkpoint, f"{self.best_model_path}_tmp")
-                    os.rename(f"{self.best_model_path}_tmp", self.best_model_path)
-                early_stopping_cnt = 0
-            else:
-                early_stopping_cnt += 1
-            self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
-            self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
+                if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
+                    self.best_saved_valid_metric = results[self.valid_metric]
+                    self.best_epoch = epoch
+                    if self.save_checkpoint:
+                        checkpoint = {
+                            'epoch': self.best_epoch,
+                            'best_valid_metric': self.best_saved_valid_metric,
+                            'model_state_dict': self.model.state_dict(),
+                            'optimizer_state_dict': self.optimizer.state_dict(),
+                            }
+                        torch.save(checkpoint, f"{self.best_model_path}_tmp")
+                        os.rename(f"{self.best_model_path}_tmp", self.best_model_path)
+                    early_stopping_cnt = 0
+                else:
+                    early_stopping_cnt += 1
+                self.logger.add_scalar('epoch_metrics/best_epoch', self.best_epoch, epoch)
+                self.logger.add_scalar('epoch_metrics/best_valid_metric', self.best_saved_valid_metric, epoch)
+
+                # report to tune
+                if self.tuning:
+                    tune.report(best_valid_metric=self.best_saved_valid_metric,
+                                best_epoch=self.best_epoch,
+                                epoch=epoch)
+
             self.logger.flush()
-            # report to tune
-            if self.tuning:
-                tune.report(best_valid_metric=self.best_saved_valid_metric,
-                            best_epoch=self.best_epoch,
-                            epoch=epoch)
 
     def evaluate_dataloader(self, eval_dataloader, eval_output_path):
         # load the best model from file.
