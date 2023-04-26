@@ -31,8 +31,14 @@ class SupervisedTrainer:
         self.save_checkpoint = save_checkpoint
         self.relevance_level = relevance_level
         self.valid_metric = config['valid_metric']
-        self.patience = config['early_stopping_patience']
+        self.patience = config['early_stopping_patience'] if ('early_stopping_patience' in config and config['early_stopping_patience'] != '') else None
         self.best_model_path = join(exp_dir, 'best_model.pth')
+        self.best_model_train_path = None
+        self.last_model_path = None
+        if "save_best_train" in config and config["save_best_train"] is True:
+            self.best_model_train_path = join(exp_dir, 'best_model_tr_loss.pth')
+        if "save_every_epoch" in config and config["save_every_epoch"] is True:
+            self.last_model_path = join(exp_dir, 'last_model.pth')
         neg_name = dataset_eval_neg_sampling['validation']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
@@ -137,8 +143,9 @@ class SupervisedTrainer:
         # Creates a GradScaler once at the beginning of training.
         scaler = GradScaler()
 
+        best_train_loss = np.inf
         for epoch in range(self.start_epoch, self.epochs):
-            if early_stopping_cnt == self.patience:
+            if self.patience is not None and early_stopping_cnt == self.patience:
                 print(f"Early stopping after {self.patience} epochs not improving!")
                 break
 
@@ -227,6 +234,22 @@ class SupervisedTrainer:
 #            with open(join(self.train_output_log, f"train_output_{epoch}.log"), "w") as f:
 #                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(tr_outputs, tr_labels)]))
             print(f"Train loss epoch {epoch}: {train_loss}")
+            if self.best_model_train_path is not None:
+                if train_loss < best_train_loss:
+                    checkpoint = {
+                        'epoch': epoch,
+                        'train_loss': train_loss,
+                        'model_state_dict': self.model.state_dict(),
+                    }
+                    torch.save(checkpoint, f"{self.best_model_train_path}_tmp")
+                    os.rename(f"{self.best_model_train_path}_tmp", self.best_model_train_path)
+            if self.last_model_path is not None:
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                }
+                torch.save(checkpoint, f"{self.last_model_path}_tmp")
+                os.rename(f"{self.last_model_path}_tmp", self.last_model_path)
 
             # udpate tensorboardX  TODO for logging use what  mlflow, files, tensorboard
             self.logger.add_scalar('epoch_metrics/epoch', epoch, epoch)
