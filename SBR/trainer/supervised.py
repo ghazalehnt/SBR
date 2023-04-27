@@ -257,6 +257,7 @@ class SupervisedTrainer:
                     }
                     torch.save(checkpoint, f"{self.best_model_train_path}_tmp")
                     os.rename(f"{self.best_model_train_path}_tmp", self.best_model_train_path)
+                    best_train_loss = train_loss
             if self.last_model_path is not None:
                 checkpoint = {
                     'epoch': epoch,
