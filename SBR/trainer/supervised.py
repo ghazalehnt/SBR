@@ -79,7 +79,7 @@ class SupervisedTrainer:
                 raise ValueError("cannot have BCE with no sigmoid")
             self.loss_fn = torch.nn.BCEWithLogitsLoss()  # use BCEWithLogitsLoss and do not apply the sigmoid beforehand
         elif config['loss_fn'] == "MRL":
-            self.loss_fn = torch.nn.MarginRankingLoss()
+            self.loss_fn = torch.nn.MarginRankingLoss(margin=config["margin"])
         # elif config["loss_fn"] == "CE":  ## todo do we need this???
             # self.loss_fn = torch.nn.CrossEntropyLoss
         elif config['loss_fn'] == "MSE":
