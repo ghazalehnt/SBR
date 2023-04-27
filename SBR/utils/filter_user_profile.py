@@ -19,32 +19,30 @@ idf_ngram_path = open('data/paths_vars/GoogleNgram_extracted_IDFs', 'r').read().
 
 def filter_user_profile_idf_tf(dataset_config, user_info):
     phrase_sizes = set()  # e.g. [1], [2], [3], [1,2], ..., [1,2,3]
-    unique_phrases = False  # if the filtered profile contain only the unique phrases or should they repeat. e.g. t1 t1 t1 t2 t2, ... OR t1 t2 ...
     do_tfidf = False
-    if dataset_config['user_text_filter'].startswith("idf_"):
-        sp = dataset_config['user_text_filter'].split('_')
-        for n in sp[1].split('-'):
-            phrase_sizes.add(int(n))
-        if sp[2] not in ['repeating', 'unique']:
-            raise ValueError(f"{dataset_config['user_text_filter']} not implemented or wrong input!")
-        if sp[2] == 'unique':
-            unique_phrases = True
-    elif dataset_config['user_text_filter'].startswith("tf-idf_"):
+    # if dataset_config['user_text_filter'].startswith("idf_"):  double check this with the unique ... not used now
+    #     sp = dataset_config['user_text_filter'].split('_')
+    #     for n in sp[1].split('-'):
+    #         phrase_sizes.add(int(n))
+    #     if sp[2] not in ['repeating', 'unique']:
+    #         raise ValueError(f"{dataset_config['user_text_filter']} not implemented or wrong input!")
+    if dataset_config['user_text_filter'].startswith("tf-idf_"):
         sp = dataset_config['user_text_filter'].split('_')
         for n in sp[1].split('-'):
             phrase_sizes.add(int(n))
         do_tfidf = True
+
+    user_info = Dataset.from_pandas(user_info)
 
     tokenizer = get_tokenizer("spacy")
     user_info = user_info.map(tokenize_function_torchtext, fn_kwargs={
         'tokenizer': tokenizer,
         'case_sensitive': dataset_config['case_sensitive'],
         'normalize_negation': dataset_config['normalize_negation'],
-        'unique': unique_phrases,
         'include_ngrams': phrase_sizes,
         'do_tf': do_tfidf
-    },
-                              batched=True)
+    }, batched=True)
+
     # do it only for the vocab
     vocab = {n: [] for n in phrase_sizes}
     for tokens in user_info['tokenized_text']:
@@ -80,7 +78,7 @@ def filter_user_profile_idf_tf(dataset_config, user_info):
 
 
 def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text", include_ngrams=None,
-                                case_sensitive=True, normalize_negation=True, unique=False, do_tf=False):
+                                case_sensitive=True, normalize_negation=True, do_tf=False):
     if include_ngrams is None:
         raise ValueError("the include_ngrams is not given!")
     n = max(include_ngrams)
@@ -93,14 +91,14 @@ def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text", 
         if normalize_negation:
             while "n't" in tokens:
                 tokens[tokens.index("n't")] = "not"
-        if unique and not do_tf:
-            tokens = list(set(tokens))
         phrases = [ng for ng in list(ngrams_iterator(tokens, n)) if len(ng.split()) in include_ngrams]
         if do_tf:
             counter = Counter(phrases)
             phrases = [k for k, v in counter.items()]
             tfs = [v for k, v in counter.items()]
             tf_ret.append(tfs)
+        else:
+            phrases = list(set(phrases))
         tokenized_batch.append(phrases)
 
     ret_dict = {f"tokenized_{doc_desc_field}": tokenized_batch}

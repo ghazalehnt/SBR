@@ -10,7 +10,7 @@ from SBR.utils.data_loading_create_profile import load_split_dataset
 
 
 def main(config_file=None, given_user_text_filter=None, given_limit_training_data=None,
-         given_user_text=None, given_item_text=None):
+         given_user_text=None, given_item_text=None, given_cs=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -26,6 +26,8 @@ def main(config_file=None, given_user_text_filter=None, given_limit_training_dat
         config['dataset']['user_text'] = given_user_text.split(",")
     if given_item_text is not None:
         config['dataset']['item_text'] = given_item_text.split(",")
+    if given_cs is not None:
+        config['dataset']['case_sensitive'] = given_cs
     if "<DATA_ROOT_PATH" in config["dataset"]["dataset_path"]:
         DATA_ROOT_PATH = config["dataset"]["dataset_path"][config["dataset"]["dataset_path"].index("<"):
                          config["dataset"]["dataset_path"].index(">")+1]
@@ -59,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
     parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
     parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
+    parser.add_argument('--not_case_sensitive', type=bool, default=None)
     args, _ = parser.parse_known_args()
 
     if not os.path.exists(args.config_file):
@@ -67,6 +70,7 @@ if __name__ == '__main__':
          given_user_text_filter=args.user_text_filter,
          given_limit_training_data=args.limit_training_data,
          given_user_text=args.user_text,
-         given_item_text=args.item_text)
+         given_item_text=args.item_text,
+         given_cs=not args.not_case_sensitive if args.not_case_sensitive is not None else None)
 
 
