@@ -98,8 +98,9 @@ def main(dataset_path, eval_set, num_neg_samples):
     user_used_items = get_user_used_items(datasets)
 
     used_items = user_used_items['train'].copy()
-    for user_id, cur_user_items in user_used_items['validation'].items():
-        used_items[user_id] = used_items[user_id].union(cur_user_items)
+    if eval_set in ["test", "validation"]:
+        for user_id, cur_user_items in user_used_items['validation'].items():
+            used_items[user_id] = used_items[user_id].union(cur_user_items)
 
     if eval_set == "test":
         for user_id, cur_user_items in user_used_items['test'].items():
@@ -119,10 +120,10 @@ def main(dataset_path, eval_set, num_neg_samples):
     check = list(set(check))
 
     if len(all_items) != len(check):
-        raise ValueError("all items in items.csv and all used items are not the same!")
+        raise ValueError(f"all items in items.csv {len(all_items)} and all used items {len(check)} are not the same!")
 
     neg_samples = neg_sampling_opt(datasets[eval_set], used_items, num_neg_samples, all_items)
-    with open(os.path.join(dataset_path, f'{eval_set}_negatives_standard_evaluation_{num_neg_samples}.csv'), 'w') as f:
+    with open(os.path.join(dataset_path, f'{eval_set}_neg_standard_{num_neg_samples}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['user_id', 'item_id', 'label'])
         writer.writerows(neg_samples)
@@ -133,11 +134,11 @@ if __name__ == "__main__":
     random.seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_folder', type=str, help='path to dataset')
-    parser.add_argument('--set', type=str, help='test or validation')
+    parser.add_argument('--set', type=str, help='test or validation, or train')
     parser.add_argument('--ns', type=int, help='number of negative samples')
     args, _ = parser.parse_known_args()
 
-    if args.set not in ["validation", "test"]:
+    if args.set not in ["validation", "test", "train"]:
         raise ValueError(f"{args.set} given value is wrong.")
 
     main(args.dataset_folder, args.set, args.ns)
