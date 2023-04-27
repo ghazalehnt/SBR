@@ -15,8 +15,9 @@ from SBR.trainer.unsupervised import UnSupervisedTrainer
 from SBR.utils.statics import shorten_names, shorten_strategies
 
 
-def main(op, config_file=None, result_folder=None, given_limit_training_data=None, given_neg_files=None, given_lr=None,
-         given_tbs=None, given_user_text_file_name=None, given_item_text_file_name=None, given_k1k2=None):
+def main(op, config_file=None, result_folder=None, given_limit_training_data=None,
+         given_eval_model=None, given_eval_pos_file=None, given_eval_neg_file=None,
+         given_lr=None, given_tbs=None, given_user_text_file_name=None, given_item_text_file_name=None, given_k1k2=None):
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
@@ -92,11 +93,10 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
         config = json.load(open(join(result_folder, "config.json"), 'r'))
         test_only = True
         exp_dir = config["experiment_dir"]
-        if given_neg_files is not None:
-            if given_neg_files["validation"] is not None:
-                config["dataset"]["validation_neg_sampling_strategy"] = given_neg_files["validation"]
-            if given_neg_files["test"] is not None:
-                config["dataset"]["test_neg_sampling_strategy"] = given_neg_files["test"]
+        if given_eval_pos_file is not None:
+            config["dataset"]["alternative_pos_test_file"] = given_eval_pos_file
+        if given_eval_neg_file is not None:
+            config["dataset"]["test_neg_sampling_strategy"] = given_eval_neg_file
     else:
         raise ValueError("op not defined!")
 
@@ -140,11 +140,12 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
         trainer.evaluate(test_dataloader, valid_dataloader)
     else:
         trainer = SupervisedTrainer(config=config['trainer'], model=model, device=device, logger=logger, exp_dir=exp_dir,
-                                test_only=test_only, relevance_level=relevance_level,
-                                users=users, items=items,
-                                dataset_eval_neg_sampling=
-                                {"validation": config["dataset"]["validation_neg_sampling_strategy"],
-                                 "test": config["dataset"]["test_neg_sampling_strategy"]})
+                                    test_only=test_only, relevance_level=relevance_level,
+                                    users=users, items=items,
+                                    dataset_eval_neg_sampling=
+                                    {"validation": config["dataset"]["validation_neg_sampling_strategy"],
+                                    "test": config["dataset"]["test_neg_sampling_strategy"]},
+                                    to_load_model_name=given_eval_model)
         if op == "train":
             trainer.fit(train_dataloader, valid_dataloader)
             trainer.evaluate(test_dataloader, valid_dataloader)
@@ -165,8 +166,9 @@ if __name__ == '__main__':
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
     parser.add_argument('--result_folder', '-r', type=str, default=None, help='result forler, to evaluate')
     parser.add_argument('--limit_training_data', '-l', type=str, default=None, help='the file name containing the limited training data')
-    #parser.add_argument('--testtime_validation_neg_strategy', '-v', default=None, help='valid neg strategy, only for op == test')
-    parser.add_argument('--testtime_test_neg_strategy', '-t', default=None, help='test neg strategy, only for op == test')
+    parser.add_argument('--eval_model_name', default=None, help='test time model to load, only for op == test')
+    parser.add_argument('--eval_pos_file', default=None, help='test positive file, only for op == test')
+    parser.add_argument('--eval_neg_file', default=None, help='test neg file, only for op == test')
     parser.add_argument('--trainer_lr', default=None, help='trainer learning rate')
     parser.add_argument('--train_batch_size', default=None, help='train_batch_size')
     parser.add_argument('--user_text_file_name', default=None, help='user_text_file_name')
@@ -174,15 +176,14 @@ if __name__ == '__main__':
     parser.add_argument('--model_k1k2', type=int, default=None, help='model.k1k2')
     parser.add_argument('--op', type=str, help='operation train/test/trainonly')
     args, _ = parser.parse_known_args()
-    args.testtime_validation_neg_strategy = None
 
     if args.op in ["train", "trainonly"]:
         if not os.path.exists(args.config_file):
             raise ValueError(f"Config file does not exist: {args.config_file}")
         if args.result_folder:
             raise ValueError(f"OP==train does not accept result_folder")
-        if args.testtime_validation_neg_strategy or args.testtime_test_neg_strategy:
-            raise ValueError(f"OP==train does not accept test-time eval neg strategies.")
+        if args.eval_model_name or args.eval_pos_file or args.eval_neg_file:
+            raise ValueError(f"OP==train does not accept test-time eval pos/neg/model.")
         main(op=args.op, config_file=args.config_file,
              given_limit_training_data=args.limit_training_data,
              given_lr=float(args.trainer_lr) if args.trainer_lr is not None else args.trainer_lr,
@@ -195,8 +196,9 @@ if __name__ == '__main__':
         if args.config_file:
             raise ValueError(f"OP==test does not accept config_file")
         main(op=args.op, result_folder=args.result_folder,
-             given_neg_files={"validation": args.testtime_validation_neg_strategy,
-                              "test": args.testtime_test_neg_strategy})
+             given_eval_model=args.eval_model_name,
+             given_eval_pos_file=args.eval_pos_file,
+             given_eval_neg_file=args.eval_neg_file)
     elif args.op == "log":
         if not os.path.exists(join(args.result_folder, "config.json")):
             raise ValueError(f"Result folder does not exist: {args.config_file}")

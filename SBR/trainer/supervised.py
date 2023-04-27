@@ -22,7 +22,7 @@ from SBR.utils.data_loading import CollateUserItem
 
 class SupervisedTrainer:
     def __init__(self, config, model, device, logger, exp_dir, test_only=False, tuning=False, save_checkpoint=True,
-                     relevance_level=1, users=None, items=None, dataset_eval_neg_sampling=None):
+                     relevance_level=1, users=None, items=None, dataset_eval_neg_sampling=None, to_load_model_name=None):
         self.model = model
         self.device = device
         self.logger = logger
@@ -40,17 +40,25 @@ class SupervisedTrainer:
             self.best_model_train_path = join(exp_dir, 'best_model_tr_loss.pth')
         if "save_every_epoch" in config and config["save_every_epoch"] is True:
             self.last_model_path = join(exp_dir, 'last_model.pth')
-        neg_name = dataset_eval_neg_sampling['validation']
-        if neg_name.startswith("f:"):
-            neg_name = neg_name[len("f:"):]
-        self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
-                                       "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}'),}
-#                                       "log": join(exp_dir, f'best_valid_{neg_name}_log.txt')}
+        # if a model was not given, load best model (valid)
+        if to_load_model_name is not None:
+            self.to_load_model = join(exp_dir, f"{to_load_model_name}.pth")
+        else:
+            self.to_load_model = self.best_model_path
+            to_load_model_name = "best_model"
+
+#          DEP:
+#         neg_name = dataset_eval_neg_sampling['validation']
+#         if neg_name.startswith("f:"):
+#             neg_name = neg_name[len("f:"):]
+#         self.best_valid_output_path = {"ground_truth": join(exp_dir, f'best_valid_ground_truth_{neg_name}.json'),
+#                                        "predicted": join(exp_dir, f'best_valid_predicted_{neg_name}_{to_load_model_name}'),}
+# #                                       "log": join(exp_dir, f'best_valid_{neg_name}_log.txt')}
         neg_name = dataset_eval_neg_sampling['test']
         if neg_name.startswith("f:"):
             neg_name = neg_name[len("f:"):]
         self.test_output_path = {"ground_truth": join(exp_dir, f'test_ground_truth_{neg_name}.json'),
-                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}'),}
+                                 "predicted": join(exp_dir, f'test_predicted_{neg_name}_{to_load_model_name}')}
 #                                 "log": join(exp_dir, f'test_{neg_name}_log_100users')}
 
 #        self.train_output_log = join(exp_dir, "outputs")
@@ -83,12 +91,13 @@ class SupervisedTrainer:
         self.start_epoch = 0
         self.best_epoch = 0
         self.best_saved_valid_metric = np.inf if self.valid_metric == "valid_loss" else -np.inf
-        if exists(self.best_model_path):
-            checkpoint = torch.load(self.best_model_path, map_location=self.device)
+        if exists(self.to_load_model):
+            checkpoint = torch.load(self.to_load_model, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.start_epoch = checkpoint['epoch'] + 1
             self.best_epoch = checkpoint['epoch']
-            self.best_saved_valid_metric = checkpoint['best_valid_metric']
+            if "best_valid_metric" in checkpoint:
+                self.best_saved_valid_metric = checkpoint['best_valid_metric']
             print("last checkpoint restored")
         self.model.to(device)
         
@@ -110,8 +119,11 @@ class SupervisedTrainer:
                 self.optimizer = SGD(opt_params, lr=config['lr'], weight_decay=config['wd'], momentum=config['momentum'], nesterov=config['nesterov'])
             else:
                 raise ValueError(f"Optimizer {config['optimizer']} not implemented!")
-            if exists(self.best_model_path):
-                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            if exists(self.to_load_model):
+                if "optimizer_state_dict" in checkpoint:
+                    self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                else:
+                    print("optimizer_state_dict was not saved in the checkpoint")
 
     def fit(self, train_dataloader, valid_dataloader):
         early_stopping_cnt = 0
@@ -241,6 +253,7 @@ class SupervisedTrainer:
                         'epoch': epoch,
                         'train_loss': train_loss,
                         'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
                     }
                     torch.save(checkpoint, f"{self.best_model_train_path}_tmp")
                     os.rename(f"{self.best_model_train_path}_tmp", self.best_model_train_path)
@@ -248,6 +261,7 @@ class SupervisedTrainer:
                 checkpoint = {
                     'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
                 }
                 torch.save(checkpoint, f"{self.last_model_path}_tmp")
                 os.rename(f"{self.last_model_path}_tmp", self.last_model_path)
@@ -307,11 +321,10 @@ class SupervisedTrainer:
     def evaluate_dataloader(self, eval_dataloader, eval_output_path):
         # load the best model from file.
         # because we may call evaluate right after fit and in this case need to reload the best model!
-        checkpoint = torch.load(self.best_model_path, map_location=self.device)
+        checkpoint = torch.load(self.to_load_model, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.to(self.device)
         self.best_epoch = checkpoint['epoch']
-        self.best_saved_valid_metric = checkpoint['best_valid_metric']
         print("best model loaded!")
 
         outputs, ground_truth, loss, internal_user_ids, internal_item_ids = self.predict(eval_dataloader)

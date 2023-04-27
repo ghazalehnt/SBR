@@ -641,7 +641,7 @@ def load_split_dataset(config, for_precalc=False):
     # read user-item interactions, map the user and item ids to the internal ones
     sp_files = {"train": join(config['dataset_path'], "train.csv"),
                 "validation": join(config['dataset_path'], f'{config["alternative_pos_validation_file"]}.csv' if ("alternative_pos_validation_file" in config and config["alternative_pos_validation_file"] != "") else "validation.csv"),
-                "test": join(config['dataset_path'], "test.csv")}
+                "test": join(config['dataset_path'], f'{config["alternative_pos_test_file"]}.csv' if ("alternative_pos_test_file" in config and config["alternative_pos_test_file"] != "") else "test.csv")}
     split_datasets = {}
     filtered_out_user_item_pairs_by_limit = defaultdict(set)
     for sp, file in sp_files.items():
@@ -719,6 +719,11 @@ def load_split_dataset(config, for_precalc=False):
         negs = negs.drop(columns=["user_id", "item_id"])
         if "ref_item" in negs.columns:
             negs = negs.drop(columns=["ref_item"])
+        # sanity check:
+        print(f"number of validation samples pos: {len(split_datasets['validation'])} - neg: {len(negs)}")
+        if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['validation'][INTERNAL_USER_ID_FIELD]):
+            raise ValueError("user ids differ in validation file and validation neg file")
+
         split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
@@ -730,7 +735,12 @@ def load_split_dataset(config, for_precalc=False):
         negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
         negs = negs.drop(columns=["user_id", "item_id"])
         if "ref_item" in negs.columns:
-            negs = negs.drop(columns=["ref_item"])        
+            negs = negs.drop(columns=["ref_item"])
+        # sanity check:
+        print(f"number of test samples pos: {len(split_datasets['test'])} - neg: {len(negs)}")
+        if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['test'][INTERNAL_USER_ID_FIELD]):
+            raise ValueError("user ids differ in test file and test neg file")
+
         split_datasets['test'] = pd.concat([split_datasets['test'], negs])
         split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
