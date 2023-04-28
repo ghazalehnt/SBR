@@ -3,7 +3,7 @@ import json
 from collections import defaultdict
 
 import pytrec_eval
-from sklearn.metrics import ndcg_score
+from sklearn.metrics import ndcg_score, roc_auc_score
 import numpy as np
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
@@ -53,6 +53,7 @@ def calculate_ranking_metrics_macro_avg_over_qid(gt, pd, relevance_level,
     for m in results:
         assert len(results[m]) == len(gt)
         results[m] = np.array(results[m]).mean(axis=0).tolist()
+    results["auc"] = get_auc(gt, pd)
     return results
 
 
@@ -119,6 +120,17 @@ def calculate_ndcg(gt, pd, given_ranking_metrics):
             raise NotImplementedError("other metrics not implemented")
     return per_qid_score
 
+
+def get_auc(true, pred):
+    scores = []
+    for k, v in pred.items():
+        utrue = []
+        upred = []
+        for kk, vv in v.items():
+            utrue.append(true[k][kk])
+            upred.append(vv)
+        scores.append(roc_auc_score(utrue, upred))
+    return sum(scores) / len(scores)
 
 def log_results(ground_truth, prediction_scores, internal_user_ids, internal_items_ids,
                 external_users, external_items, output_path_ground_truth, output_path_predicted, output_path_log=None):
