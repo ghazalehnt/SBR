@@ -33,8 +33,8 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         if self.append_id_ffn:
             dim1user += 1
             dim1item += 1
-            self.user_ids_normalized = torch.nn.Embedding.from_pretrained((torch.tensor(users[INTERNAL_USER_ID_FIELD])+1 / len(users)).to(self.device).unsqueeze(1))
-            self.item_ids_normalized = torch.nn.Embedding.from_pretrained((torch.tensor(items[INTERNAL_ITEM_ID_FIELD])+1 / len(items)).to(self.device).unsqueeze(1))
+            self.user_ids_normalized = torch.nn.Embedding.from_pretrained(((torch.tensor(users[INTERNAL_USER_ID_FIELD])+1) / len(users)).to(self.device).unsqueeze(1))
+            self.item_ids_normalized = torch.nn.Embedding.from_pretrained(((torch.tensor(items[INTERNAL_ITEM_ID_FIELD])+1) / len(items)).to(self.device).unsqueeze(1))
 
         self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
