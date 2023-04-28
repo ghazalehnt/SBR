@@ -6,7 +6,7 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 # DEBUG = True
 
 class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
-    def __init__(self, model_config, device, dataset_config):
+    def __init__(self, model_config, device, dataset_config, users, items):
         super(BertFFNUserTextProfileItemTextProfileEndToEnd, self).__init__()
         bert_embedding_dim = 768
         self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
@@ -33,6 +33,8 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         if self.append_id_ffn:
             dim1user += 1
             dim1item += 1
+            self.user_ids_normalized = torch.nn.Embedding.from_pretrained((torch.tensor(users[INTERNAL_USER_ID_FIELD])+1 / len(users)).to(self.device).unsqueeze(1))
+            self.item_ids_normalized = torch.nn.Embedding.from_pretrained((torch.tensor(items[INTERNAL_ITEM_ID_FIELD])+1 / len(items)).to(self.device).unsqueeze(1))
 
         self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
@@ -143,8 +145,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
         # id as single thing TODO test
         if self.append_id_ffn:
-            user_ids_tensor = torch.tensor(user_ids.unsqueeze(1).tolist(), device=self.device)
-            user_rep = torch.cat([user_rep, user_ids_tensor], dim=1)
+            user_rep = torch.cat([user_rep, self.user_ids_normalized(user_ids)], dim=1)
         for k in range(len(self.user_linear_layers) - 1):
             user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
         user_rep = self.user_linear_layers[-1](user_rep)
@@ -184,8 +185,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
         # id as single thing TODO test
         if self.append_id_ffn:
-            item_ids_tensor = torch.tensor(item_ids.unsqueeze(1).tolist(), device=self.device)
-            item_rep = torch.cat([item_rep, item_ids_tensor], dim=1)
+            item_rep = torch.cat([item_rep, self.item_ids_normalized(item_ids)], dim=1)
 
         for k in range(len(self.item_linear_layers) - 1):
             item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
