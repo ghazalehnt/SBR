@@ -12,6 +12,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
         self.agg_strategy = model_config['agg_strategy']
         self.device = device
+        self.append_id_ffn = model_config['append_id_ffn']
 
         if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
             raise ValueError("max chunk should be set to 1 ")
@@ -28,6 +29,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         if self.append_cf_after:
             dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
             dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
+        # adding id as integer TODO test
+        if self.append_id_ffn:
+            dim1user += 1
+            dim1item += 1
 
         self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
@@ -136,6 +141,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         # append cf to the end of the ch reps :
         if self.append_cf_after:
             user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
+        # id as single thing TODO test
+        if self.append_id_ffn:
+            user_ids_tensor = torch.tensor(user_ids.unsqueeze(1).tolist(), device=self.device)
+            user_rep = torch.cat([user_rep, user_ids_tensor], dim=1)
         for k in range(len(self.user_linear_layers) - 1):
             user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
         user_rep = self.user_linear_layers[-1](user_rep)
@@ -173,6 +182,11 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         # append cf to the end of the ch reps :
         if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
             item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
+        # id as single thing TODO test
+        if self.append_id_ffn:
+            item_ids_tensor = torch.tensor(item_ids.unsqueeze(1).tolist(), device=self.device)
+            item_rep = torch.cat([item_rep, item_ids_tensor], dim=1)
+
         for k in range(len(self.item_linear_layers) - 1):
             item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
         item_rep = self.item_linear_layers[-1](item_rep)
