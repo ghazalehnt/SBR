@@ -8,12 +8,15 @@ from SBR.model.vanilla_classifier_joint_end_to_end import \
     VanillaClassifierUserTextProfileItemTextProfileJointEndToEnd
 from SBR.model.bert_ffn_end_to_end import BertFFNUserTextProfileItemTextProfileEndToEnd
 from SBR.model.bert_singleffn_end_to_end import BertSignleFFNUserTextProfileItemTextProfileEndToEnd
+from SBR.model.cf_ffn_dot import CFFFNDOT
 
 
 def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None):
     if config['name'] == "MF":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
                                               use_item_bias=False, use_user_bias=False)
+    if config['name'] == "MF_ffn":
+        model = CFFFNDOT(model_config=config, n_users=user_info.shape[0], n_items=item_info.shape[0], device=device)
     elif config['name'] == "MF_with_itembias":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
                                               use_item_bias=True, use_user_bias=False)
