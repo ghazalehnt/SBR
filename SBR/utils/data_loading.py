@@ -577,11 +577,12 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
 
 
 def load_split_dataset(config, for_precalc=False):
-    user_text_file_name = config['user_text_file_name']
-    item_text_file_name = config['item_text_file_name']
-    if config['load_user_item_text'] is False:
-        user_text_file_name = None
-        item_text_file_name = None
+    user_text_file_name = None
+    item_text_file_name = None
+
+    if config['load_user_item_text'] is True:
+        user_text_file_name = config['user_text_file_name']
+        item_text_file_name = config['item_text_file_name']
 
     keep_fields = ["user_id"]
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
