@@ -591,16 +591,17 @@ def load_split_dataset(config, for_precalc=False):
     if len(user_info["user_id"]) != len(set(user_info["user_id"])):
         raise ValueError("problem in users.csv file")
     print(f"num users = {len(user_info[INTERNAL_USER_ID_FIELD])}")
-    up = pd.read_csv(join(config['dataset_path'], f"users_profile_{user_text_file_name}.csv"), dtype=str)
-    up = up.fillna('')
-    if len(up["user_id"]) != len(set(user_info["user_id"])):
-        raise ValueError(f"problem in users_profile_{user_text_file_name}.csv file")
-    user_info = pd.merge(user_info, up, on="user_id")
-    user_info['text'] = user_info['text'].apply(lambda x: x.replace("<end of review>", ""))
-    if not config['case_sensitive']:
-        user_info['text'] = user_info['text'].apply(str.lower)
-    if config['normalize_negation']:
-        user_info['text'] = user_info['text'].replace("n\'t", " not", regex=True)
+    if user_text_file_name is not None:
+        up = pd.read_csv(join(config['dataset_path'], f"users_profile_{user_text_file_name}.csv"), dtype=str)
+        up = up.fillna('')
+        if len(up["user_id"]) != len(set(user_info["user_id"])):
+            raise ValueError(f"problem in users_profile_{user_text_file_name}.csv file")
+        user_info = pd.merge(user_info, up, on="user_id")
+        user_info['text'] = user_info['text'].apply(lambda x: x.replace("<end of review>", ""))
+        if not config['case_sensitive']:
+            user_info['text'] = user_info['text'].apply(str.lower)
+        if config['normalize_negation']:
+            user_info['text'] = user_info['text'].replace("n\'t", " not", regex=True)
 
     keep_fields = ["item_id"]
     if not for_precalc and config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
@@ -617,17 +618,17 @@ def load_split_dataset(config, for_precalc=False):
         raise ValueError("problem in items.csv file")
     print(f"num items = {len(item_info[INTERNAL_ITEM_ID_FIELD])}")
     item_info = item_info.fillna('')
-    ip = pd.read_csv(join(config['dataset_path'], f"item_profile_{item_text_file_name}.csv"), dtype=str)
-    ip = ip.fillna('')
-    if len(ip["item_id"]) != len(set(item_info["item_id"])):
-        raise ValueError(f"problem in item_profile_{item_text_file_name}.csv file")
-    item_info = pd.merge(item_info, ip, on="item_id")
-    item_info['text'] = item_info['text'].apply(lambda x: x.replace("<end of review>", ""))
-    if not config['case_sensitive']:
-        item_info['text'] = item_info['text'].apply(str.lower)
-    if config['normalize_negation']:
-        item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
-
+    if item_text_file_name is not None:
+        ip = pd.read_csv(join(config['dataset_path'], f"item_profile_{item_text_file_name}.csv"), dtype=str)
+        ip = ip.fillna('')
+        if len(ip["item_id"]) != len(set(item_info["item_id"])):
+            raise ValueError(f"problem in item_profile_{item_text_file_name}.csv file")
+        item_info = pd.merge(item_info, ip, on="item_id")
+        item_info['text'] = item_info['text'].apply(lambda x: x.replace("<end of review>", ""))
+        if not config['case_sensitive']:
+            item_info['text'] = item_info['text'].apply(str.lower)
+        if config['normalize_negation']:
+            item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
 
     if 'item.genres' in item_info.columns:
         item_info['item.genres'] = item_info['item.genres'].apply(
