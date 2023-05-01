@@ -42,13 +42,15 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             self.user_embedding = torch.nn.Embedding(len(users), model_config["user_embedding"])
             self.item_embedding = torch.nn.Embedding(len(items), model_config["item_embedding"])
 
-        self.user_linear_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
+        user_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
-            self.user_linear_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k], device=self.device))
+            user_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k], device=self.device))
+        self.user_linear_layers = torch.nn.ModuleList(user_layers)
 
-        self.item_linear_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0], device=self.device)]
+        item_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0], device=self.device)]
         for k in range(1, len(model_config["item_k"])):
-            self.item_linear_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k], device=self.device))
+            item_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k], device=self.device))
+        self.item_linear_layers = torch.nn.ModuleList(item_layers)
 
         self.bert = transformers.AutoModel.from_pretrained(model_config['pretrained_model'])
         if model_config["tune_BERT"] is True:
