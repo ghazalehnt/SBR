@@ -8,8 +8,12 @@ class CFFFNDOT(torch.nn.Module):
         super(CFFFNDOT, self).__init__()
         self.device = device
 
-        self.user_embedding = torch.nn.Embedding(n_users, model_config["user_embedding"])
-        self.item_embedding = torch.nn.Embedding(n_items, model_config["item_embedding"])
+        if "frozen_rand_embed" in model_config and model_config["frozen_rand_embed"]:
+            self.user_embedding = torch.nn.Embedding.from_pretrained(torch.rand((n_users, model_config["user_embedding"]), device=device))
+            self.item_embedding = torch.nn.Embedding.from_pretrained(torch.rand((n_items, model_config["item_embedding"]), device=device))
+        else:
+            self.user_embedding = torch.nn.Embedding(n_users, model_config["user_embedding"])
+            self.item_embedding = torch.nn.Embedding(n_items, model_config["item_embedding"])
 
         self.user_linear_layers = [torch.nn.Linear(model_config["user_embedding"], model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
