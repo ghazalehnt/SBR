@@ -15,7 +15,7 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
     if config['name'] == "MF":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
                                               use_item_bias=False, use_user_bias=False)
-    if config['name'] == "MF_ffn":
+    elif config['name'] == "MF_ffn":
         model = CFFFNDOT(model_config=config, n_users=user_info.shape[0], n_items=item_info.shape[0], device=device)
     elif config['name'] == "MF_with_itembias":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
