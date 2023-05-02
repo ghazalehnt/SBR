@@ -41,6 +41,12 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             dim1item += model_config["item_embedding"]
             self.user_embedding = torch.nn.Embedding(len(users), model_config["user_embedding"])
             self.item_embedding = torch.nn.Embedding(len(items), model_config["item_embedding"])
+            if "embed_init" in model_config:
+                if model_config["embed_init"] == "xavier":
+                    torch.nn.init.xavier_uniform_(self.user_embedding.weight)
+                    torch.nn.init.xavier_uniform_(self.item_embedding.weight)
+                else:
+                    raise NotImplementedError("embed init not implemented")
 
         user_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
         for k in range(1, len(model_config["user_k"])):
