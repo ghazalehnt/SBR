@@ -9,6 +9,12 @@ class MatrixFactorizatoinDotProduct(torch.nn.Module):
 
         self.user_embedding = torch.nn.Embedding(n_users, config["embedding_dim"])
         self.item_embedding = torch.nn.Embedding(n_items, config["embedding_dim"])
+        if "embed_init" in config:
+            if config["embed_init"] == "xavier":
+                torch.nn.init.xavier_uniform_(self.user_embedding.weight)
+                torch.nn.init.xavier_uniform_(self.item_embedding.weight)
+            else:
+                raise NotImplementedError("embed init not implemented")
 
         self.use_item_bias = use_item_bias
         self.use_user_bias = use_user_bias
