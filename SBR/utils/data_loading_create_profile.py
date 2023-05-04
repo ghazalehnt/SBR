@@ -189,9 +189,7 @@ def load_split_dataset(config):
     if len(user_text_fields) > 0:
         sort_reviews = config['user_item_text_choice']
 
-    for field in ["interaction.review_text", "interaction.reviewText", "interaction.summary"]:
-        if field in train_df:
-            train_df[field] = train_df[field].fillna('')
+    train_df = train_df.fillna('')
     ## USER:
     # This code works for user text fields from interaction and item file
     user_item_text_fields = [field for field in user_text_fields if field.startswith("item.")]
