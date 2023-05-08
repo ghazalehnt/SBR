@@ -14,6 +14,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         self.device = device
         self.append_id_ffn = model_config['append_id_ffn'] if "append_id_ffn" in model_config else False
         self.append_embedding_ffn = model_config["append_embedding_ffn"] if "append_embedding_ffn" in model_config else False
+        self.append_embedding_after_ffn = model_config["append_embedding_after_ffn"] if "append_embedding_after_ffn" in model_config else False
 
         if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
             raise ValueError("max chunk should be set to 1 ")
@@ -36,9 +37,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             dim1item += 1
             self.user_ids_normalized = torch.nn.Embedding.from_pretrained(((torch.tensor(users[INTERNAL_USER_ID_FIELD])+1) / len(users)).to(self.device).unsqueeze(1))
             self.item_ids_normalized = torch.nn.Embedding.from_pretrained(((torch.tensor(items[INTERNAL_ITEM_ID_FIELD])+1) / len(items)).to(self.device).unsqueeze(1))
-        if self.append_embedding_ffn:
-            dim1user += model_config["user_embedding"]
-            dim1item += model_config["item_embedding"]
+        if self.append_embedding_ffn or self.append_embedding_after_ffn:
+            if self.append_embedding_ffn:
+                dim1user += model_config["user_embedding"]
+                dim1item += model_config["item_embedding"]
             self.user_embedding = torch.nn.Embedding(len(users), model_config["user_embedding"])
             self.item_embedding = torch.nn.Embedding(len(items), model_config["item_embedding"])
             if "embed_init" in model_config:
@@ -171,6 +173,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
         user_rep = self.user_linear_layers[-1](user_rep)
 
+        if self.append_embedding_after_ffn:
+            user_rep = torch.cat([user_rep, self.user_embedding(user_ids)], dim=1)
+
         input_ids = batch['item_input_ids']
         att_mask = batch['item_attention_mask']
         if self.use_cf is True:
@@ -214,6 +219,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         for k in range(len(self.item_linear_layers) - 1):
             item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
         item_rep = self.item_linear_layers[-1](item_rep)
+
+        if self.append_embedding_after_ffn:
+            item_rep = torch.cat([item_rep, self.item_embedding(item_ids)], dim=1)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
