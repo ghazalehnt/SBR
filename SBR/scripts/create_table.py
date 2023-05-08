@@ -45,3 +45,6 @@ if __name__ == "__main__":
                     r = json.loads(line)
                     if g in r:
                         res[f"{n}-{config['trainer']['lr']}"] = r[g][m]
+
+    for k, v in res.items():
+        print(f"{k} & {v} \\")
