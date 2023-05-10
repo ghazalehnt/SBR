@@ -33,12 +33,8 @@ def get_metrics(ground_truth, prediction_scores, ranking_metrics=None, calc_pytr
     return results
 
 
-def group_users(train_file, thresholds, min_user_review_len=None, review_field=None):
-    # here we have some users who only exist in training set
-    train_ds = pd.read_csv(train_file, dtype=str)
-
+def filter_users_by_len(train_ds, min_user_review_len=None, review_field=None):
     train_user_count = Counter(train_ds['user_id'])
-
     # keep only users with "long" reviews if given len
     if min_user_review_len is not None:
         train_ds[review_field] = train_ds[review_field].fillna("")  # TODO multiple fields?
@@ -53,7 +49,10 @@ def group_users(train_file, thresholds, min_user_review_len=None, review_field=N
             if num_toks >= min_user_review_len:
                 keep_users[user_id] = num_toks
         train_user_count = {k: v for k, v in train_user_count.items() if k in keep_users.keys()}
+    return train_user_count
 
+
+def group_users_threshold(train_user_count, thresholds):
     groups = {thr: set() for thr in sorted(thresholds)}
     if len(thresholds) > 0:
         groups['rest'] = set()
@@ -76,16 +75,40 @@ def group_users(train_file, thresholds, min_user_review_len=None, review_field=N
             new_gr = f"{last}-{gr}"
             last = gr + 1
         ret_group[new_gr] = groups[gr]
-
-    train_user_count = {str(k): v for k, v in train_user_count.items()}
-    return ret_group, train_user_count
+    return ret_group
 
 
-def get_results(prediction, ground_truth, ranking_metrics, thresholds,
+def group_users_ratios(train_user_count, ratios):
+    sorted_users = [k for k, v in sorted(train_user_count.items(), key=lambda x: x[1])]  # sporadic to bibliophilic
+    n_users = len(sorted_users)
+    if len(ratios) != 3:
+        raise ValueError("3 ratios must be given")
+    cnts = [int(r*n_users) for r in ratios]
+    if sum(cnts) < n_users:
+        return ValueError("check here1")
+    elif sum(cnts) > n_users:
+        return ValueError("check here2")
+    groups = {}
+    groups["sporadic"] = set(sorted_users[:cnts[0]])
+    groups["regular"] = set(sorted_users[cnts[0]:-cnts[2]])
+    groups["bibliophilic"] = set(sorted_users[-cnts[2]:])
+    return groups
+
+
+def get_results(prediction, ground_truth, ranking_metrics, thresholds, ratios,
                 train_file=None, min_user_review_len=None, review_field=None):
     ret = []
     start = time.time()
-    user_groups, filtered_train_user_count = group_users(train_file, thresholds, min_user_review_len, review_field)
+    # we may have some users who only exist in training set (not in all datasets)
+    train_ds = pd.read_csv(train_file, dtype=str)
+    filtered_train_user_count = filter_users_by_len(train_ds, min_user_review_len, review_field)
+    user_groups = {}
+    if thresholds is not None:
+        user_groups = group_users_threshold(filtered_train_user_count, thresholds)
+    # filtered_train_user_count = {str(k): v for k, v in filtered_train_user_count.items()} ?? why did we have this?
+    if ratios is not None:
+        user_groups = group_users_ratios(filtered_train_user_count, ratios)
+
     if len(filtered_train_user_count) == 0:
         return
     print(f"grouped users in {time.time()-start}")
@@ -161,15 +184,24 @@ if __name__ == "__main__":
     # optional: threshold to groupd users:
     parser.add_argument('--thresholds', type=int, nargs='+', default=None, help='user thresholds')
 
+    # optional: ratio of user groups:
+    parser.add_argument('--ratios', type=int, nargs='+', default=None, help='user thresholds')
+
     # optional if we want to only calculate the metrics for users with certain review length.
     parser.add_argument('--min_user_review_len', type=int, default=None, help='min length of the user review')
     parser.add_argument('--review_field', type=str, default=None, help='review field')
     args, _ = parser.parse_known_args()
 
-    ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "recip_rank"]
+    ranking_metrics = ["ndcg_cut_5", "ndcg_cut_10", "ndcg_cut_20", "P_1", "P_5", "recip_rank"]
+
     thrs = args.thresholds
-    if thrs is None:
-        thrs = []
+    rates = args.ratios
+    if thrs is not None and rates is not None:
+        raise ValueError("either ratios or thresholds not both")
+    if rates is not None:
+        if sum(rates) != 100:
+            raise ValueError(f"rations must sum up to 100: {rates}")
+        rates = [r/100 for r in rates]
 
     prediction = json.load(open(args.pred_path))
     if len(prediction.keys()) == 1 and "predicted" in prediction:
@@ -182,7 +214,7 @@ if __name__ == "__main__":
     for user_id, item_id in zip(neg_file["user_id"], neg_file["item_id"]):
         ground_truth[user_id][item_id] = 0  # TODO if we are doing rating or something else change this
 
-    results = get_results(prediction, ground_truth, ranking_metrics, thrs,
+    results = get_results(prediction, ground_truth, ranking_metrics, thrs, rates,
                           train_file=args.train_file_path,
                           min_user_review_len=args.min_user_review_len,
                           review_field=args.review_field)
