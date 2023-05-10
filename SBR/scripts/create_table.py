@@ -27,34 +27,33 @@ shorten_strategies = {
 }
 
 name_mapping = {
-    "MF-200-xavier_normal-0.0004": "CF",
-    "MF-200-xavier_normal-4e-05": "CF",
+    "MF-200-xavier_normal": "CF",
 
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{rand}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{idf}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{sbert}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05": "CUP$_{tfidf-1gram}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05": "CUP$_{tfidf-3gram}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{keywords}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004": "CUP$_{GPT}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-4e-05": "CUP$_{rand-voc}$",    
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004": "CUP$_{idf-voc}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004": "CUP$_{sbert-voc}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-0.0004": "CUP$_{tfidf-1gram-voc}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05": "CUP$_{tfidf-3gram-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT": "CUP$_{rand}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT": "CUP$_{idf}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT": "CUP$_{sbert}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT": "CUP$_{tfidf-1gram}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT": "CUP$_{tfidf-3gram}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT": "CUP$_{keywords}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT": "CUP$_{GPT}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT": "CUP$_{rand-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT": "CUP$_{idf-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT": "CUP$_{sbert-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT": "CUP$_{tfidf-1gram-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT": "CUP$_{tfidf-3gram-voc}$",
     
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004": "CUP$_{rand}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT-0.0004": "CUP$_{idf}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT-0.0004": "CUP$_{sbert}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT-4e-05": "CUP$_{tfidf-1gram}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT-0.0004": "CUP$_{tfidf-3gram}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT-0.0004": "CUP$_{keywords}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT-0.0004": "CUP$_{GPT}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT-0.0004": "CUP$_{rand-voc}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT-0.0004": "CUP$_{idf-voc}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT-0.0004": "CUP$_{sbert-rand}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT-4e-05": "CUP$_{tfidf-1gram-voc}$",
-    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT-0.0004": "CUP$_{tfidf-3gram-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT": "CUP$_{rand}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT": "CUP$_{idf}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT": "CUP$_{sbert}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT": "CUP$_{tfidf-1gram}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT": "CUP$_{tfidf-3gram}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT": "CUP$_{keywords}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT": "CUP$_{GPT}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT": "CUP$_{rand-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT": "CUP$_{idf-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT": "CUP$_{sbert-rand}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT": "CUP$_{tfidf-1gram-voc}$",
+    "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT": "CUP$_{tfidf-3gram-voc}$",
 }
 
 def round_half_up(n, decimals=0):
@@ -73,10 +72,10 @@ def print_res():
             for i in range(len(print_list_col1[rk])):
                 k1 = print_list_col1[rk][i]
                 k2 = print_list_col2[rk][i]
-                if k1 in name_mapping:
-                    p = f"{name_mapping[k1]} & "
-                elif k2 in name_mapping:
-                    p = f"{name_mapping[k2]} & "
+                if k1[:k1.rindex(',')] in name_mapping:
+                    p = f"{name_mapping[k1[:k1.rindex(',')]]} & "
+                elif k2[:k2.rindex(',')] in name_mapping:
+                    p = f"{name_mapping[k2[:k2.rindex(',')]]} & "
                 else:
                     p = ""
                 if k1 in res[rk]:
@@ -158,9 +157,9 @@ if __name__ == "__main__":
                             g_res[g] = r[g][m]
 
             if gr is None:
-                res[res_key][f"{n}-{config['trainer']['lr']}"] = g_res
+                res[res_key][f"{n},{config['trainer']['lr']}"] = g_res
             else:
-                res[res_key][f"{n}-{config['trainer']['lr']}"] = g_res[gr]
+                res[res_key][f"{n},{config['trainer']['lr']}"] = g_res[gr]
 
     # print(res.keys())
     print("\\begin{table*}[tbh]")
@@ -171,44 +170,44 @@ if __name__ == "__main__":
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1["uniform"] = ["",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"]
-        print_list_col2["uniform"] = ["MF-200-xavier_normal-4e-05",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"]
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT,4e-05"]
+        print_list_col2["uniform"] = ["MF-200-xavier_normal,4e-05",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT,0.0004",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT,4e-05"]
         print_list_col1["weighted"] = ["",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT,4e-05",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-4e-05",
-                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"]
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT,4e-05",
+                                      "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT,4e-05"]
         print_list_col2["weighted"] = ["MF-200-xavier_normal-0.04",
                                       "",
                                       "",
@@ -228,8 +227,8 @@ if __name__ == "__main__":
         print(f"\\caption{{ {m} Goodreads text rich dataset. {ng} Evaluation. }}")
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
-        print_list_col1["uniform"] = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT-0.0004"]
-        print_list_col2["uniform"] = ["MF-200-xavier_normal-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004",  "", "", "", "", "", "", "", "", "", "", ""]
+        print_list_col1["uniform"] = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT,4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,0.0004"]
+        print_list_col2["uniform"] = ["MF-200-xavier_normal,0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,0.0004",  "", "", "", "", "", "", "", "", "", "", ""]
         print_res()
 
     print("\end{tabular}")
