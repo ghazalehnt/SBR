@@ -106,6 +106,9 @@ if __name__ == "__main__":
     dir=args.dir
     resfile = args.resfile
     ng = "Profile-based" if 'genres' in resfile else 'Standard'
+    grps = ["ALL", "1-5", "6-50", "51+"]
+    if "ratios" in resfile:
+        grps = ["ALL", "sporadic", "regular", "bibliophilic"]
     dirs = os.listdir(dir)
     res = {"uniform": defaultdict(), "weighted": defaultdict()}
     for d in dirs:
@@ -147,11 +150,8 @@ if __name__ == "__main__":
             if gr is None:
                 g_res = defaultdict()
             for line in open(join(dir, d, resfile), 'r'):
-                if line.startswith('{"ALL":') or  line.startswith('{"1-5":') or  line.startswith('{"6-50":') or  line.startswith('{"51+":'):
+                if len(line.strip()) > 0:
                     r = json.loads(line.replace("\n", "").strip())
-                    grps = ["ALL", "1-5", "6-50", "51+"]
-                    if "ratios" in resfile:
-                        grps = ["ALL", "sporadic", "regular", "bibliophilic"]
                     for g in grps:
                         if g in r:
                             g_res[g] = r[g][m]
