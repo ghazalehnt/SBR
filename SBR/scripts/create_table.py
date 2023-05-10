@@ -134,10 +134,10 @@ if __name__ == "__main__":
                     f"{temp1}_{temp2}"
                 if 'append_embedding_ffn' in config['model'] and config['model']['append_embedding_ffn'] == True:
                     n = f"{config['model']['name']}-emb-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
-                    f"{temp3}-{temp4}-{temp1}-{temp2}"
+                    f"{temp3}-{temp4}-{temp1}_{temp2}"
                 elif 'append_embedding_after_ffn' in config['model'] and config['model']['append_embedding_after_ffn'] == True:
                     n = f"{config['model']['name']}-embafter-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
-                    f"{temp3}-{temp4}-{temp1}-{temp2}"
+                    f"{temp3}-{temp4}-{temp1}_{temp2}"
                 if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
                     res_key = "weighted"
             else:
