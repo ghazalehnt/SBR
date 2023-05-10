@@ -72,9 +72,9 @@ def print_res():
             for i in range(len(print_list_col1[rk])):
                 k1 = print_list_col1[rk][i]
                 k2 = print_list_col2[rk][i]
-                if k1[:k1.rindex(',')] in name_mapping:
+                if k1 != "" and k1[:k1.rindex(',')] in name_mapping:
                     p = f"{name_mapping[k1[:k1.rindex(',')]]} & "
-                elif k2[:k2.rindex(',')] in name_mapping:
+                elif k2 != "" and k2[:k2.rindex(',')] in name_mapping:
                     p = f"{name_mapping[k2[:k2.rindex(',')]]} & "
                 else:
                     p = ""
