@@ -1,4 +1,4 @@
-import argparse
+    import argparse
 import json
 import os
 from collections import defaultdict
@@ -24,6 +24,15 @@ shorten_strategies = {
     "idf_sentence": "sidf",
     "csTrue": "csT",
     "nnTrue": "nnT"
+}
+
+metric_name_map = {
+    "ndcg_cut_5": "NDCG@5",
+    "ndcg_cut_10": "NDCG@10",
+    "recip_rank": "MRR",
+    "auc": "AUC",
+    "P_1": "P@1",
+    "P_5": "P@5",
 }
 
 name_mapping = {
@@ -85,7 +94,7 @@ def print_res():
                 if k2 in res[rk]:
                     p += f"{' & '.join(str(round_half_up(res[rk][k2][g] * 100, 2)) for g in grps)}"
                 else:
-                    p += f"{''.join(len(grps) * ' & ')} "
+                    p += f"{''.join((len(grps)-1) * ' & ')} "
 
                 p += f"\\\\ \hline % {k1} {k2} "
                 print(p)
@@ -166,7 +175,7 @@ if __name__ == "__main__":
     print_list_col1 = {}
     print_list_col2 = {}
     if "Amazon" in dir:
-        print(f"\\caption{{ {m} Amazon text rich dataset. {ng} Evaluation. }}")
+        print(f"\\caption{{ {metric_name_map[m]} Amazon text rich dataset. {ng} Evaluation. }}")
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1["uniform"] = ["",
@@ -224,7 +233,7 @@ if __name__ == "__main__":
 
         print_res()
     else:
-        print(f"\\caption{{ {m} Goodreads text rich dataset. {ng} Evaluation. }}")
+        print(f"\\caption{{ {metric_name_map[m]} Goodreads text rich dataset. {ng} Evaluation. }}")
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1["uniform"] = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT,4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT,0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,0.0004"]
