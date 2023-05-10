@@ -29,6 +29,7 @@ shorten_strategies = {
 name_mapping = {
     "MF-200-xavier_normal-0.0004": "CF",
     "MF-200-xavier_normal-4e-05": "CF",
+
     "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{rand}$",
     "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{idf}$",
     "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004": "CUP$_{sbert}$",
@@ -74,10 +75,12 @@ if __name__ == "__main__":
     m = args.metric
     dir=args.dir
     resfile = args.resfile
+    ng = "Profile-based" if 'genres' in resfile else 'Standard'
     dirs = os.listdir(dir)
-    res = defaultdict()
+    res = {"uniform": defaultdict(), "weighted": defaultdict()}
     for d in dirs:
         if os.path.exists(join(dir, d, "config.json")) and os.path.exists(join(dir, d, resfile)):
+            res_key = "uniform"
             config = json.load(open(join(dir, d, "config.json"), 'r'))
             if config['model']['name'].startswith("MF_ffn"):
                 continue
@@ -105,8 +108,7 @@ if __name__ == "__main__":
                     n = f"{config['model']['name']}-embafter-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
                     f"{temp3}-{temp4}-{temp1}-{temp2}"
                 if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
-                    n += "_weighted"
-
+                    res_key = "weighted"
             else:
                 print(d)
                 print(config['model']['name'])
@@ -119,7 +121,7 @@ if __name__ == "__main__":
                     if gr is not None:
                         print("HERE")
                         if gr in r:
-                            res[f"{n}-{config['trainer']['lr']}"] = r[g][m]
+                            res[res_key][f"{n}-{config['trainer']['lr']}"] = r[g][m]
                             # print(f"{n}-{config['trainer']['lr']} & {round_half_up(r[g][m]*100, 2)} \\\\")
                             print(f" & {round_half_up(r[g][m]*100, 2)} \\\\ \hline % {n}-{config['trainer']['lr']} ")
                     else:
@@ -128,60 +130,80 @@ if __name__ == "__main__":
                             if g in r:
                                 g_res[g] = r[g][m]
             if gr is None:
-                #print(g_res)
-                res[f"{n}-{config['trainer']['lr']}"] = g_res
-                #print(f" & {' & '.join(str(round_half_up(g_res[g]*100, 2)) for g in grps)} \\\\ \hline % {n}-{config['trainer']['lr']} ")
-#    print(res.keys())
+                res[res_key][f"{n}-{config['trainer']['lr']}"] = g_res
+
+    # print(res.keys())
+    print("\\begin{table*}[tbh]")
     if "Amazon" in dir:
+        print(f"\\caption{{ {m} Amazon text rich dataset. {ng} Evaluation. }}")
+        print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
+        print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1 = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"]
         print_list_col2 = ["MF-200-xavier_normal-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"
                 ]
-        for i in range(len(print_list_col1)):
-            k1 = print_list_col1[i]
-            k2 = print_list_col2[i]
-            if k1 in name_mapping:
-                p = f"{name_mapping[k1]} & "
-            elif k2 in name_mapping:
-                p = f"{name_mapping[k2]} & "
+        for rk in ["uniform", "weighted"]:
+            if rk == "uniform":
+                print("&\multicolumn{8}{c}{Uniform Negative Training Samples} \\\\")
             else:
-                p = ""
-            if k1 in res:
-                p += f"{' & '.join(str(round_half_up(res[k1][g]*100, 2)) for g in grps)} & "
-            else:
-                p += f"{''.join(len(grps)*' & ')} "
-            if k2 in res:
-                p += f"{' & '.join(str(round_half_up(res[k2][g]*100, 2)) for g in grps)}"
-            else:
-                p += f"{''.join(len(grps)*' & ')} "
+                print("&\multicolumn{8}{c}{Weighted Negative Training Samples} \\\\")
+            print("&\multicolumn{4}{c}{item:full, user:review} &\multicolumn{4}{c}{+CF} \\\\")
+            if rk in res:
+                for i in range(len(print_list_col1)):
+                    k1 = print_list_col1[i]
+                    k2 = print_list_col2[i]
+                    if k1 in name_mapping:
+                        p = f"{name_mapping[k1]} & "
+                    elif k2 in name_mapping:
+                        p = f"{name_mapping[k2]} & "
+                    else:
+                        p = ""
+                    if k1 in res:
+                        p += f"{' & '.join(str(round_half_up(res[k1][g]*100, 2)) for g in grps)} & "
+                    else:
+                        p += f"{''.join(len(grps)*' & ')} "
+                    if k2 in res:
+                        p += f"{' & '.join(str(round_half_up(res[k2][g]*100, 2)) for g in grps)}"
+                    else:
+                        p += f"{''.join(len(grps)*' & ')} "
 
-            p += f"\\\\ \hline % {k1} {k2} "
-            print(p)
-
+                    p += f"\\\\ \hline % {k1} {k2} "
+                    print(p)
     else:
+        print(f"\\caption{{ {m} Goodreads text rich dataset. {ng} Evaluation. }}")
+        print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
+        print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1 = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT-0.0004"]
-
         print_list_col2 = ["MF-200-xavier_normal-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004",  "", "", "", "" ,"", "", "", "", "", "" ,""]
-        
-        for i in range(len(print_list_col1)):
-            k1 = print_list_col1[i]
-            k2 = print_list_col2[i]
-            if k1 in name_mapping:
-                p = f"{name_mapping[k1]} & "
-            elif k2 in name_mapping:
-                p = f"{name_mapping[k2]} & "
-            else:
-                p = ""
-            if k1 in res:
-                p += f"{' & '.join(str(round_half_up(res[k1][g]*100, 2)) for g in grps)} & "
-            else:
-                p += f"{''.join(len(grps)*' & ')} "
-            if k2 in res:
-                p += f"{' & '.join(str(round_half_up(res[k2][g]*100, 2)) for g in grps)}"
-            else:
-                p += f"{''.join((len(grps)-1)*' & ')} "
 
-            p += f"\\\\ \hline % {k1} {k2} "
-            print(p)
+        for rk in ["uniform", "weighted"]:
+            if rk == "uniform":
+                print("&\multicolumn{8}{c}{Uniform Negative Training Samples} \\\\")
+            else:
+                print("&\multicolumn{8}{c}{Weighted Negative Training Samples} \\\\")
+            print("&\multicolumn{4}{c}{item:full, user:review} &\multicolumn{4}{c}{+CF} \\\\")
+            if rk in res:
+                for i in range(len(print_list_col1)):
+                    k1 = print_list_col1[i]
+                    k2 = print_list_col2[i]
+                    if k1 in name_mapping:
+                        p = f"{name_mapping[k1]} & "
+                    elif k2 in name_mapping:
+                        p = f"{name_mapping[k2]} & "
+                    else:
+                        p = ""
+                    if k1 in res:
+                        p += f"{' & '.join(str(round_half_up(res[k1][g]*100, 2)) for g in grps)} & "
+                    else:
+                        p += f"{''.join(len(grps)*' & ')} "
+                    if k2 in res:
+                        p += f"{' & '.join(str(round_half_up(res[k2][g]*100, 2)) for g in grps)}"
+                    else:
+                        p += f"{''.join((len(grps)-1)*' & ')} "
+
+                    p += f"\\\\ \hline % {k1} {k2} "
+                    print(p)
+    print("\end{tabular}")
+    print("\end{table*}")
 
 #        for k in print_list:
 #            if k in res:
