@@ -111,8 +111,11 @@ if __name__ == "__main__":
     res = {"uniform": defaultdict(), "weighted": defaultdict()}
     for d in dirs:
         if os.path.exists(join(dir, d, "config.json")) and os.path.exists(join(dir, d, resfile)):
-            res_key = "uniform"
             config = json.load(open(join(dir, d, "config.json"), 'r'))
+            res_key = "uniform"
+            if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
+                res_key = "weighted"
+
             if config['model']['name'].startswith("MF_ffn"):
                 continue
             elif config['model']['name'].startswith("MF"):
@@ -138,8 +141,6 @@ if __name__ == "__main__":
                 elif 'append_embedding_after_ffn' in config['model'] and config['model']['append_embedding_after_ffn'] == True:
                     n = f"{config['model']['name']}-embafter-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
                     f"{temp3}-{temp4}-{temp1}_{temp2}"
-                if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
-                    res_key = "weighted"
             else:
                 print(d)
                 print(config['model']['name'])
@@ -149,19 +150,17 @@ if __name__ == "__main__":
             for line in open(join(dir, d, resfile), 'r'):
                 if line.startswith('{"ALL":') or  line.startswith('{"1-5":') or  line.startswith('{"6-50":') or  line.startswith('{"51+":'):
                     r = json.loads(line.replace("\n", "").strip())
-                    if gr is not None:
-                        print("HERE")
-                        if gr in r:
-                            res[res_key][f"{n}-{config['trainer']['lr']}"] = r[g][m]
-                            # print(f"{n}-{config['trainer']['lr']} & {round_half_up(r[g][m]*100, 2)} \\\\")
-                            print(f" & {round_half_up(r[g][m]*100, 2)} \\\\ \hline % {n}-{config['trainer']['lr']} ")
-                    else:
-                        grps =  ["ALL", "1-5", "6-50", "51+"] 
-                        for g in grps:
-                            if g in r:
-                                g_res[g] = r[g][m]
+                    grps = ["ALL", "1-5", "6-50", "51+"]
+                    if "ratios" in resfile:
+                        grps = ["ALL", "sporadic", "regular", "bibliophilic"]
+                    for g in grps:
+                        if g in r:
+                            g_res[g] = r[g][m]
+
             if gr is None:
                 res[res_key][f"{n}-{config['trainer']['lr']}"] = g_res
+            else:
+                res[res_key][f"{n}-{config['trainer']['lr']}"] = g_res[gr]
 
     # print(res.keys())
     print("\\begin{table*}[tbh]")
@@ -179,7 +178,7 @@ if __name__ == "__main__":
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1["uniform"] = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT-0.0004"]
-        print_list_col2["uniform"]  = ["MF-200-xavier_normal-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004",  "", "", "", "", "", "", "", "", "", "", ""]
+        print_list_col2["uniform"] = ["MF-200-xavier_normal-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004",  "", "", "", "", "", "", "", "", "", "", ""]
         print_res()
 
     print("\end{tabular}")
