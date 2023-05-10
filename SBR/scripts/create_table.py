@@ -61,6 +61,37 @@ def round_half_up(n, decimals=0):
     multiplier = 10 ** decimals
     return math.floor(n * multiplier + 0.5) / multiplier
 
+
+def print_res():
+    for rk in ["uniform", "weighted"]:
+        if rk == "uniform":
+            print("&\multicolumn{8}{c}{Uniform Negative Training Samples} \\\\")
+        else:
+            print("&\multicolumn{8}{c}{Weighted Negative Training Samples} \\\\")
+        print("&\multicolumn{4}{c}{item:full, user:review} &\multicolumn{4}{c}{+CF} \\\\")
+        if rk in res:
+            for i in range(len(print_list_col1)):
+                k1 = print_list_col1[i]
+                k2 = print_list_col2[i]
+                if k1 in name_mapping:
+                    p = f"{name_mapping[k1]} & "
+                elif k2 in name_mapping:
+                    p = f"{name_mapping[k2]} & "
+                else:
+                    p = ""
+                if k1 in res[rk]:
+                    p += f"{' & '.join(str(round_half_up(res[rk][k1][g] * 100, 2)) for g in grps)} & "
+                else:
+                    p += f"{''.join(len(grps) * ' & ')} "
+                if k2 in res[rk]:
+                    p += f"{' & '.join(str(round_half_up(res[rk][k2][g] * 100, 2)) for g in grps)}"
+                else:
+                    p += f"{''.join(len(grps) * ' & ')} "
+
+                p += f"\\\\ \hline % {k1} {k2} "
+                print(p)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -139,69 +170,16 @@ if __name__ == "__main__":
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1 = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"]
-        print_list_col2 = ["MF-200-xavier_normal-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"
-                ]
-        for rk in ["uniform", "weighted"]:
-            if rk == "uniform":
-                print("&\multicolumn{8}{c}{Uniform Negative Training Samples} \\\\")
-            else:
-                print("&\multicolumn{8}{c}{Weighted Negative Training Samples} \\\\")
-            print("&\multicolumn{4}{c}{item:full, user:review} &\multicolumn{4}{c}{+CF} \\\\")
-            if rk in res:
-                for i in range(len(print_list_col1)):
-                    k1 = print_list_col1[i]
-                    k2 = print_list_col2[i]
-                    if k1 in name_mapping:
-                        p = f"{name_mapping[k1]} & "
-                    elif k2 in name_mapping:
-                        p = f"{name_mapping[k2]} & "
-                    else:
-                        p = ""
-                    if k1 in res:
-                        p += f"{' & '.join(str(round_half_up(res[k1][g]*100, 2)) for g in grps)} & "
-                    else:
-                        p += f"{''.join(len(grps)*' & ')} "
-                    if k2 in res:
-                        p += f"{' & '.join(str(round_half_up(res[k2][g]*100, 2)) for g in grps)}"
-                    else:
-                        p += f"{''.join(len(grps)*' & ')} "
-
-                    p += f"\\\\ \hline % {k1} {k2} "
-                    print(p)
+        print_list_col2 = ["MF-200-xavier_normal-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_csFalse_nnT_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-interaction.model_keywords_sr_srand_csT_nnT_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_chatgpt_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT-4e-05"]
+        print_res()
     else:
         print(f"\\caption{{ {m} Goodreads text rich dataset. {ng} Evaluation. }}")
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
         print_list_col1 = ["", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT-0.0004", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT-4e-05", "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT-0.0004"]
-        print_list_col2 = ["MF-200-xavier_normal-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004",  "", "", "", "" ,"", "", "", "", "", "" ,""]
+        print_list_col2 = ["MF-200-xavier_normal-0.0004", "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT-0.0004",  "", "", "", "", "", "", "", "", "", "", ""]
+        print_res()
 
-        for rk in ["uniform", "weighted"]:
-            if rk == "uniform":
-                print("&\multicolumn{8}{c}{Uniform Negative Training Samples} \\\\")
-            else:
-                print("&\multicolumn{8}{c}{Weighted Negative Training Samples} \\\\")
-            print("&\multicolumn{4}{c}{item:full, user:review} &\multicolumn{4}{c}{+CF} \\\\")
-            if rk in res:
-                for i in range(len(print_list_col1)):
-                    k1 = print_list_col1[i]
-                    k2 = print_list_col2[i]
-                    if k1 in name_mapping:
-                        p = f"{name_mapping[k1]} & "
-                    elif k2 in name_mapping:
-                        p = f"{name_mapping[k2]} & "
-                    else:
-                        p = ""
-                    if k1 in res:
-                        p += f"{' & '.join(str(round_half_up(res[k1][g]*100, 2)) for g in grps)} & "
-                    else:
-                        p += f"{''.join(len(grps)*' & ')} "
-                    if k2 in res:
-                        p += f"{' & '.join(str(round_half_up(res[k2][g]*100, 2)) for g in grps)}"
-                    else:
-                        p += f"{''.join((len(grps)-1)*' & ')} "
-
-                    p += f"\\\\ \hline % {k1} {k2} "
-                    print(p)
     print("\end{tabular}")
     print("\end{table*}")
 
