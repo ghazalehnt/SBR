@@ -204,7 +204,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             cls_tokens = token_embeddings[:, 0].unsqueeze(1)
             other_tokens = token_embeddings[:, 1:]
             # insert cf embedding after the especial CLS token:
-            concat_ids = ptorch.concat([cls_tokens, item_embed, other_tokens], dim=1)
+            concat_ids = torch.concat([cls_tokens, item_embed, other_tokens], dim=1)
             att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
             # TODO segment encoding?
             output_i = self.bert.forward(inputs_embeds=concat_ids,
