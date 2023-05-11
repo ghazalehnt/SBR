@@ -15,8 +15,6 @@ import time
 
 ITEM_ID_FIELD = "item_id"
 USER_ID_FIELD = "user_id"
-item_user_inter_text_fields = ["title", "category", "description"]
-topn = 1000
 
 
 def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
@@ -44,24 +42,29 @@ if __name__ == "__main__":
     random.seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_folder', type=str, help='path to dataset')
+    parser.add_argument('--topn', type=int, default=1000, help='path to dataset')
+    parser.add_argument('--query_fields', type=str, nargs='+', help='query_fields')
+
     args, _ = parser.parse_known_args()
     dataset_path = args.dataset_folder
     os.makedirs(join(dataset_path, "BM25_item_ranking"), exist_ok=True)
+    topn = args.topn
+    query_fields = args.query_fields
 
     # test-items to be considered query:
     to_calc_items = get_test_items(dataset_path)
     use_col = [ITEM_ID_FIELD]
-    use_col.extend(item_user_inter_text_fields)
+    use_col.extend(query_fields)
     item_info = pd.read_csv(os.path.join(dataset_path, "items.csv"), dtype=str, usecols=use_col)
     item_info = item_info.fillna("")
     print("load item meta data")
-    for col in item_user_inter_text_fields:
+    for col in query_fields:
         item_info[col] = item_info[col].apply(
             lambda x: ", ".join(
                 x.replace("[", "").replace("]", "").replace("'", "").replace('"', "").replace("  ", " ").split(","))
         )
-    item_info['text'] = item_info[item_user_inter_text_fields].agg('. '.join, axis=1)
-    item_info = item_info.drop(columns=item_user_inter_text_fields)
+    item_info['text'] = item_info[query_fields].agg('. '.join, axis=1)
+    item_info = item_info.drop(columns=query_fields)
     tokenizer = get_tokenizer("basic_english")
     item_info = Dataset.from_pandas(item_info)
     item_info = item_info.map(tokenize_function_torchtext, batched=True,
