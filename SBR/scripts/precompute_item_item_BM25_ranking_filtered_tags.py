@@ -27,7 +27,7 @@ def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
 
 
 def rank_items(item_id, query):
-    if os.path.exists(join(dataset_path, "BM25_item_ranking_filtered_by_tags" ,f"{item_id}.pkl")):
+    if os.path.exists(join(dataset_path, "BM25_item_ranking_filtered_by_tags", f"{item_id}.pkl")):
         return
     f = open(join(dataset_path, "BM25_item_ranking_filtered_by_tags", f"{item_id}.pkl"), 'wb')
     candidate_doc_ids = []
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     dataset_path = args.dataset_folder
     os.makedirs(join(dataset_path, "BM25_item_ranking_filtered_by_tags"), exist_ok=True)
 
+    # test-items to be considered query:
     to_calc_items = get_test_items(dataset_path)
     use_col = [ITEM_ID_FIELD, tag_field]
     use_col.extend(item_user_inter_text_fields)
@@ -80,7 +81,6 @@ if __name__ == "__main__":
     print("load item meta data")
     tag_items, item_tags = get_items_by_genre()
     print("genre items loaded")
-
     for col in item_user_inter_text_fields:
         item_info[col] = item_info[col].apply(
             lambda x: ", ".join(
@@ -95,14 +95,16 @@ if __name__ == "__main__":
     item_info = item_info.remove_columns(['text'])
     item_info = item_info.to_pandas()
 
+    # pool of items: indexed:
     index = BM25Okapi(item_info['tokenized_text'])
-    doc_ids = {item_id:i for item_id, i in zip(item_info[ITEM_ID_FIELD], range(len(item_info[ITEM_ID_FIELD])))}
+    doc_ids = {item_id: i for item_id, i in zip(item_info[ITEM_ID_FIELD], range(len(item_info[ITEM_ID_FIELD])))}
     print("BM25 index created")
 
     start = time.time()
     pool = mp.Pool(mp.cpu_count())
 
-    shuffled_list = [(item_id, item_text) for item_id, item_text in zip(item_info["item_id"], item_info["tokenized_text"]) if item_id in to_calc_items]
+    shuffled_list = [(item_id, item_text) for item_id, item_text in
+                     zip(item_info["item_id"], item_info["tokenized_text"]) if item_id in to_calc_items]
     random.shuffle(shuffled_list)
 
     pool.starmap(rank_items, [item for item in shuffled_list])
