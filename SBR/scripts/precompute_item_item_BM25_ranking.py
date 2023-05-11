@@ -25,9 +25,9 @@ def tokenize_function_torchtext(samples, tokenizer=None, doc_desc_field="text"):
 
 
 def rank_items(item_id, query):
-    if os.path.exists(join(dataset_path, "BM25_item_ranking" ,f"{item_id}.pkl")):
+    if os.path.exists(join(dataset_path, "BM25_item_ranking", f"{item_id}.pkl")):
         return
-    f = open(join(dataset_path, "BM25_item_ranking" ,f"{item_id}.pkl"), 'wb')
+    f = open(join(dataset_path, "BM25_item_ranking", f"{item_id}.pkl"), 'wb')
     document_scores = index.get_scores(query)
     document_scores = np.argsort(document_scores)[::-1]
     pickle.dump([doc_ids[doc] for doc in document_scores[:topn]], f)
@@ -48,6 +48,7 @@ if __name__ == "__main__":
     dataset_path = args.dataset_folder
     os.makedirs(join(dataset_path, "BM25_item_ranking"), exist_ok=True)
 
+    # test-items to be considered query:
     to_calc_items = get_test_items(dataset_path)
     use_col = [ITEM_ID_FIELD]
     use_col.extend(item_user_inter_text_fields)
@@ -68,6 +69,7 @@ if __name__ == "__main__":
     item_info = item_info.remove_columns(['text'])
     item_info = item_info.to_pandas()
 
+    # pool of items: indexed:
     index = BM25Okapi(item_info['tokenized_text'])
     doc_ids = list(item_info[ITEM_ID_FIELD])
     print("BM25 index created")
@@ -80,6 +82,6 @@ if __name__ == "__main__":
     random.shuffle(shuffled_list)
 
     pool.starmap(rank_items, [item for item in shuffled_list])
-    
+
     pool.close()
     print(f"finished {time.time() - start} seconds")
