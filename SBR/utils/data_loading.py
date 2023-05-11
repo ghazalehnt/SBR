@@ -727,6 +727,8 @@ def load_split_dataset(config, for_precalc=False):
             raise ValueError("user ids differ in validation file and validation neg file")
 
         split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
+        if 'rating' in split_datasets['validation']:
+           split_datasets['validation']['rating'] = split_datasets['validation']['rating'].fillna(0)
         split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
     if not for_precalc and config['test_neg_sampling_strategy'].startswith("f:"):
@@ -744,6 +746,8 @@ def load_split_dataset(config, for_precalc=False):
             raise ValueError("user ids differ in test file and test neg file")
 
         split_datasets['test'] = pd.concat([split_datasets['test'], negs])
+        if 'rating' in split_datasets['test']:
+            split_datasets['test']['rating'] = split_datasets['test']['rating'].fillna(0)
         split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
     for split in split_datasets.keys():
