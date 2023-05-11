@@ -15,6 +15,15 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         self.append_id_ffn = model_config['append_id_ffn'] if "append_id_ffn" in model_config else False
         self.append_embedding_ffn = model_config["append_embedding_ffn"] if "append_embedding_ffn" in model_config else False
         self.append_embedding_after_ffn = model_config["append_embedding_after_ffn"] if "append_embedding_after_ffn" in model_config else False
+        self.append_embedding_to_text = model_config["append_embedding_to_text"] if "append_embedding_to_text" in model_config else False
+        self.use_cf = model_config["use_CF"] if "use_CF" in model_config else False
+
+        if (self.append_embedding_ffn and self.append_embedding_after_ffn) or \
+           (self.append_embedding_ffn and self.append_embedding_to_text)   or \
+           (self.append_embedding_to_text and self.append_embedding_after_ffn):
+            raise ValueError("only one of the append embeddings can be given")
+        if self.use_cf and self.append_embedding_to_text:
+            raise ValueError("either pretrained cf or to-be-learned embedding can be input to bert")
 
         if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
             raise ValueError("max chunk should be set to 1 ")
@@ -37,7 +46,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             dim1item += 1
             self.user_ids_normalized = torch.nn.Embedding.from_pretrained(((torch.tensor(users[INTERNAL_USER_ID_FIELD])+1) / len(users)).to(self.device).unsqueeze(1))
             self.item_ids_normalized = torch.nn.Embedding.from_pretrained(((torch.tensor(items[INTERNAL_ITEM_ID_FIELD])+1) / len(items)).to(self.device).unsqueeze(1))
-        if self.append_embedding_ffn or self.append_embedding_after_ffn:
+        if self.append_embedding_ffn or self.append_embedding_after_ffn or self.append_embedding_to_text:
             if self.append_embedding_ffn:
                 dim1user += model_config["user_embedding"]
                 dim1item += model_config["item_embedding"]
@@ -73,7 +82,6 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                     param.requires_grad = False
         self.bert_embeddings = self.bert.get_input_embeddings()
         BERT_DIM = self.bert_embeddings.embedding_dim
-        self.use_cf = model_config["use_CF"]
         if self.use_cf:
             CF_model_weights = torch.load(model_config['CF_model_path'], map_location="cpu")['model_state_dict']
             embedding_dim = CF_model_weights['user_embedding.weight'].shape[-1]
@@ -131,17 +139,21 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         #     for uid, ui in zip(user_ids, input_ids):
         #         user_text.append(" ".join(self.tokenizer.convert_ids_to_tokens(ui)))
 
-        if self.use_cf is True:
-            cf_embeds = self.user_embedding_CF(user_ids)
-            cf_embeds = cf_embeds.to(self.device)
-            if self.user_embedding_CF.embedding_dim < BERT_DIM:
-                cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM-cf_embeds.shape[1]), device=self.device)], dim=1)
-            cf_embeds = cf_embeds.unsqueeze(1)
+        if self.use_cf or self.append_embedding_to_text:
+            if self.use_cf:
+                user_embed = self.user_embedding_CF(user_ids)
+            elif self.append_embedding_to_text:
+                user_embed = self.user_embedding(user_ids)
+            user_embed = user_embed.to(self.device)
+            if user_embed.shape[1] < BERT_DIM:
+                user_embed = torch.concat([user_embed, torch.zeros((user_embed.shape[0], BERT_DIM-user_embed.shape[1]), device=self.device)], dim=1)
+            user_embed = user_embed.unsqueeze(1)
+
             token_embeddings = self.bert_embeddings.forward(input_ids)
             cls_tokens = token_embeddings[:, 0].unsqueeze(1)
             other_tokens = token_embeddings[:, 1:]
             # insert cf embedding after the especial CLS token:
-            concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
+            concat_ids = torch.concat([cls_tokens, user_embed, other_tokens], dim=1)
             att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=self.device), att_mask], dim=1)
             output_u = self.bert.forward(inputs_embeds=concat_ids,
                                          attention_mask=att_mask)
@@ -178,17 +190,21 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
 
         input_ids = batch['item_input_ids']
         att_mask = batch['item_attention_mask']
-        if self.use_cf is True:
-            cf_embeds = self.item_embedding_CF(item_ids)
-            cf_embeds = cf_embeds.to(self.device)
-            if self.item_embedding_CF.embedding_dim < BERT_DIM:
-                cf_embeds = torch.concat([cf_embeds, torch.zeros((cf_embeds.shape[0], BERT_DIM - cf_embeds.shape[1]), device=cf_embeds.device)], dim=1)
-            cf_embeds = cf_embeds.unsqueeze(1)
+        if self.use_cf or self.append_embedding_to_text:
+            if self.use_cf:
+                item_embed = self.item_embedding_CF(item_ids)
+            elif self.append_embedding_to_text:
+                item_embed = self.item_embedding(item_ids)
+            item_embed = item_embed.to(self.device)
+            if item_embed.shape[1] < BERT_DIM:
+                item_embed = torch.concat(
+                    [item_embed, torch.zeros((item_embed.shape[0], BERT_DIM - item_embed.shape[1]), device=self.device)], dim=1)
+            item_embed = item_embed.unsqueeze(1)
             token_embeddings = self.bert_embeddings.forward(input_ids)
             cls_tokens = token_embeddings[:, 0].unsqueeze(1)
             other_tokens = token_embeddings[:, 1:]
             # insert cf embedding after the especial CLS token:
-            concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
+            concat_ids = ptorch.concat([cls_tokens, item_embed, other_tokens], dim=1)
             att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
             # TODO segment encoding?
             output_i = self.bert.forward(inputs_embeds=concat_ids,
