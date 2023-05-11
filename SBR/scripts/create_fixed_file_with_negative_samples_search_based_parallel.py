@@ -88,7 +88,7 @@ if __name__ == "__main__":
         zip(test_dataset[ITEM_ID_FIELD], test_dataset[USER_ID_FIELD])])
     print(time.time() - start)
 
-    with open(os.path.join(dataset_path, f'test_neg_SB_BM25_{num_neg_samples}.csv'), 'w') as f:
+    with open(os.path.join(dataset_path, f'test_neg_SB_BM25_{num_neg_samples}_{ranking_folder}.csv'), 'w') as f:
         writer = csv.writer(f)
         writer.writerow([USER_ID_FIELD, ITEM_ID_FIELD, 'label', 'ref_item'])
         for r in results:
