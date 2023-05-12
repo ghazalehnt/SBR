@@ -70,6 +70,13 @@ def round_half_up(n, decimals=0):
     return math.floor(n * multiplier + 0.5) / multiplier
 
 
+def wrap_the_num(num, i, group, group_inds):
+    if group_inds[group][i]:
+        return f"\\textbf{{{num}}}"
+    else:
+        return num
+
+
 def print_res():
     for rk in ["uniform", "weighted"]:
         if rk == "uniform":
@@ -78,6 +85,18 @@ def print_res():
             print("&\multicolumn{8}{c}{Weighted Negative Training Samples} \\\\")
         print("&\multicolumn{4}{c}{item:full, user:review} &\multicolumn{4}{c}{+CF} \\\\")
         if rk in res and rk in print_list_col1:
+            ###
+            inds_per_group1 = dict()
+            for g in grps:
+                nums_per_group = [round_half_up(res[rk][print_list_col1[rk][i]][g] * 100, 2) if print_list_col1[rk][i] in res[rk] else -1 for i in range(len(print_list_col1[rk]))]
+                max_per_group = max(nums_per_group)
+                inds_per_group1[g] = [x == max_per_group for x in nums_per_group]
+            inds_per_group2 = dict()
+            for g in grps:
+                nums_per_group = [round_half_up(res[rk][print_list_col2[rk][i]][g] * 100, 2) if print_list_col2[rk][i] in res[rk] else -1 for i in range(len(print_list_col1[rk]))]
+                max_per_group = max(nums_per_group)
+                inds_per_group2[g] = [x == max_per_group for x in nums_per_group]
+            ###
             for i in range(len(print_list_col1[rk])):
                 k1 = print_list_col1[rk][i]
                 k2 = print_list_col2[rk][i]
@@ -88,13 +107,13 @@ def print_res():
                 else:
                     p = ""
                 if k1 in res[rk]:
-                    p += f"{' & '.join(str(round_half_up(res[rk][k1][g] * 100, 2)) for g in grps)} & "
+                    p += f"{' & '.join(wrap_the_num(str(round_half_up(res[rk][k1][g] * 100, 2)), i, g, inds_per_group1) for g in grps)} & "
                 else:
                     p += f"{''.join(len(grps) * ' & ')} "
                 if k2 in res[rk]:
-                    p += f"{' & '.join(str(round_half_up(res[rk][k2][g] * 100, 2)) for g in grps)}"
+                    p += f"{' & '.join(wrap_the_num(str(round_half_up(res[rk][k2][g] * 100, 2)), i, g, inds_per_group2) for g in grps)}"
                 else:
-                    p += f"{''.join((len(grps)-1) * ' & ')} "
+                    p += f"{''.join((len(grps) - 1) * ' & ')} "
 
                 p += f"\\\\ \hline % {k1} {k2} "
                 print(p)
