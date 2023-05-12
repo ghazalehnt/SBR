@@ -126,6 +126,10 @@ if __name__ == "__main__":
             res_key = "uniform"
             if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
                 res_key = "weighted"
+           
+            # only get the runs with bs=256
+            if config['dataset']['train_batch_size'] != 256:
+                continue
 
             if config['model']['name'].startswith("MF_ffn"):
                 continue
