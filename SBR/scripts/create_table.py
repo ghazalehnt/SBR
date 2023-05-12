@@ -306,10 +306,10 @@ if __name__ == "__main__":
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,0.0004"]
         print_list_col1["weighted"] = ["",
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,"
-                                       # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,"
-                                       # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,"
+                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,4e-05"
+                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,4e-05"
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT,"
-                                       # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT,"
+                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT,4e-05"
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT,"
@@ -318,7 +318,7 @@ if __name__ == "__main__":
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,"
                                       ]
-        print_list_col2["weighted"] = ["MF-200-xavier_normal,0.0004",
+        print_list_col2["weighted"] = ["MF-200-xavier_normal,0.0004", "", "", ""
                                        # "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,"
