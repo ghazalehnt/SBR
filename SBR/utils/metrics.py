@@ -13,6 +13,7 @@ ranking_metrics = [
     "ndcg_cut_10",
     "ndcg_cut_20",
     "P_1",
+    "P_5",
     "recip_rank"
 ]
 
@@ -42,6 +43,7 @@ def calculate_ranking_metrics_macro_avg_over_qid(gt, pd, relevance_level,
         given_ranking_metrics = ranking_metrics
     ndcg_metrics = [m for m in given_ranking_metrics if m.startswith("ndcg_")]
     results = calculate_ndcg(gt, pd, ndcg_metrics)
+    results["auc"] = get_auc(gt, pd)
     if calc_pytrec:
         gt = {k: {k2: int(v2) for k2, v2 in v.items()} for k, v in gt.items()}
         r2 = calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, given_ranking_metrics)
@@ -53,7 +55,6 @@ def calculate_ranking_metrics_macro_avg_over_qid(gt, pd, relevance_level,
     for m in results:
         assert len(results[m]) == len(gt)
         results[m] = np.array(results[m]).mean(axis=0).tolist()
-    results["auc"] = get_auc(gt, pd)
     return results
 
 
@@ -63,6 +64,7 @@ def calculate_ranking_metrics_detailed(gt, pd, relevance_level,
         given_ranking_metrics = ranking_metrics
     ndcg_metrics = [m for m in given_ranking_metrics if m.startswith("ndcg_")]
     results = calculate_ndcg(gt, pd, ndcg_metrics)
+    results["auc"] = get_auc(gt, pd)
     if calc_pytrec:
         gt = {k: {k2: int(v2) for k2, v2 in v.items()} for k, v in gt.items()}
         r2 = calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, given_ranking_metrics)
@@ -72,6 +74,18 @@ def calculate_ranking_metrics_detailed(gt, pd, relevance_level,
             else:
                 results[m] = v
     return results
+
+
+def get_auc(true, pred):
+    scores = []
+    for k, v in pred.items():
+        utrue = []
+        upred = []
+        for kk, vv in v.items():
+            utrue.append(true[k][kk])
+            upred.append(vv)
+        scores.append(roc_auc_score(utrue, upred))
+    return scores
 
 
 def calculate_ranking_metrics_pytreceval(gt, pd, relevance_level, given_ranking_metrics):
@@ -120,17 +134,6 @@ def calculate_ndcg(gt, pd, given_ranking_metrics):
             raise NotImplementedError("other metrics not implemented")
     return per_qid_score
 
-
-def get_auc(true, pred):
-    scores = []
-    for k, v in pred.items():
-        utrue = []
-        upred = []
-        for kk, vv in v.items():
-            utrue.append(true[k][kk])
-            upred.append(vv)
-        scores.append(roc_auc_score(utrue, upred))
-    return sum(scores) / len(scores)
 
 def log_results(ground_truth, prediction_scores, internal_user_ids, internal_items_ids,
                 external_users, external_items, output_path_ground_truth, output_path_predicted, output_path_log=None):
