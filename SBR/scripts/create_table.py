@@ -33,6 +33,18 @@ metric_name_map = {
     "auc": "AUC",
     "P_1": "P@1",
     "P_5": "P@5",
+    "micro_ndcg_cut_5": "Micro NDCG@5",
+    "micro_ndcg_cut_10": "Micro NDCG@10",
+    "micro_recip_rank": "Micro MRR",
+    "micro_auc": "Micro AUC",
+    "micro_P_1": "Micro P@1",
+    "micro_P_5": "Micro P@5",
+    "macro_ndcg_cut_5": "Macro NDCG@5",
+    "macro_ndcg_cut_10": "Macro NDCG@10",
+    "macro_recip_rank": "Macro MRR",
+    "macro_auc": "Macro AUC",
+    "macro_P_1": "Macro P@1",
+    "macro_P_5": "Macro P@5",
 }
 
 name_mapping = {
@@ -133,7 +145,14 @@ if __name__ == "__main__":
     m = args.metric
     dir=args.dir
     resfile = args.resfile
-    ng = "Profile-based" if 'genres' in resfile else 'Standard'
+    if 'standard' in resfile:
+        ng = "Standard"
+    elif 'genres' in resfile:
+        ng = "Profile-based"
+    elif 'SB_BM25' in resfile:
+        ng = "Search-based"
+    else:
+        raise ValueError("resfile which neg strategy ?")
     grps = ["ALL", "1-5", "6-50", "51+"]
     if "ratios" in resfile:
         grps = ["ALL", "sporadic", "regular", "bibliophilic"]
