@@ -48,6 +48,7 @@ metric_name_map = {
 }
 
 name_mapping = {
+    "Recwalk": "Recwalk",
     "MF-200-xavier_normal": "CF",
 
     "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT": "CUP$_{rand}$",
@@ -159,12 +160,12 @@ if __name__ == "__main__":
     dirs = os.listdir(dir)
     res = {"uniform": defaultdict(), "weighted": defaultdict()}
     for d in dirs:
-        if os.path.exists(join(dir, d, "config.json")) and os.path.exists(join(dir, d, resfile)):
+        if os.path.exists(join(dir, d, "config.json")):
             config = json.load(open(join(dir, d, "config.json"), 'r'))
             res_key = "uniform"
             if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
                 res_key = "weighted"
-           
+
             # only get the runs with bs=256
             if config['dataset']['train_batch_size'] != 256:
                 continue
@@ -198,6 +199,10 @@ if __name__ == "__main__":
                 print(d)
                 print(config['model']['name'])
                 exit()
+            n = f"{n},{config['trainer']['lr']}"
+        elif d.startswith("recwalk"):
+            n = "Recwalk"
+        if os.path.exists(join(dir, d, resfile)):
             if gr is None:
                 g_res = defaultdict()
             for line in open(join(dir, d, resfile), 'r'):
@@ -208,9 +213,10 @@ if __name__ == "__main__":
                             g_res[g] = r[g][m]
 
             if gr is None:
-                res[res_key][f"{n},{config['trainer']['lr']}"] = g_res
+                res[res_key][n] = g_res
             else:
-                res[res_key][f"{n},{config['trainer']['lr']}"] = g_res[gr]
+                res[res_key][n] = g_res[gr]
+
 
     # print(res.keys())
     print("\\begin{table*}[tbh]")
@@ -220,7 +226,7 @@ if __name__ == "__main__":
         print(f"\\caption{{ {metric_name_map[m]} Amazon text rich dataset. {ng} Evaluation. }}")
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
-        print_list_col1["uniform"] = ["",
+        print_list_col1["uniform"] = ["", "",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT,0.0004",
@@ -233,7 +239,8 @@ if __name__ == "__main__":
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT,4e-05"]
-        print_list_col2["uniform"] = ["MF-200-xavier_normal,4e-05",
+        print_list_col2["uniform"] = ["Recwalk",
+                                      "MF-200-xavier_normal,4e-05",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_SBERTFULL_csT_nnT_it-item.category-id_csT_nnT,0.0004",
@@ -278,7 +285,7 @@ if __name__ == "__main__":
         print(f"\\caption{{ {metric_name_map[m]} Goodreads text rich dataset. {ng} Evaluation. }}")
         print("\\begin{tabular}{|l|l|l|l|l||l|l|l|l|}")
         print("Method & ALL & Sporadic & Regular & Bibliophilic & ALL & Sporadic & Regular & Bibliophilic \\\\ \hline")
-        print_list_col1["uniform"] = ["",
+        print_list_col1["uniform"] = ["", "",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,0.0004",
@@ -291,7 +298,8 @@ if __name__ == "__main__":
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,4e-05",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,0.0004"]
-        print_list_col2["uniform"] = ["MF-200-xavier_normal,0.0004",
+        print_list_col2["uniform"] = ["Recwalk",
+                                      "MF-200-xavier_normal,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,0.0004",
