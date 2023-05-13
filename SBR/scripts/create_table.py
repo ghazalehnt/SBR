@@ -201,7 +201,7 @@ if __name__ == "__main__":
                 exit()
             n = f"{n},{config['trainer']['lr']}"
         elif d.startswith("recwalk"):
-            n = "Recwalk"
+            n = "Recwalk,"
         if os.path.exists(join(dir, d, resfile)):
             if gr is None:
                 g_res = defaultdict()
@@ -239,7 +239,7 @@ if __name__ == "__main__":
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_SBERTFULL_vocab_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_1_vocab_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-is-ir_tf-idf_3_vocab_it-item.category-id_csT_nnT,4e-05"]
-        print_list_col2["uniform"] = ["Recwalk",
+        print_list_col2["uniform"] = ["Recwalk,",
                                       "MF-200-xavier_normal,4e-05",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_srand_csT_nnT_it-item.category-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-is-ir_sidf_csT_nnT_it-item.category-id_csT_nnT,0.0004",
@@ -298,7 +298,7 @@ if __name__ == "__main__":
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,4e-05",
                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,0.0004"]
-        print_list_col2["uniform"] = ["Recwalk",
+        print_list_col2["uniform"] = ["Recwalk,",
                                       "MF-200-xavier_normal,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,0.0004",
@@ -313,20 +313,20 @@ if __name__ == "__main__":
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,0.0004",
                                       "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,0.0004"]
         print_list_col1["weighted"] = ["",
-                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,4e-05", # 24hto-test
+                                       #"VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,4e-05", # 24hto-test
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,4e-05",
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,4e-05",
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_csFalse_nnT_it-ig-id_csT_nnT,4e-05",
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_csFalse_nnT_it-ig-id_csT_nnT,4e-05",
-                                       "VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT,4e-05", # 24hto-test
+                                       #"VanillaBERT_ffn_endtoend-200-200-200-200-interaction.model_keywords_r_srand_csT_nnT_it-ig-id_csT_nnT,4e-05", # 24hto-test
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_chatgpt_it-ig-id_csT_nnT,4e-05",
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_srand_vocab_it-ig-id_csT_nnT,4e-05",
-                                       "VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT,4e-05", # 24htotest
+                                       #"VanillaBERT_ffn_endtoend-200-200-200-200-ir_sidf_vocab_it-ig-id_csT_nnT,4e-05", # 24htotest
                                        "VanillaBERT_ffn_endtoend-200-200-200-200-ir_SBERTFULL_vocab_it-ig-id_csT_nnT,4e-05",
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_1_vocab_it-ig-id_csT_nnT,4e-05" not done
                                        # "VanillaBERT_ffn_endtoend-200-200-200-200-ir_tf-idf_3_vocab_it-ig-id_csT_nnT,4e-05" not done
                                       ]
-        print_list_col2["weighted"] = ["MF-200-xavier_normal,0.0004", "", "", ""
+        print_list_col2["weighted"] = ["MF-200-xavier_normal,0.0004", "", "", "", "", "",  "", "",# "", "", "",
                                        # "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_srand_csT_nnT_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_sidf_csT_nnT_it-ig-id_csT_nnT,"
                                        # "VanillaBERT_ffn_endtoend-embafter-200-200-200-200-200-200-ir_SBERTFULL_csT_nnT_it-ig-id_csT_nnT,"
