@@ -160,62 +160,63 @@ if __name__ == "__main__":
     dirs = os.listdir(dir)
     res = {"uniform": defaultdict(), "weighted": defaultdict()}
     for d in dirs:
-        if os.path.exists(join(dir, d, "config.json")):
-            config = json.load(open(join(dir, d, "config.json"), 'r'))
-            res_key = "uniform"
-            if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
-                res_key = "weighted"
-
-            # only get the runs with bs=256
-            if config['dataset']['train_batch_size'] != 256:
-                continue
-
-            if config['model']['name'].startswith("MF_ffn"):
-                continue
-            elif config['model']['name'].startswith("MF"):
-                n = f"{config['model']['name']}-{config['model']['embedding_dim']}-{config['model']['embed_init']}"
-            elif config['model']['name'].startswith("VanillaBERT_ffn_endtoend"):
-                temp1 = config['dataset']['user_text_file_name']
-                for s, v in shorten_strategies.items():
-                    temp1 = temp1.replace(s, v)
-                for s, v in shorten_names.items():
-                    temp1 = temp1.replace(s, v)
-                temp2 = config['dataset']['item_text_file_name']
-                for s, v in shorten_strategies.items():
-                    temp2 = temp2.replace(s, v)
-                for s, v in shorten_names.items():
-                    temp2 = temp2.replace(s, v)
-                temp3 = '-'.join([str(s) for s in config['model']['user_k']])
-                temp4 = '-'.join([str(s) for s in config['model']['item_k']])
-                n = f"{config['model']['name']}-{temp3}-{temp4}-" \
-                    f"{temp1}_{temp2}"
-                if 'append_embedding_ffn' in config['model'] and config['model']['append_embedding_ffn'] == True:
-                    n = f"{config['model']['name']}-emb-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
-                    f"{temp3}-{temp4}-{temp1}_{temp2}"
-                elif 'append_embedding_after_ffn' in config['model'] and config['model']['append_embedding_after_ffn'] == True:
-                    n = f"{config['model']['name']}-embafter-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
-                    f"{temp3}-{temp4}-{temp1}_{temp2}"
-            else:
-                print(d)
-                print(config['model']['name'])
-                exit()
-            n = f"{n},{config['trainer']['lr']}"
-        elif d.startswith("recwalk"):
-            n = "Recwalk,"
         if os.path.exists(join(dir, d, resfile)):
-            if gr is None:
-                g_res = defaultdict()
-            for line in open(join(dir, d, resfile), 'r'):
-                if len(line.strip()) > 0:
-                    r = json.loads(line.replace("\n", "").strip())
-                    for g in grps:
-                        if g in r:
-                            g_res[g] = r[g][m]
+            if os.path.exists(join(dir, d, "config.json")):
+                config = json.load(open(join(dir, d, "config.json"), 'r'))
+                res_key = "uniform"
+                if 'random_w_CF' in config['dataset']['training_neg_sampling_strategy']:
+                    res_key = "weighted"
 
-            if gr is None:
-                res[res_key][n] = g_res
-            else:
-                res[res_key][n] = g_res[gr]
+                # only get the runs with bs=256
+                if config['dataset']['train_batch_size'] != 256:
+                    continue
+
+                if config['model']['name'].startswith("MF_ffn"):
+                    continue
+                elif config['model']['name'].startswith("MF"):
+                    n = f"{config['model']['name']}-{config['model']['embedding_dim']}-{config['model']['embed_init']}"
+                elif config['model']['name'].startswith("VanillaBERT_ffn_endtoend"):
+                    temp1 = config['dataset']['user_text_file_name']
+                    for s, v in shorten_strategies.items():
+                        temp1 = temp1.replace(s, v)
+                    for s, v in shorten_names.items():
+                        temp1 = temp1.replace(s, v)
+                    temp2 = config['dataset']['item_text_file_name']
+                    for s, v in shorten_strategies.items():
+                        temp2 = temp2.replace(s, v)
+                    for s, v in shorten_names.items():
+                        temp2 = temp2.replace(s, v)
+                    temp3 = '-'.join([str(s) for s in config['model']['user_k']])
+                    temp4 = '-'.join([str(s) for s in config['model']['item_k']])
+                    n = f"{config['model']['name']}-{temp3}-{temp4}-" \
+                        f"{temp1}_{temp2}"
+                    if 'append_embedding_ffn' in config['model'] and config['model']['append_embedding_ffn'] == True:
+                        n = f"{config['model']['name']}-emb-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
+                        f"{temp3}-{temp4}-{temp1}_{temp2}"
+                    elif 'append_embedding_after_ffn' in config['model'] and config['model']['append_embedding_after_ffn'] == True:
+                        n = f"{config['model']['name']}-embafter-{config['model']['user_embedding']}-{config['model']['item_embedding']}-" \
+                        f"{temp3}-{temp4}-{temp1}_{temp2}"
+                else:
+                    print(d)
+                    print(config['model']['name'])
+                    exit()
+                n = f"{n},{config['trainer']['lr']}"
+            elif d.startswith("recwalk"):
+                n = "Recwalk,"
+
+        if gr is None:
+            g_res = defaultdict()
+        for line in open(join(dir, d, resfile), 'r'):
+            if len(line.strip()) > 0:
+                r = json.loads(line.replace("\n", "").strip())
+                for g in grps:
+                    if g in r:
+                        g_res[g] = r[g][m]
+
+        if gr is None:
+            res[res_key][n] = g_res
+        else:
+            res[res_key][n] = g_res[gr]
 
 
     # print(res.keys())
