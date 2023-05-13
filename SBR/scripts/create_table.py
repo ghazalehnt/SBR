@@ -204,19 +204,19 @@ if __name__ == "__main__":
             elif d.startswith("recwalk"):
                 n = "Recwalk,"
 
-        if gr is None:
-            g_res = defaultdict()
-        for line in open(join(dir, d, resfile), 'r'):
-            if len(line.strip()) > 0:
-                r = json.loads(line.replace("\n", "").strip())
-                for g in grps:
-                    if g in r:
-                        g_res[g] = r[g][m]
+            if gr is None:
+                g_res = defaultdict()
+            for line in open(join(dir, d, resfile), 'r'):
+                if len(line.strip()) > 0:
+                    r = json.loads(line.replace("\n", "").strip())
+                    for g in grps:
+                        if g in r:
+                            g_res[g] = r[g][m]
 
-        if gr is None:
-            res[res_key][n] = g_res
-        else:
-            res[res_key][n] = g_res[gr]
+            if gr is None:
+                res[res_key][n] = g_res
+            else:
+                res[res_key][n] = g_res[gr]
 
 
     # print(res.keys())
