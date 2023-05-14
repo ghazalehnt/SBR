@@ -721,6 +721,8 @@ def load_split_dataset(config, for_precalc=False):
         negs = negs.drop(columns=["user_id", "item_id"])
         if "ref_item" in negs.columns:
             negs = negs.drop(columns=["ref_item"])
+            print(f"number of test samples pos: {len(split_datasets['test'])} - neg (before drop dup): {len(negs)}")
+            negs = negs.drop_duplicates()
         # sanity check:
         print(f"number of validation samples pos: {len(split_datasets['validation'])} - neg: {len(negs)}")
         if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['validation'][INTERNAL_USER_ID_FIELD]):
@@ -740,6 +742,8 @@ def load_split_dataset(config, for_precalc=False):
         negs = negs.drop(columns=["user_id", "item_id"])
         if "ref_item" in negs.columns:
             negs = negs.drop(columns=["ref_item"])
+            print(f"number of test samples pos: {len(split_datasets['test'])} - neg (before drop dup): {len(negs)}")
+            negs = negs.drop_duplicates()
         # sanity check:
         print(f"number of test samples pos: {len(split_datasets['test'])} - neg: {len(negs)}")
         if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['test'][INTERNAL_USER_ID_FIELD]):
