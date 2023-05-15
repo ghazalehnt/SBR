@@ -149,7 +149,7 @@ def log_results(ground_truth, prediction_scores, internal_user_ids, internal_ite
         gt[str(user_ids[i])][str(item_ids[i])] = float(ground_truth[i])
         pd[str(user_ids[i])][str(item_ids[i])] = float(prediction_scores[i])
     json.dump({"predicted": pd}, open(output_path_predicted, 'w'))
-    json.dump({"ground_truth": gt}, open(output_path_ground_truth, 'w'))
+    # json.dump({"ground_truth": gt}, open(output_path_ground_truth, 'w'))
     cnt = 0
     if output_path_log is not None and 'text' in ex_users.columns:
         with open(output_path_log, "w") as f:
