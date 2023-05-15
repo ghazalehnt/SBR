@@ -40,6 +40,8 @@ class BertSignleFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             for module in freeze_modules:
                 for param in module.parameters():
                     param.requires_grad = False
+        else:
+            self.bert.requires_grad_(False)
         self.bert_embeddings = self.bert.get_input_embeddings()
         BERT_DIM = self.bert_embeddings.embedding_dim
         self.use_cf = model_config["use_CF"]
