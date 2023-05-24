@@ -33,7 +33,7 @@ def tokenize_function_torchtext(examples, tokenizer, field, vocab):
     return examples
 
 
-def tokenize_function_many_chunks(examples, tokenizer, field, max_length, max_num_chunks, padding):
+def tokenize_function_many_chunks(examples, tokenizer, field, max_length, padding):
     result = tokenizer(
         examples[field],
         truncation=True,
@@ -46,9 +46,8 @@ def tokenize_function_many_chunks(examples, tokenizer, field, max_length, max_nu
     examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
     examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
     for i, j in zip(sample_map, range(len(result['input_ids']))):
-        if max_num_chunks is None or len(examples['chunks_input_ids'][i]) < max_num_chunks:
-            examples['chunks_input_ids'][i].append(result['input_ids'][j])
-            examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
+        examples['chunks_input_ids'][i].append(result['input_ids'][j])
+        examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
     return examples
 
 
@@ -78,21 +77,37 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
         padding_token = tokenizer.pad_token_id
         return_padding_token = tokenizer.pad_token_id
         if 'text' in user_info.column_names:
-            user_info = user_info.map(tokenize_function, batched=True,
+            if for_precalc:
+                user_info = user_info.map(tokenize_function_many_chunks, batched=True,
+                                          fn_kwargs={"tokenizer": tokenizer, "field": 'text',
+                                                     # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
+                                                     "max_length": config["user_chunk_size"],
+                                                     "padding": False
+                                                     })
+            else:
+                user_info = user_info.map(tokenize_function, batched=True,
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                  # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
                                                  "max_length": config["user_chunk_size"],
                                                  # "max_num_chunks": config['max_num_chunks_user'] if "max_num_chunks_user" in config else None,
-                                                 "padding": False  # TODO should be fixed later for more chunks ...  to pad correctly
+                                                 "padding": False
                                                  })
             user_info = user_info.remove_columns(['text'])
         if 'text' in item_info.column_names:
-            item_info = item_info.map(tokenize_function, batched=True,
+            if for_precalc:
+                item_info = item_info.map(tokenize_function_many_chunks, batched=True,
+                                          fn_kwargs={"tokenizer": tokenizer, "field": 'text',
+                                                     # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
+                                                     "max_length": config["item_chunk_size"],
+                                                     "padding": False
+                                                     })
+            else:
+                item_info = item_info.map(tokenize_function, batched=True,
                                       fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                  # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
                                                  "max_length": config["item_chunk_size"],
                                                  # "max_num_chunks": config['max_num_chunks_item'] if "max_num_chunks_item" in config else None,
-                                                 "padding": False # TODO should be fixed later for more chunks ...  to pad correctly
+                                                 "padding": False
                                                  })
             item_info = item_info.remove_columns(['text'])
     elif word_vector_model is not None and config["load_tokenized_text_in_batch"] is True:
@@ -220,7 +235,6 @@ class CollateRepresentationBuilder(object):
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
         ret = {}
-        raise NotImplementedError("redo next:")
         for col in ["chunks_input_ids", "chunks_attention_mask"]:
             if len(batch_df[col]) > 1:
                 raise RuntimeError("precalc batch size must be 1")
@@ -640,123 +654,127 @@ def load_split_dataset(config, for_precalc=False):
                 lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
                 .replace("[", "").replace("]", "").strip())
 
-    # read user-item interactions, map the user and item ids to the internal ones
-    sp_files = {"train": join(config['dataset_path'], "train.csv"),
-                "validation": join(config['dataset_path'], f'{config["alternative_pos_validation_file"]}.csv' if ("alternative_pos_validation_file" in config and config["alternative_pos_validation_file"] != "") else "validation.csv"),
-                "test": join(config['dataset_path'], f'{config["alternative_pos_test_file"]}.csv' if ("alternative_pos_test_file" in config and config["alternative_pos_test_file"] != "") else "test.csv")}
-    split_datasets = {}
-    filtered_out_user_item_pairs_by_limit = defaultdict(set)
-    for sp, file in sp_files.items():
-        df = pd.read_csv(file, usecols=["user_id", "item_id", "rating"], dtype=str)  # rating:float64   TODO label?
-        # book limit:
-        if sp == 'train' and config['limit_training_data'] != "":
-            if config['limit_training_data'].startswith("max_book"):
-                limited_user_books = json.load(open(join(config['dataset_path'], f"{config['limit_training_data']}.json"), 'r'))
+    if not for_precalc:
+        # read user-item interactions, map the user and item ids to the internal ones
+        sp_files = {"train": join(config['dataset_path'], "train.csv"),
+                    "validation": join(config['dataset_path'], f'{config["alternative_pos_validation_file"]}.csv' if ("alternative_pos_validation_file" in config and config["alternative_pos_validation_file"] != "") else "validation.csv"),
+                    "test": join(config['dataset_path'], f'{config["alternative_pos_test_file"]}.csv' if ("alternative_pos_test_file" in config and config["alternative_pos_test_file"] != "") else "test.csv")}
+        split_datasets = {}
+        filtered_out_user_item_pairs_by_limit = defaultdict(set)
+        for sp, file in sp_files.items():
+            df = pd.read_csv(file, usecols=["user_id", "item_id", "rating"], dtype=str)  # rating:float64   TODO label?
+            # book limit:
+            if sp == 'train' and config['limit_training_data'] != "":
+                if config['limit_training_data'].startswith("max_book"):
+                    limited_user_books = json.load(open(join(config['dataset_path'], f"{config['limit_training_data']}.json"), 'r'))
+                else:
+                    raise NotImplementedError(f"limit_training_data={config['limit_training_data']} not implemented")
+
+                limited_user_item_ids = []
+                for user, books in limited_user_books.items():
+                    limited_user_item_ids.extend([f"{user}-{b}" for b in books])
+
+                df['user_item_ids'] = df['user_id'].map(str) + '-' + df['item_id'].map(str)
+                temp = df[df['user_item_ids'].isin(limited_user_item_ids)]['user_item_ids']
+                temp = set(df['user_item_ids']) - set(temp)
+                user_info_temp = user_info.copy()
+                user_info_temp = user_info_temp.set_index('user_id')
+                item_info_temp = item_info.copy()
+                item_info_temp = item_info_temp.set_index('item_id')
+                for ui in temp:
+                    user = int(user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id)
+                    item = int(item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id)
+                    # if user not in filtered_out_user_item_pairs_by_limit:
+                    #     filtered_out_user_item_pairs_by_limit[user] = set()
+                    filtered_out_user_item_pairs_by_limit[user].add(item)
+                df = df[df['user_item_ids'].isin(limited_user_item_ids)]
+                df = df.drop(columns=['user_item_ids'])
+
+            # TODO if dataset is cleaned beforehand this could change slightly
+            df['rating'] = df['rating'].fillna(-1)
+            if config["name"] == "CGR":
+                for k, v in goodreads_rating_mapping.items():
+                    df['rating'] = df['rating'].replace(k, v)
+            elif config["name"] == "GR_UCSD":
+                df['rating'] = df['rating'].astype(int)
+            elif config["name"] == "Amazon":
+                df['rating'] = df['rating'].astype(float).astype(int)
             else:
-                raise NotImplementedError(f"limit_training_data={config['limit_training_data']} not implemented")
+                raise NotImplementedError(f"dataset {config['name']} not implemented!")
+            if not for_precalc:
+                if config['binary_interactions']:
+                    # if binary prediction (interaction): set label for all interactions to 1.
+                    df['label'] = np.ones(df.shape[0])
+                else:
+                    # if predicting rating: remove the not-rated entries and map rating text to int
+                    df = df[df['rating'] != -1].reset_index()
+                    df['label'] = df['rating']
 
-            limited_user_item_ids = []
-            for user, books in limited_user_books.items():
-                limited_user_item_ids.extend([f"{user}-{b}" for b in books])
+            # replace user_id with internal_user_id (same for item_id)
+            df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+            df = df.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
+            df = df.drop(columns=["user_id", "item_id"])
+            split_datasets[sp] = df
 
-            df['user_item_ids'] = df['user_id'].map(str) + '-' + df['item_id'].map(str)
-            temp = df[df['user_item_ids'].isin(limited_user_item_ids)]['user_item_ids']
-            temp = set(df['user_item_ids']) - set(temp)
-            user_info_temp = user_info.copy()
-            user_info_temp = user_info_temp.set_index('user_id')
-            item_info_temp = item_info.copy()
-            item_info_temp = item_info_temp.set_index('item_id')
-            for ui in temp:
-                user = int(user_info_temp.loc[int(ui[:ui.index('-')])].internal_user_id)
-                item = int(item_info_temp.loc[int(ui[ui.index('-') + 1:])].internal_item_id)
-                # if user not in filtered_out_user_item_pairs_by_limit:
-                #     filtered_out_user_item_pairs_by_limit[user] = set()
-                filtered_out_user_item_pairs_by_limit[user].add(item)
-            df = df[df['user_item_ids'].isin(limited_user_item_ids)]
-            df = df.drop(columns=['user_item_ids'])
-
-        # TODO if dataset is cleaned beforehand this could change slightly
-        df['rating'] = df['rating'].fillna(-1)
-        if config["name"] == "CGR":
-            for k, v in goodreads_rating_mapping.items():
-                df['rating'] = df['rating'].replace(k, v)
-        elif config["name"] == "GR_UCSD":
-            df['rating'] = df['rating'].astype(int)
-        elif config["name"] == "Amazon":
-            df['rating'] = df['rating'].astype(float).astype(int)
-        else:
-            raise NotImplementedError(f"dataset {config['name']} not implemented!")
-        if not for_precalc:
-            if config['binary_interactions']:
-                # if binary prediction (interaction): set label for all interactions to 1.
-                df['label'] = np.ones(df.shape[0])
+        if config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
+            if config["name"] == "Amazon":
+                if 'category' not in item_info.columns:
+                    item_info['category'] = item_info['item.category']
+            elif config["name"] in ["CGR", "GR_UCSD"]:
+                if 'genres' not in item_info.columns:
+                    item_info['genres'] = item_info['item.genres']
             else:
-                # if predicting rating: remove the not-rated entries and map rating text to int
-                df = df[df['rating'] != -1].reset_index()
-                df['label'] = df['rating']
+                raise NotImplementedError()
 
-        # replace user_id with internal_user_id (same for item_id)
-        df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
-        df = df.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
-        df = df.drop(columns=["user_id", "item_id"])
-        split_datasets[sp] = df
+        # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
+        if config['validation_neg_sampling_strategy'].startswith("f:"):
+            fname = config['validation_neg_sampling_strategy'][2:]
+            negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
+            negs['label'] = 0  # used to have weightes for weighted evaluation, but then removed that code
+            negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+            negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
+            negs = negs.drop(columns=["user_id", "item_id"])
+            if "ref_item" in negs.columns:
+                negs = negs.drop(columns=["ref_item"])
+                print(f"number of test samples pos: {len(split_datasets['test'])} - neg (before drop dup): {len(negs)}")
+                negs = negs.drop_duplicates()
+            # sanity check:
+            print(f"number of validation samples pos: {len(split_datasets['validation'])} - neg: {len(negs)}")
+            if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['validation'][INTERNAL_USER_ID_FIELD]):
+                raise ValueError("user ids differ in validation file and validation neg file")
 
-    if not for_precalc and config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
-        if config["name"] == "Amazon":
-            if 'category' not in item_info.columns:
-                item_info['category'] = item_info['item.category']
-        elif config["name"] in ["CGR", "GR_UCSD"]:
-            if 'genres' not in item_info.columns:
-                item_info['genres'] = item_info['item.genres']
-        else:
-            raise NotImplementedError()
+            split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
+            if 'rating' in split_datasets['validation']:
+               split_datasets['validation']['rating'] = split_datasets['validation']['rating'].fillna(0)
+            split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
-    # loading negative samples for eval sets: I used to load them in a collatefn, but, because batch=101 does not work for evaluation for BERT-based models
-    if not for_precalc and config['validation_neg_sampling_strategy'].startswith("f:"):
-        fname = config['validation_neg_sampling_strategy'][2:]
-        negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
-        negs['label'] = 0  # used to have weightes for weighted evaluation, but then removed that code
-        negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
-        negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
-        negs = negs.drop(columns=["user_id", "item_id"])
-        if "ref_item" in negs.columns:
-            negs = negs.drop(columns=["ref_item"])
-            print(f"number of test samples pos: {len(split_datasets['test'])} - neg (before drop dup): {len(negs)}")
-            negs = negs.drop_duplicates()
-        # sanity check:
-        print(f"number of validation samples pos: {len(split_datasets['validation'])} - neg: {len(negs)}")
-        if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['validation'][INTERNAL_USER_ID_FIELD]):
-            raise ValueError("user ids differ in validation file and validation neg file")
+        if config['test_neg_sampling_strategy'].startswith("f:"):
+            fname = config['test_neg_sampling_strategy'][2:]
+            negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
+            negs['label'] = 0  # used to have weightes for weighted evaluation, but then removed that code
+            negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
+            negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
+            negs = negs.drop(columns=["user_id", "item_id"])
+            if "ref_item" in negs.columns:
+                negs = negs.drop(columns=["ref_item"])
+                print(f"number of test samples pos: {len(split_datasets['test'])} - neg (before drop dup): {len(negs)}")
+                negs = negs.drop_duplicates()
+            # sanity check:
+            print(f"number of test samples pos: {len(split_datasets['test'])} - neg: {len(negs)}")
+            if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['test'][INTERNAL_USER_ID_FIELD]):
+                raise ValueError("user ids differ in test file and test neg file")
 
-        split_datasets['validation'] = pd.concat([split_datasets['validation'], negs])
-        if 'rating' in split_datasets['validation']:
-           split_datasets['validation']['rating'] = split_datasets['validation']['rating'].fillna(0)
-        split_datasets['validation'] = split_datasets['validation'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
+            split_datasets['test'] = pd.concat([split_datasets['test'], negs])
+            if 'rating' in split_datasets['test']:
+                split_datasets['test']['rating'] = split_datasets['test']['rating'].fillna(0)
+            split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
 
-    if not for_precalc and config['test_neg_sampling_strategy'].startswith("f:"):
-        fname = config['test_neg_sampling_strategy'][2:]
-        negs = pd.read_csv(join(config['dataset_path'], fname+".csv"), dtype=str)
-        negs['label'] = 0  # used to have weightes for weighted evaluation, but then removed that code
-        negs = negs.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
-        negs = negs.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
-        negs = negs.drop(columns=["user_id", "item_id"])
-        if "ref_item" in negs.columns:
-            negs = negs.drop(columns=["ref_item"])
-            print(f"number of test samples pos: {len(split_datasets['test'])} - neg (before drop dup): {len(negs)}")
-            negs = negs.drop_duplicates()
-        # sanity check:
-        print(f"number of test samples pos: {len(split_datasets['test'])} - neg: {len(negs)}")
-        if set(negs[INTERNAL_USER_ID_FIELD]) != set(split_datasets['test'][INTERNAL_USER_ID_FIELD]):
-            raise ValueError("user ids differ in test file and test neg file")
+        for split in split_datasets.keys():
+            split_datasets[split] = Dataset.from_pandas(split_datasets[split], preserve_index=False)
 
-        split_datasets['test'] = pd.concat([split_datasets['test'], negs])
-        if 'rating' in split_datasets['test']:
-            split_datasets['test']['rating'] = split_datasets['test']['rating'].fillna(0)
-        split_datasets['test'] = split_datasets['test'].sort_values(INTERNAL_USER_ID_FIELD).reset_index().drop(columns=['index'])
+        return DatasetDict(split_datasets), Dataset.from_pandas(user_info, preserve_index=False), \
+               Dataset.from_pandas(item_info, preserve_index=False), filtered_out_user_item_pairs_by_limit
 
-    for split in split_datasets.keys():
-        split_datasets[split] = Dataset.from_pandas(split_datasets[split], preserve_index=False)
-
-    return DatasetDict(split_datasets), Dataset.from_pandas(user_info, preserve_index=False), \
-           Dataset.from_pandas(item_info, preserve_index=False), filtered_out_user_item_pairs_by_limit
+    return None, Dataset.from_pandas(user_info, preserve_index=False), \
+           Dataset.from_pandas(item_info, preserve_index=False), None
 

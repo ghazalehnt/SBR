@@ -11,27 +11,25 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from SBR.utils.data_loading import load_data, CollateRepresentationBuilder
-from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD, get_profile
+from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 BERT_DIM = 768
 
 
-def main(config_file, given_user_text_filter=None, given_limit_training_data=None,
-         given_user_text=None, given_item_text=None, calc_which=None):
+def main(config_file, given_limit_training_data=None,
+         given_user_text_file_name=None, given_item_text_file_name=None, calc_which=None):
     np.random.seed(42)
     torch.manual_seed(42)
     torch.cuda.manual_seed(42)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = json.load(open(config_file, 'r'))
-    if given_user_text_filter is not None:
-        config['dataset']['user_text_filter'] = given_user_text_filter
     if given_limit_training_data is not None:
         config['dataset']['limit_training_data'] = given_limit_training_data
-    if given_user_text is not None:
-        config['dataset']['user_text'] = get_profile(config['dataset']['name'], given_user_text)
-    if given_item_text is not None:
-        config['dataset']['item_text'] = get_profile(config['dataset']['name'], given_item_text)
+    if given_user_text_file_name is not None:
+        config['dataset']['user_text_file_name'] = given_user_text_file_name
+    if given_item_text_file_name is not None:
+        config['dataset']['item_text_file_name'] = given_item_text_file_name
     if config['model']['precalc_batch_size'] > 1:
         raise ValueError("There is a bug when the batch size is bigger than one. Users/items with only one chunk"
                          "are producing wrong reps. Please set the batch size to 1.")
@@ -47,21 +45,18 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
     if 'chunk_agg_strategy' in config['model']:
         raise ValueError('chunk_agg_strategy should not ne set')
 
-    _, _, _, users, items, relevance_level, padding_token = \
+    _, _, _, users, items, _, padding_token = \
         load_data(config['dataset'],
                   pretrained_model=config['model']['pretrained_model'] if 'pretrained_model' in config['model'] else None,
                   for_precalc=True)
+    print("Data load done!")
     agg_strategy = config['model']['agg_strategy']
     batch_size = config['model']['precalc_batch_size']
     bert = transformers.AutoModel.from_pretrained(config['model']['pretrained_model'])
     bert.to(device)  # need to move to device earlier as we are precalculating.
-    if config['model']['tune_BERT'] is False:
-        for param in bert.parameters():
-            param.requires_grad = False
-    else:
-        raise ValueError("You cannot precompute if you want to tune BERT!")
     bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
     bert_embeddings = bert.get_input_embeddings()
+
     CF_model_weights = None
     if config['model']['use_CF']:
         CF_model_weights = torch.load(config['model']['CF_model_path'], map_location=device)['model_state_dict']
@@ -90,13 +85,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         user_rep_file = f"user_representation_" \
                         f"{agg_strategy}_" \
                         f"id{config['model']['append_id']}_" \
-                        f"tb{config['model']['tune_BERT']}_" \
                         f"cf{config['model']['use_CF']}_" \
-                        f"{'-'.join(config['dataset']['user_text'])}_" \
-                        f"{config['dataset']['user_item_text_choice'] if config['dataset']['user_text_filter'] in ['', 'item_sentence_SBERT', 'item_per_chunk'] else ''}_" \
-                        f"{config['dataset']['user_item_text_tie_breaker'] if config['dataset']['user_text_filter'] in ['', 'item_sentence_SBERT', 'item_per_chunk'] else ''}_" \
-                        f"{config['dataset']['user_text_filter'] if len(config['dataset']['user_text_filter']) > 0 else 'no-filter'}" \
-                        f"{'_i' + '-'.join(config['dataset']['item_text']) if config['dataset']['user_text_filter'] in ['item_sentence_SBERT'] else ''}" \
+                        f"{config['dataset']['user_text_file_name']}" \
                         f".pkl"
 
         if os.path.exists(os.path.join(user_prec_path, user_rep_file)):
@@ -130,9 +120,8 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
         item_rep_file = f"item_representation_" \
                         f"{agg_strategy}_" \
                         f"id{config['model']['append_id']}_" \
-                        f"tb{config['model']['tune_BERT']}_" \
                         f"cf{config['model']['use_CF']}_" \
-                        f"{'-'.join(config['dataset']['item_text'])}" \
+                        f"{'-'.join(config['dataset']['item_text_file_name'])}" \
                         f".pkl"
         if os.path.exists(os.path.join(item_prec_path, item_rep_file)):
             print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(item_prec_path, item_rep_file)}")
@@ -144,7 +133,7 @@ def main(config_file, given_user_text_filter=None, given_limit_training_data=Non
                                              item_id_embedding if config['model']['append_id'] else None,
                                              item_embedding_CF if config['model']['use_CF'] else None)
             torch.save(weights, os.path.join(item_prec_path, item_rep_file))
-            print(f"item rep created in {time.time() - start}")
+        print(f"item rep created in {time.time() - start}")
 
 
 def create_representations(bert, bert_embeddings, info, padding_token, device, batch_size, agg_strategy,
@@ -209,8 +198,8 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
                 tokens_embeddings = tokens_embeddings * mask
                 sum_tokons = torch.sum(tokens_embeddings, dim=1)
-                # summed_mask = torch.clamp(mask.sum(1), min=1e-9)  -> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
-                temp = sum_tokons / att_mask.sum(1) # divide by how many tokens (1s) are in the att_mask
+                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
+                temp = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
             else:
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
             outputs.append(temp)
@@ -222,17 +211,16 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', type=str, default=None, help='config file, to train')
-    parser.add_argument('--user_text_filter', type=str, default=None,
-                        help='user_text_filter used only if given, otherwise read from the config')
     parser.add_argument('--limit_training_data', '-l', type=str, default=None,
                         help='the file name containing the limited training data')
-    parser.add_argument('--user_text', default=None, help='user_text (tg,tgr,tc,tcsr)')
-    parser.add_argument('--item_text', default=None, help='item_text (tg,tgd,tc,tcd)')
+    parser.add_argument('--user_text_file_name', default=None, help='user_text_file_name')
+    parser.add_argument('--item_text_file_name', default=None, help='item_text_file_name')
     parser.add_argument('--which', default=None, help='if specified, only calculate user/item reps otherwhise both.')
     args, _ = parser.parse_known_args()
 
     if not os.path.exists(args.config_file):
         raise ValueError(f"Config file does not exist: {args.config_file}")
-    main(config_file=args.config_file, given_user_text_filter=args.user_text_filter,
+    main(config_file=args.config_file,
          given_limit_training_data=args.limit_training_data,
-         given_user_text=args.user_text, given_item_text=args.item_text, calc_which=args.which)
+         given_user_text_file_name=args.user_text_file_name, given_item_text_file_name=args.item_text_file_name,
+         calc_which=args.which)
