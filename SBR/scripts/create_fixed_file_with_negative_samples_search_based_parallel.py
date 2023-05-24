@@ -71,17 +71,19 @@ if __name__ == "__main__":
     print("load test dataset")
     bm25_folder = os.path.join(dataset_path, ranking_folder)
 
-    pool = mp.Pool(mp.cpu_count())
     item_ids = list(set(test_dataset["item_id"]))
 
     item_bm25_ranking = {}
+    pool = mp.Pool(mp.cpu_count())
     for item_id, res in zip(item_ids, pool.map(load_ranking_files, item_ids)):
         item_bm25_ranking[item_id] = res
 
     # for item_id in set(test_dataset["item_id"]):
         # item_bm25_ranking[item_id] = pickle.load(open(os.path.join(bm25_folder, f"{item_id}.pkl"), 'rb'))
     print("item rankings loaded")
+    pool.close()
 
+    pool = mp.Pool(mp.cpu_count())
     start = time.time()
 
     results = pool.starmap(sample_negs, [(item_id, user_id) for item_id, user_id in
@@ -95,3 +97,4 @@ if __name__ == "__main__":
             writer.writerows(r)
 
     print("test done")
+    pool.close()
