@@ -53,6 +53,7 @@ def main(config_file, given_limit_training_data=None,
     agg_strategy = config['model']['agg_strategy']
     batch_size = config['model']['precalc_batch_size']
     bert = transformers.AutoModel.from_pretrained(config['model']['pretrained_model'])
+    bert.requires_grad_(False)
     bert.to(device)  # need to move to device earlier as we are precalculating.
     bert_embedding_dim = bert.embeddings.word_embeddings.weight.shape[1]
     bert_embeddings = bert.get_input_embeddings()
@@ -202,7 +203,7 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
                 temp = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
             else:
                 raise ValueError(f"agg_strategy not implemented {agg_strategy}")
-            outputs.append(temp)
+            outputs.append(temp.to('cpu'))
         reps[ex_id] = outputs
         # reps.append(outputs)
     return reps
