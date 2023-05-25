@@ -1,4 +1,5 @@
 from SBR.model.DeepCoNN import DeepCoNN
+from SBR.model.bert_ffn_prec_rep_agg_chunk import BertFFNPrecomputedRepsChunkAgg
 from SBR.model.mf_dot import MatrixFactorizatoinDotProduct
 from SBR.model.vanilla_classifier_precalc_representations_agg_chunks import \
     VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks
@@ -26,26 +27,32 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
     elif config['name'] == "MF_with_itembias_userbias":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
                                               use_item_bias=True, use_user_bias=True)
-    elif config['name'] == "VanillaBERT_precalc_embed_sim":
-        model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
-                                                                                      users=user_info,
-                                                                                      items=item_info,
-                                                                                      device=device,
-                                                                                      dataset_config=dataset_config)
-    elif config['name'] == "VanillaBERT_precalc_with_ffn":
-        model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
-                                                                                      users=user_info,
-                                                                                      items=item_info,
-                                                                                      device=device,
-                                                                                      dataset_config=dataset_config,
-                                                                                      use_ffn=True)
-    elif config['name'] == "VanillaBERT_precalc_with_transformersinglenew":
-        model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
-                                                                                      users=user_info,
-                                                                                      items=item_info,
-                                                                                      device=device,
-                                                                                      dataset_config=dataset_config,
-                                                                                      use_transformer=True)
+    # elif config['name'] == "VanillaBERT_precalc_embed_sim":
+    #     model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
+    #                                                                                   users=user_info,
+    #                                                                                   items=item_info,
+    #                                                                                   device=device,
+    #                                                                                   dataset_config=dataset_config)
+    # elif config['name'] == "VanillaBERT_precalc_with_ffn":
+    #     model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
+    #                                                                                   users=user_info,
+    #                                                                                   items=item_info,
+    #                                                                                   device=device,
+    #                                                                                   dataset_config=dataset_config,
+    #                                                                                   use_ffn=True)
+    # elif config['name'] == "VanillaBERT_precalc_with_transformersinglenew":
+    #     model = VanillaClassifierUserTextProfileItemTextProfilePrecalculatedAggChunks(model_config=config,
+    #                                                                                   users=user_info,
+    #                                                                                   items=item_info,
+    #                                                                                   device=device,
+    #                                                                                   dataset_config=dataset_config,
+    #                                                                                   use_transformer=True)
+    elif config['name'] == "VanillaBERT_precalc_ffn":
+        model = BertFFNPrecomputedRepsChunkAgg(model_config=config,
+                                               device=device,
+                                               dataset_config=dataset_config,
+                                               users=user_info,
+                                               items=item_info)
     elif config['name'] == "VanillaBERT_transformersinglenew_endtoend":
         model = VanillaClassifierUserTextProfileItemTextProfileEndToEnd(model_config=config,
                                                                         users=user_info,

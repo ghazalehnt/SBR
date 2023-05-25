@@ -1,9 +1,12 @@
+import os
+
 import torch
 import transformers
 
 from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 
 # DEBUG = True
+
 
 class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
     def __init__(self, model_config, device, dataset_config, users, items):
@@ -67,124 +70,153 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
             item_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k], device=self.device))
         self.item_linear_layers = torch.nn.ModuleList(item_layers)
 
-        # TODO load reps
+        cf_emb_dim = ""
+        if model_config['use_CF']:
+            cf_emb_dim = f"_MF-{model_config['CF_embedding_dim']}"
+
+        user_prec_path = os.path.join(dataset_config['dataset_path'], f'precomputed_reps{cf_emb_dim}',
+                                      f"size{dataset_config['user_chunk_size']}_"
+                                      f"cs-{dataset_config['case_sensitive']}_"
+                                      f"nn-{dataset_config['normalize_negation']}_"
+                                      f"{dataset_config['limit_training_data'] if len(dataset_config['limit_training_data']) > 0 else 'no-limit'}")
+        user_rep_file = f"user_representation_" \
+                        f"{model_config['agg_strategy']}_" \
+                        f"id{model_config['append_id']}_" \
+                        f"cf{model_config['use_CF']}_" \
+                        f"{dataset_config['user_text_file_name']}" \
+                        f".pkl"
+        if os.path.exists(os.path.join(user_prec_path, user_rep_file)):
+            user_chunk_reps_dict = torch.load(os.path.join(user_prec_path, user_rep_file), map_location=torch.device('cpu'))
+            user_chunks_reps = []
+            cnt = 0
+            for u in users.sort('user_id'):
+                ex_user_id = u["user_id"]
+                user_chunks_reps.append(user_chunk_reps_dict[ex_user_id])
+                if cnt != u[INTERNAL_USER_ID_FIELD]:
+                    raise RuntimeError("wrong user!")
+                cnt += 1
+        else:
+            raise ValueError(
+                f"Precalculated user embedding does not exist! {os.path.join(user_prec_path, user_rep_file)}")
+
+        item_prec_path = os.path.join(dataset_config['dataset_path'], f'precomputed_reps{cf_emb_dim}',
+                                      f"size{dataset_config['item_chunk_size']}_"
+                                      f"cs-{dataset_config['case_sensitive']}_"
+                                      f"nn-{dataset_config['normalize_negation']}_"
+                                      f"{dataset_config['limit_training_data'] if len(dataset_config['limit_training_data']) > 0 else 'no-limit'}")
+        item_rep_file = f"item_representation_" \
+                        f"{model_config['agg_strategy']}_" \
+                        f"id{model_config['append_id']}_" \
+                        f"cf{model_config['use_CF']}_" \
+                        f"{dataset_config['item_text_file_name']}" \
+                        f".pkl"
+        if os.path.exists(os.path.join(item_prec_path, item_rep_file)):
+            item_chunks_reps_dict = torch.load(os.path.join(item_prec_path, item_rep_file), map_location=torch.device('cpu'))
+            item_chunks_reps = []
+            cnt = 0
+            for i in items.sort('item_id'):
+                ex_item_id = i["item_id"]
+                item_chunks_reps.append(item_chunks_reps_dict[ex_item_id])
+                if cnt != i[INTERNAL_ITEM_ID_FIELD]:
+                    raise RuntimeError("item user!")
+                cnt += 1
+        else:
+            raise ValueError(
+                f"Precalculated item embedding does not exist! {os.path.join(item_prec_path, item_rep_file)}")
+
+        n_users = users.shape[0]
+        n_items = items.shape[0]
+
+        self.chunk_user_reps = {}
+        self.user_chunk_masks = torch.zeros((n_users, self.max_user_chunks))
+        for c in range(self.max_user_chunks):
+            ch_rep = []
+            for i, user_chunks in zip(range(n_users), user_chunks_reps):
+                if c < len(user_chunks):
+                    ch_rep.append(user_chunks[c])
+                    self.user_chunk_masks[i][c] = 1
+                else:
+                    ch_rep.append(user_chunks[0])  # if user has fewer than c chunks, add its chunk0
+            self.chunk_user_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep),
+                                                                         freeze=True)
+
+        self.chunk_item_reps = {}
+        self.item_chunk_masks = torch.zeros((n_items, self.max_item_chunks))
+        for c in range(self.max_item_chunks):
+            ch_rep = []
+            for i, item_chunks in zip(range(n_items), item_chunks_reps):
+                if c < len(item_chunks):
+                    ch_rep.append(item_chunks[c])
+                    self.item_chunk_masks[i][c] = 1
+                else:
+                    ch_rep.append(item_chunks[0])  # if item has fewer than c chunks, add its chunk0
+            self.chunk_item_reps[c] = torch.nn.Embedding.from_pretrained(torch.concat(ch_rep),
+                                                                         freeze=True)
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
         user_ids = batch[INTERNAL_USER_ID_FIELD].squeeze(1)
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
 
-        BERT_DIM = self.bert_embeddings.embedding_dim
+        # user
+        chunk_device = self.chunk_user_reps[0].weight.device
+        if chunk_device.__str__() == 'cpu':
+            id_temp = user_ids.cpu()
+        user_reps = []
+        for c in range(len(self.chunk_user_reps.keys())):
+            if chunk_device.__str__() == 'cpu':
+                user_ch_rep = self.chunk_user_reps[c](id_temp)
+                user_ch_rep = user_ch_rep.to(self.device)
+            else:
+                user_ch_rep = self.chunk_user_reps[c](user_ids)
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:
+                user_ch_rep = torch.cat([user_ch_rep, self.user_embedding_CF(user_ids)], dim=1)
+            # id as embedding to be learned:
+            if self.append_embedding_ffn:
+                user_ch_rep = torch.cat([user_ch_rep, self.user_embedding(user_ids)], dim=1)
 
-        input_ids = batch['user_input_ids']
-        att_mask = batch['user_attention_mask']
+            for k in range(len(self.user_linear_layers) - 1):
+                user_ch_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_ch_rep))
+            user_ch_rep = self.user_linear_layers[-1](user_ch_rep)
+            user_reps.append(user_ch_rep)
 
-        # user_text = []
-        # if DEBUG:
-        #     for uid, ui in zip(user_ids, input_ids):
-        #         user_text.append(" ".join(self.tokenizer.convert_ids_to_tokens(ui)))
-
-        if self.use_cf or self.append_embedding_to_text:
-            if self.use_cf:
-                user_embed = self.user_embedding_CF(user_ids)
-            elif self.append_embedding_to_text:
-                user_embed = self.user_embedding(user_ids)
-            user_embed = user_embed.to(self.device)
-            if user_embed.shape[1] < BERT_DIM:
-                user_embed = torch.concat([user_embed, torch.zeros((user_embed.shape[0], BERT_DIM-user_embed.shape[1]), device=self.device)], dim=1)
-            user_embed = user_embed.unsqueeze(1)
-
-            token_embeddings = self.bert_embeddings.forward(input_ids)
-            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-            other_tokens = token_embeddings[:, 1:]
-            # insert cf embedding after the especial CLS token:
-            concat_ids = torch.concat([cls_tokens, user_embed, other_tokens], dim=1)
-            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=self.device), att_mask], dim=1)
-            output_u = self.bert.forward(inputs_embeds=concat_ids,
-                                         attention_mask=att_mask)
-        else:
-            output_u = self.bert.forward(input_ids=input_ids,
-                                         attention_mask=att_mask)
-
-        if self.agg_strategy == "CLS":
-            user_rep = output_u.pooler_output
-        elif self.agg_strategy == "mean_last":
-            tokens_embeddings = output_u.last_hidden_state
-            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
-            tokens_embeddings = tokens_embeddings * mask
-            sum_tokons = torch.sum(tokens_embeddings, dim=1)
-            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
-            user_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
-
-        # append cf to the end of the ch reps :
-        if self.append_cf_after:
-            user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
-        # id as single thing
-        if self.append_id_ffn:
-            user_rep = torch.cat([user_rep, self.user_ids_normalized(user_ids)], dim=1)
-        # id as embedding to be learned:
-        if self.append_embedding_ffn:
-            user_rep = torch.cat([user_rep, self.user_embedding(user_ids)], dim=1)
-
-        for k in range(len(self.user_linear_layers) - 1):
-            user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
-        user_rep = self.user_linear_layers[-1](user_rep)
+        if self.chunk_agg_strategy == "max_pool":
+            user_rep = torch.stack(user_reps).max(dim=0).values
 
         if self.append_embedding_after_ffn:
             user_rep = torch.cat([user_rep, self.user_embedding(user_ids)], dim=1)
 
-        input_ids = batch['item_input_ids']
-        att_mask = batch['item_attention_mask']
-        if self.use_cf or self.append_embedding_to_text:
-            if self.use_cf:
-                item_embed = self.item_embedding_CF(item_ids)
-            elif self.append_embedding_to_text:
-                item_embed = self.item_embedding(item_ids)
-            item_embed = item_embed.to(self.device)
-            if item_embed.shape[1] < BERT_DIM:
-                item_embed = torch.concat(
-                    [item_embed, torch.zeros((item_embed.shape[0], BERT_DIM - item_embed.shape[1]), device=self.device)], dim=1)
-            item_embed = item_embed.unsqueeze(1)
-            token_embeddings = self.bert_embeddings.forward(input_ids)
-            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-            other_tokens = token_embeddings[:, 1:]
-            # insert cf embedding after the especial CLS token:
-            concat_ids = torch.concat([cls_tokens, item_embed, other_tokens], dim=1)
-            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-            # TODO segment encoding?
-            output_i = self.bert.forward(inputs_embeds=concat_ids,
-                                         attention_mask=att_mask)
-        else:
-            output_i = self.bert.forward(input_ids=input_ids,
-                                         attention_mask=att_mask)
-        if self.agg_strategy == "CLS":
-            item_rep = output_i.pooler_output
-        elif self.agg_strategy == "mean_last":
-            tokens_embeddings = output_i.last_hidden_state
-            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
-            tokens_embeddings = tokens_embeddings * mask
-            sum_tokons = torch.sum(tokens_embeddings, dim=1)
-            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
-            item_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
+        # item
+        if chunk_device.__str__() == 'cpu':
+            id_temp = item_ids.cpu()
+        item_reps = []
+        for c in range(len(self.chunk_item_reps.keys())):
+            if chunk_device.__str__() == 'cpu':
+                item_ch_rep = self.chunk_item_reps[c](id_temp)
+                item_ch_rep = item_ch_rep.to(self.device)
+            else:
+                item_ch_rep = self.chunk_item_reps[c](item_ids)
 
-        # append cf to the end of the ch reps :
-        if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
-            item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
-        # id as single thing
-        if self.append_id_ffn:
-            item_rep = torch.cat([item_rep, self.item_ids_normalized(item_ids)], dim=1)
-        # id as embedding to be learned:
-        if self.append_embedding_ffn:
-            item_rep = torch.cat([item_rep, self.item_embedding(item_ids)], dim=1)
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:
+                item_ch_rep = torch.cat([item_ch_rep, self.item_embedding_CF(item_ids)], dim=1)
+            # id as embedding to be learned:
+            if self.append_embedding_ffn:
+                item_ch_rep = torch.cat([item_ch_rep, self.item_embedding(item_ids)], dim=1)
 
-        for k in range(len(self.item_linear_layers) - 1):
-            item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
-        item_rep = self.item_linear_layers[-1](item_rep)
+            for k in range(len(self.item_linear_layers) - 1):
+                item_ch_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_ch_rep))
+            item_ch_rep = self.item_linear_layers[-1](item_ch_rep)
+            item_reps.append(item_ch_rep)
+
+        if self.chunk_agg_strategy == "max_pool":
+            item_rep = torch.stack(item_reps).max(dim=0).values  # TODO or stack dim1 and max dim1
 
         if self.append_embedding_after_ffn:
             item_rep = torch.cat([item_rep, self.item_embedding(item_ids)], dim=1)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
-        return result  #, user_text  # user_text for debug  # do not apply sigmoid here, later in the trainer if we wanted we would
+        return result  # do not apply sigmoid here, later in the trainer if we wanted we would
 
