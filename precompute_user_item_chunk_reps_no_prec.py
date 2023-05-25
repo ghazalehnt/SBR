@@ -122,7 +122,7 @@ def main(config_file, given_limit_training_data=None,
                         f"{agg_strategy}_" \
                         f"id{config['model']['append_id']}_" \
                         f"cf{config['model']['use_CF']}_" \
-                        f"{'-'.join(config['dataset']['item_text_file_name'])}" \
+                        f"{config['dataset']['item_text_file_name']}" \
                         f".pkl"
         if os.path.exists(os.path.join(item_prec_path, item_rep_file)):
             print(f"EXISTED ALREADY, NOT CREATED: \n{os.path.join(item_prec_path, item_rep_file)}")
