@@ -9,10 +9,11 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
     def __init__(self, model_config, device, dataset_config, users, items):
         super(BertFFNUserTextProfileItemTextProfileEndToEnd, self).__init__()
         bert_embedding_dim = 768
-        self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
         self.agg_strategy = model_config['agg_strategy']
         self.device = device
         self.append_id_ffn = model_config['append_id_ffn'] if "append_id_ffn" in model_config else False
+        self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
+        self.append_cf_after_ffn = model_config["append_CF_after_ffn"] if "append_CF_after_ffn" in model_config else False
         self.append_embedding_ffn = model_config["append_embedding_ffn"] if "append_embedding_ffn" in model_config else False
         self.append_embedding_after_ffn = model_config["append_embedding_after_ffn"] if "append_embedding_after_ffn" in model_config else False
         self.append_embedding_to_text = model_config["append_embedding_to_text"] if "append_embedding_to_text" in model_config else False
@@ -28,18 +29,19 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         if dataset_config['max_num_chunks_user'] > 1 or dataset_config['max_num_chunks_item'] > 1:
             raise ValueError("max chunk should be set to 1 ")
 
-        if self.append_cf_after:
+        dim1user = dim1item = bert_embedding_dim
+
+        if self.append_cf_after or self.append_cf_after_ffn:
             CF_model_weights = torch.load(model_config['append_CF_after_model_path'], map_location="cpu")[
                 'model_state_dict']
             # note: no need to match item and user ids only due to them being created with the same framework where we sort ids.
             # otherwise there needs to be a matching
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'], freeze=True)
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
+            if self.append_cf_after:
+                dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
+                dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
 
-        dim1user = dim1item = bert_embedding_dim
-        if self.append_cf_after:
-            dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
-            dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
         # adding id as integer TODO test
         if self.append_id_ffn:
             dim1user += 1
@@ -189,6 +191,8 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
 
         if self.append_embedding_after_ffn:
             user_rep = torch.cat([user_rep, self.user_embedding(user_ids)], dim=1)
+        if self.append_cf_after_ffn:
+            user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
 
         input_ids = batch['item_input_ids']
         att_mask = batch['item_attention_mask']
@@ -240,6 +244,8 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
 
         if self.append_embedding_after_ffn:
             item_rep = torch.cat([item_rep, self.item_embedding(item_ids)], dim=1)
+        if self.append_cf_after_ffn:
+            item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
