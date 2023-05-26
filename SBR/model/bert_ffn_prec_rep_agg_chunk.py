@@ -22,6 +22,7 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
         self.chunk_agg_strategy = model_config['chunk_agg_strategy']
         self.device = device
         self.append_cf_after = model_config["append_CF_after"] if "append_CF_after" in model_config else False
+        self.append_cf_after_ffn = model_config["append_CF_after_ffn"] if "append_CF_after_ffn" in model_config else False
         self.append_embedding_ffn = model_config["append_embedding_ffn"] if "append_embedding_ffn" in model_config else False
         self.append_embedding_after_ffn = model_config["append_embedding_after_ffn"] if "append_embedding_after_ffn" in model_config else False
 
@@ -33,15 +34,16 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
 
         dim1user = dim1item = bert_embedding_dim
 
-        if self.append_cf_after:
+        if self.append_cf_after or self.append_cf_after_ffn:
             CF_model_weights = torch.load(model_config['append_CF_after_model_path'], map_location="cpu")[
                 'model_state_dict']
             # note: no need to match item and user ids only due to them being created with the same framework where we sort ids.
             # otherwise there needs to be a matching
             self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'], freeze=True)
             self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
-            dim1user += self.user_embedding_CF.embedding_dim
-            dim1item += self.item_embedding_CF.embedding_dim
+            if self.append_cf_after:
+                dim1user += self.user_embedding_CF.embedding_dim
+                dim1item += self.item_embedding_CF.embedding_dim
 
         if self.append_embedding_ffn or self.append_embedding_after_ffn:
             if self.append_embedding_ffn:
@@ -186,6 +188,8 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
 
         if self.append_embedding_after_ffn:
             user_rep = torch.cat([user_rep, self.user_embedding(user_ids)], dim=1)
+        if self.append_cf_after_ffn:
+            user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
 
         # item
         if chunk_device.__str__() == 'cpu':
@@ -215,6 +219,8 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
 
         if self.append_embedding_after_ffn:
             item_rep = torch.cat([item_rep, self.item_embedding(item_ids)], dim=1)
+        if self.append_cf_after_ffn:
+            item_rep = torch.cat([item_rep, self.item_embedding_CF(item_ids)], dim=1)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
