@@ -18,7 +18,11 @@ class BertSignleFFNPrecomputedRepsChunkAgg(torch.nn.Module):
 
         chunk_agg_strategy = model_config['chunk_agg_strategy']
         max_user_chunks = dataset_config['max_num_chunks_user'] if "max_num_chunks_user" in dataset_config else None
+        if max_user_chunks in ["all", ""]:
+            max_user_chunks = None
         max_item_chunks = dataset_config['max_num_chunks_item'] if "max_num_chunks_item" in dataset_config else None
+        if max_item_chunks in ["all", ""]:
+            max_item_chunks = None
 
         dim1 = 2 * bert_embedding_dim
         linear_layers = [torch.nn.Linear(dim1, model_config["k"][0], device=self.device)]
@@ -58,7 +62,7 @@ class BertSignleFFNPrecomputedRepsChunkAgg(torch.nn.Module):
                 if chunk_agg_strategy == "max_pool":
                     user_reps.append(torch.stack(user_chunks).max(dim=0).values)
                 elif chunk_agg_strategy == "avg":
-                    user_reps.append(torch.stack(user_chunks).mean(dim=0).values)
+                    user_reps.append(torch.stack(user_chunks).mean(dim=0))
                 cnt += 1
             self.user_reps = torch.nn.Embedding.from_pretrained(torch.concat(user_reps),freeze=True)
         else:
@@ -92,7 +96,7 @@ class BertSignleFFNPrecomputedRepsChunkAgg(torch.nn.Module):
                 if chunk_agg_strategy == "max_pool":
                     item_reps.append(torch.stack(item_chunks).max(dim=0).values)
                 elif chunk_agg_strategy == "avg":
-                    item_reps.append(torch.stack(item_chunks).mean(dim=0).values)
+                    item_reps.append(torch.stack(item_chunks).mean(dim=0))
                 cnt += 1
             self.item_reps = torch.nn.Embedding.from_pretrained(torch.concat(item_reps), freeze=True)
         else:
