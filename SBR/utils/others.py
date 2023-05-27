@@ -10,6 +10,7 @@ from SBR.model.vanilla_classifier_joint_end_to_end import \
 from SBR.model.bert_ffn_end_to_end import BertFFNUserTextProfileItemTextProfileEndToEnd
 from SBR.model.bert_singleffn_end_to_end import BertSignleFFNUserTextProfileItemTextProfileEndToEnd
 from SBR.model.cf_ffn_dot import CFFFNDOT
+from SBR.model.bert_singleffn_prec_agg_chunk import BertSignleFFNPrecomputedRepsChunkAgg
 
 
 def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None):
@@ -53,6 +54,12 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
                                                dataset_config=dataset_config,
                                                users=user_info,
                                                items=item_info)
+    elif config['name'] == "VanillaBERT_precalc_1ffn":
+        model = BertSignleFFNPrecomputedRepsChunkAgg(model_config=config,
+                                                     device=device,
+                                                     dataset_config=dataset_config,
+                                                     users=user_info,
+                                                     items=item_info)
     elif config['name'] == "VanillaBERT_transformersinglenew_endtoend":
         model = VanillaClassifierUserTextProfileItemTextProfileEndToEnd(model_config=config,
                                                                         users=user_info,
