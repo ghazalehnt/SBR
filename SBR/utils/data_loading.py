@@ -33,21 +33,50 @@ def tokenize_function_torchtext(examples, tokenizer, field, vocab):
     return examples
 
 
-def tokenize_function_many_chunks(examples, tokenizer, field, max_length, padding):
-    result = tokenizer(
-        examples[field],
-        truncation=True,
-        max_length=max_length,
-        return_overflowing_tokens=True,
-        padding=padding  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
-    )
+def tokenize_function_many_chunks(examples, tokenizer, field, max_length, padding, one_rev_per_chunk=False):
+    if one_rev_per_chunk:
+        tokenizer.add_tokens("<ENDOFITEM>")
+        result = tokenizer(
+            examples[field],
+            truncation=False
+        )
+        eoi_token = tokenizer.convert_tokens_to_ids(["<ENDOFITEM>"])[0]
 
-    sample_map = result.pop("overflow_to_sample_mapping")
-    examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
-    examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
-    for i, j in zip(sample_map, range(len(result['input_ids']))):
-        examples['chunks_input_ids'][i].append(result['input_ids'][j])
-        examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
+        # we need to pad and chunk manually
+        examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
+        examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
+        for i in range(len(examples["user_id"])):
+            # 1:-1 to remove the cls and sep tokens
+            temp = result["input_ids"][i][1:-1]
+            if len(temp) == 0:
+                examples['chunks_input_ids'][i].append([tokenizer.cls_token_id] + [tokenizer.sep_token_id]
+                                                       + [0] * (max_length - 2))
+                examples['chunks_attention_mask'][i].append([1] * 2 + [0] * (max_length - 2))
+                continue
+
+            start_idx = 0
+            while start_idx < len(temp):
+                eoi_idx = temp.index(eoi_token, start_idx)
+                chunk = temp[start_idx:eoi_idx]
+                chunk = [tokenizer.cls_token_id] + chunk[:max_length-2] + [tokenizer.sep_token_id]
+                examples['chunks_input_ids'][i].append(chunk + [0] * (max_length - len(chunk)))
+                examples['chunks_attention_mask'][i].append([1] * len(chunk) + [0] * (max_length - len(chunk)))
+                start_idx = eoi_idx + 1
+    else:
+        result = tokenizer(
+            examples[field],
+            truncation=True,
+            max_length=max_length,
+            return_overflowing_tokens=True,
+            padding=padding  # we pad the chunks here, because it would be too complicated later due to the chunks themselves...
+        )
+
+        sample_map = result.pop("overflow_to_sample_mapping")
+        examples['chunks_input_ids'] = [[] for i in range(len(examples[field]))]
+        examples['chunks_attention_mask'] = [[] for i in range(len(examples[field]))]
+        for i, j in zip(sample_map, range(len(result['input_ids']))):
+            examples['chunks_input_ids'][i].append(result['input_ids'][j])
+            examples['chunks_attention_mask'][i].append(result['attention_mask'][j])
     return examples
 
 
@@ -82,7 +111,8 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                           fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                      # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
                                                      "max_length": config["user_chunk_size"],
-                                                     "padding": False
+                                                     "padding": False,
+                                                     "one_rev_per_chunk": True if "item_per_chunk" in config['user_text_file_name'] else False
                                                      })
             else:
                 user_info = user_info.map(tokenize_function, batched=True,
@@ -99,7 +129,8 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                           fn_kwargs={"tokenizer": tokenizer, "field": 'text',
                                                      # this is used to know how big should the chunks be, because the model may have extra stuff to add to the chunks
                                                      "max_length": config["item_chunk_size"],
-                                                     "padding": False
+                                                     "padding": False,
+                                                     "one_rev_per_chunk": False
                                                      })
             else:
                 item_info = item_info.map(tokenize_function, batched=True,
