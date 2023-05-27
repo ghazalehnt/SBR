@@ -185,6 +185,8 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
 
         if self.chunk_agg_strategy == "max_pool":
             user_rep = torch.stack(user_reps).max(dim=0).values
+        elif self.chunk_agg_strategy == "avg":
+            user_rep = torch.stack(user_reps).mean(dim=0)
 
         if self.append_embedding_after_ffn:
             user_rep = torch.cat([user_rep, self.user_embedding(user_ids)], dim=1)
@@ -215,7 +217,9 @@ class BertFFNPrecomputedRepsChunkAgg(torch.nn.Module):
             item_reps.append(item_ch_rep)
 
         if self.chunk_agg_strategy == "max_pool":
-            item_rep = torch.stack(item_reps).max(dim=0).values  # TODO or stack dim1 and max dim1
+            item_rep = torch.stack(item_reps).max(dim=0).values
+        elif self.chunk_agg_strategy == "avg":
+            item_rep = torch.stack(item_reps).mean(dim=0)
 
         if self.append_embedding_after_ffn:
             item_rep = torch.cat([item_rep, self.item_embedding(item_ids)], dim=1)
