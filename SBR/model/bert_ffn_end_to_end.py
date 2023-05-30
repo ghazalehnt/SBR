@@ -36,8 +36,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 'model_state_dict']
             # note: no need to match item and user ids only due to them being created with the same framework where we sort ids.
             # otherwise there needs to be a matching
-            self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'], freeze=True)
-            self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'], freeze=True)
+            self.user_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['user_embedding.weight'],
+                                                                        freeze=model_config["freeze_CF"] if "freeze_CF" in model_config else True)
+            self.item_embedding_CF = torch.nn.Embedding.from_pretrained(CF_model_weights['item_embedding.weight'],
+                                                                        freeze=model_config["freeze_CF"] if "freeze_CF" in model_config else True)
             if self.append_cf_after:
                 dim1user = bert_embedding_dim + self.user_embedding_CF.embedding_dim
                 dim1item = bert_embedding_dim + self.item_embedding_CF.embedding_dim
