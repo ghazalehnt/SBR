@@ -270,14 +270,14 @@ class CollateRepresentationBuilder(object):
             if len(batch_df[col]) > 1:
                 raise RuntimeError("precalc batch size must be 1")
             ret[col] = pad_sequence([torch.tensor(t) for t in batch_df[col][0]], batch_first=True,
-                                    padding_value=self.padding_token).unsqueeze(1)
+                                    padding_value=self.padding_token)
         for col in batch_df.columns:
             if col in ret:
                 continue
             if col in ["user_id", "item_id"]:
                 ret[col] = batch_df[col]
             else:
-                ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
+                ret[col] = torch.tensor(batch_df[col])
         return ret
 
 
