@@ -144,68 +144,70 @@ def create_representations(bert, bert_embeddings, info, padding_token, device, b
     pbar = tqdm(enumerate(dataloader), total=len(dataloader))
     reps = defaultdict()
     # reps = []
+    MAX_CH = 2000
     for batch_idx, batch in pbar:
         # go over chunks:
         outputs = []
         ex_id = batch[external_id_field].values[0]
         ids = batch[id_field].to(device)
         # feed into bert at once, process separately
-        if id_embedding is not None and embedding_CF is not None:
-            raise NotImplementedError("need redone")
-            id_embeds = id_embedding(ids)
-            cf_embeds = embedding_CF(ids)
-            token_embeddings = bert_embeddings.forward(input_ids)
-            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-            other_tokens = token_embeddings[:, 1:]
-            # insert user_id embedding after the especial CLS token:
-            concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds, cf_embeds], dim=1), other_tokens], dim=1)
-            att_mask = torch.concat([torch.ones((input_ids.shape[0], 2), device=att_mask.device), att_mask], dim=1)
-            output = bert.forward(inputs_embeds=concat_ids,
-                                  attention_mask=att_mask)
-        elif id_embedding is not None:
-            raise NotImplementedError("need redone")
-            id_embeds = id_embedding(ids)
-            token_embeddings = bert_embeddings.forward(input_ids)
-            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-            other_tokens = token_embeddings[:, 1:]
-            # insert user_id embedding after the especial CLS token:
-            concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds], dim=1), other_tokens], dim=1)
-            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-            output = bert.forward(inputs_embeds=concat_ids,
-                                  attention_mask=att_mask)
-        elif embedding_CF is not None:
-            raise NotImplementedError("need redone")
-            cf_embeds = embedding_CF(ids)
-            if embedding_CF.embedding_dim < BERT_DIM:
-                cf_embeds = torch.concat([cf_embeds, torch.zeros(
-                    (cf_embeds.shape[0], cf_embeds.shape[1], BERT_DIM - cf_embeds.shape[2]), device=cf_embeds.device)],
-                                         dim=2)
-            token_embeddings = bert_embeddings.forward(input_ids)
-            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-            other_tokens = token_embeddings[:, 1:]
+        for i in range(0, len(batch['chunks_input_ids']), MAX_CH):
+            input_ids = batch['chunks_input_ids'][i*MAX_CH:(i+1)*MAX_CH].to(device)
+            att_mask = batch['chunks_attention_mask'][i*MAX_CH:(i+1)*MAX_CH].to(device)
+            if id_embedding is not None and embedding_CF is not None:
+                raise NotImplementedError("need redone")
+                id_embeds = id_embedding(ids)
+                cf_embeds = embedding_CF(ids)
+                token_embeddings = bert_embeddings.forward(input_ids)
+                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                other_tokens = token_embeddings[:, 1:]
+                # insert user_id embedding after the especial CLS token:
+                concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds, cf_embeds], dim=1), other_tokens], dim=1)
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 2), device=att_mask.device), att_mask], dim=1)
+                output = bert.forward(inputs_embeds=concat_ids,
+                                      attention_mask=att_mask)
+            elif id_embedding is not None:
+                raise NotImplementedError("need redone")
+                id_embeds = id_embedding(ids)
+                token_embeddings = bert_embeddings.forward(input_ids)
+                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                other_tokens = token_embeddings[:, 1:]
+                # insert user_id embedding after the especial CLS token:
+                concat_ids = torch.concat([torch.concat([cls_tokens, id_embeds], dim=1), other_tokens], dim=1)
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+                output = bert.forward(inputs_embeds=concat_ids,
+                                      attention_mask=att_mask)
+            elif embedding_CF is not None:
+                raise NotImplementedError("need redone")
+                cf_embeds = embedding_CF(ids)
+                if embedding_CF.embedding_dim < BERT_DIM:
+                    cf_embeds = torch.concat([cf_embeds, torch.zeros(
+                        (cf_embeds.shape[0], cf_embeds.shape[1], BERT_DIM - cf_embeds.shape[2]), device=cf_embeds.device)],
+                                             dim=2)
+                token_embeddings = bert_embeddings.forward(input_ids)
+                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                other_tokens = token_embeddings[:, 1:]
 
-            # insert user_id embedding after the especial CLS token:
-            concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
-            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-            output = bert.forward(inputs_embeds=concat_ids,
-                                  attention_mask=att_mask)
-        else:
-            att_mask = batch['chunks_attention_mask']
-            output_chunks = bert.forward(input_ids=batch['chunks_input_ids'],
-                              attention_mask=att_mask)
+                # insert user_id embedding after the especial CLS token:
+                concat_ids = torch.concat([torch.concat([cls_tokens, cf_embeds], dim=1), other_tokens], dim=1)
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+                output = bert.forward(inputs_embeds=concat_ids,
+                                      attention_mask=att_mask)
+            else:
+                output_chunks = bert.forward(input_ids=input_ids, attention_mask=att_mask)
 
-        if agg_strategy == "CLS":
-            output = output_chunks.pooler_output
-        elif agg_strategy == "mean_last":
-            tokens_embeddings = output_chunks.last_hidden_state
-            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
-            tokens_embeddings = tokens_embeddings * mask
-            sum_tokons = torch.sum(tokens_embeddings, dim=1)
-            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
-            output = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
+            if agg_strategy == "CLS":
+                output = output_chunks.pooler_output
+            elif agg_strategy == "mean_last":
+                tokens_embeddings = output_chunks.last_hidden_state
+                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+                tokens_embeddings = tokens_embeddings * mask
+                sum_tokons = torch.sum(tokens_embeddings, dim=1)
+                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
+                output = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
 
-        for temp in output:
-            outputs.append(temp.unsqueeze(0).to('cpu'))
+            for temp in output:
+                outputs.append(temp.unsqueeze(0).to('cpu'))
         reps[ex_id] = outputs
 
     return reps
