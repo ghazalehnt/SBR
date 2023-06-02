@@ -176,6 +176,7 @@ class SupervisedTrainer:
                 # data preparation
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 label = batch.pop("label").float()  # setting the type to torch.float32
+                # print(f"{min(label)} {max(label)}")
                 prepare_time = time.perf_counter() - start_time
 
                 self.optimizer.zero_grad()
@@ -193,11 +194,11 @@ class SupervisedTrainer:
                     #         else:
                     #             log_user_texts[user_ex_ids[uidx]] = user_text[uidx]
                     #     output = output[0]
-
-                    # has_nan = torch.any(torch.isnan(output))
-                    # print("output Has NaN:", has_nan)
-                    # has_inf = torch.any(torch.isinf(output))
-                    # print("output Has INF:", has_inf)
+                    #print(output)
+                    #has_nan = torch.any(torch.isnan(output))
+                    #print("output Has NaN:", has_nan)
+                    #has_inf = torch.any(torch.isinf(output))
+                    #print("output Has INF:", has_inf)
                     if self.loss_fn._get_name() == "BCEWithLogitsLoss":
                         # not applying sigmoid before loss bc it is already applied in the loss
                         loss = self.loss_fn(output, label)
@@ -394,12 +395,12 @@ class SupervisedTrainer:
                 proc_compute_efficiency = process_time / (process_time + prepare_time)
 
                 ## for debugging. it needs access to actual user_id and item_id
-                ground_truth.extend(label.squeeze().tolist())
-                outputs.extend(output.squeeze().tolist())
+                ground_truth.extend(label.squeeze(1).tolist())
+                outputs.extend(output.squeeze(1).tolist())
                 user_ids.extend(batch[
-                                    INTERNAL_USER_ID_FIELD].squeeze().tolist())
+                                    INTERNAL_USER_ID_FIELD].squeeze(1).tolist())
                 if not low_mem:
-                    item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze().tolist())
+                    item_ids.extend(batch[INTERNAL_ITEM_ID_FIELD].squeeze(1).tolist())
 
                 postprocess_time = time.perf_counter() - start_time - prepare_time - process_time
                 pbar.set_description(
@@ -416,7 +417,7 @@ class SupervisedTrainer:
 
     def log(self):
         ret_bert_out = {}
-        ret_ffn_out = {}
+        #ret_ffn_out = {}
         dataloader = DataLoader(self.users,
                                 batch_size=512,
                                 collate_fn=CollateUserItem())
@@ -426,12 +427,12 @@ class SupervisedTrainer:
             bert_out, ffn_out = self.model.log(batch, "user")
             for i in range(len(ids)):
                 ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
-                ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
+                #ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
         json.dump(ret_bert_out, open(self.user_bert_out, 'w'))
-        json.dump(ret_ffn_out, open(self.user_ffn_out, 'w'))
+        #json.dump(ret_ffn_out, open(self.user_ffn_out, 'w'))
 
         ret_bert_out = {}
-        ret_ffn_out = {}
+        #ret_ffn_out = {}
         dataloader = DataLoader(self.items,
                                 batch_size=512,
                                 collate_fn=CollateUserItem())
@@ -441,6 +442,6 @@ class SupervisedTrainer:
             bert_out, ffn_out = self.model.log(batch, "item")
             for i in range(len(ids)):
                 ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
-                ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
+                #ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
         json.dump(ret_bert_out, open(self.item_bert_out, 'w'))
-        json.dump(ret_ffn_out, open(self.item_ffn_out, 'w'))
+        #json.dump(ret_ffn_out, open(self.item_ffn_out, 'w'))
