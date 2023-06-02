@@ -330,15 +330,17 @@ class SupervisedTrainer:
         self.model.to(self.device)
         self.best_epoch = checkpoint['epoch']
         print("best model loaded!")
+        outfile = f"{eval_output_path['predicted']}_e-{self.best_epoch}.json"
 
         if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
             self.model.prec_representations_for_test(self.users, self.items, padding_token=self.padding_token)
+            outfile = f"{eval_output_path['predicted']}_p_e-{self.best_epoch}.json"
 
         outputs, ground_truth, loss, internal_user_ids, internal_item_ids = self.predict(eval_dataloader)
         log_results(ground_truth, outputs, internal_user_ids, internal_item_ids,
                     self.users, self.items,
                     eval_output_path['ground_truth'],
-                    f"{eval_output_path['predicted']}_e-{self.best_epoch}.json",
+                    outfile,
                     f"{eval_output_path['log']}_e-{self.best_epoch}.txt" if "log" in eval_output_path else None)
 
     def evaluate(self, test_dataloader, valid_dataloader):
