@@ -140,7 +140,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
     def prec_representations_for_test(self, users, items, padding_token):
         if self.use_cf or self.append_embedding_to_text:
             raise NotImplementedError("not")
+
         collate_fn = CollateUserItem(padding_token=padding_token)
+
         # user:
         dataloader = DataLoader(users, batch_size=1024, collate_fn=collate_fn)
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -160,8 +162,29 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
                 rep = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
             reps.extend(rep.tolist())
-
         self.user_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
+
+        #item:
+        dataloader = DataLoader(items, batch_size=1024, collate_fn=collate_fn)
+        pbar = tqdm(enumerate(dataloader), total=len(dataloader))
+        reps = []
+        for batch_idx, batch in pbar:
+            input_ids = batch["input_ids"].to(self.device)
+            att_mask = batch["attention_mask"].to(self.device)
+            output = self.bert.forward(input_ids=input_ids,
+                                       attention_mask=att_mask)
+            if self.agg_strategy == "CLS":
+                rep = output.pooler_output
+            elif self.agg_strategy == "mean_last":
+                tokens_embeddings = output.last_hidden_state
+                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+                tokens_embeddings = tokens_embeddings * mask
+                sum_tokons = torch.sum(tokens_embeddings, dim=1)
+                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
+                rep = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
+            reps.extend(rep.tolist())
+        self.item_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
+
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
@@ -232,39 +255,42 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         if self.append_cf_after_ffn:
             user_rep = torch.cat([user_rep, self.user_embedding_CF(user_ids)], dim=1)
 
-        input_ids = batch['item_input_ids']
-        att_mask = batch['item_attention_mask']
-        if self.use_cf or self.append_embedding_to_text:
-            if self.use_cf:
-                item_embed = self.item_embedding_CF(item_ids)
-            elif self.append_embedding_to_text:
-                item_embed = self.item_embedding(item_ids)
-            item_embed = item_embed.to(self.device)
-            if item_embed.shape[1] < BERT_DIM:
-                item_embed = torch.concat(
-                    [item_embed, torch.zeros((item_embed.shape[0], BERT_DIM - item_embed.shape[1]), device=self.device)], dim=1)
-            item_embed = item_embed.unsqueeze(1)
-            token_embeddings = self.bert_embeddings.forward(input_ids)
-            cls_tokens = token_embeddings[:, 0].unsqueeze(1)
-            other_tokens = token_embeddings[:, 1:]
-            # insert cf embedding after the especial CLS token:
-            concat_ids = torch.concat([cls_tokens, item_embed, other_tokens], dim=1)
-            att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
-            # TODO segment encoding?
-            output_i = self.bert.forward(inputs_embeds=concat_ids,
-                                         attention_mask=att_mask)
+        if self.test_only:
+            item_rep = self.item_prec_reps(item_ids)
         else:
-            output_i = self.bert.forward(input_ids=input_ids,
-                                         attention_mask=att_mask)
-        if self.agg_strategy == "CLS":
-            item_rep = output_i.pooler_output
-        elif self.agg_strategy == "mean_last":
-            tokens_embeddings = output_i.last_hidden_state
-            mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
-            tokens_embeddings = tokens_embeddings * mask
-            sum_tokons = torch.sum(tokens_embeddings, dim=1)
-            summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
-            item_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
+            input_ids = batch['item_input_ids']
+            att_mask = batch['item_attention_mask']
+            if self.use_cf or self.append_embedding_to_text:
+                if self.use_cf:
+                    item_embed = self.item_embedding_CF(item_ids)
+                elif self.append_embedding_to_text:
+                    item_embed = self.item_embedding(item_ids)
+                item_embed = item_embed.to(self.device)
+                if item_embed.shape[1] < BERT_DIM:
+                    item_embed = torch.concat(
+                        [item_embed, torch.zeros((item_embed.shape[0], BERT_DIM - item_embed.shape[1]), device=self.device)], dim=1)
+                item_embed = item_embed.unsqueeze(1)
+                token_embeddings = self.bert_embeddings.forward(input_ids)
+                cls_tokens = token_embeddings[:, 0].unsqueeze(1)
+                other_tokens = token_embeddings[:, 1:]
+                # insert cf embedding after the especial CLS token:
+                concat_ids = torch.concat([cls_tokens, item_embed, other_tokens], dim=1)
+                att_mask = torch.concat([torch.ones((input_ids.shape[0], 1), device=att_mask.device), att_mask], dim=1)
+                # TODO segment encoding?
+                output_i = self.bert.forward(inputs_embeds=concat_ids,
+                                             attention_mask=att_mask)
+            else:
+                output_i = self.bert.forward(input_ids=input_ids,
+                                             attention_mask=att_mask)
+            if self.agg_strategy == "CLS":
+                item_rep = output_i.pooler_output
+            elif self.agg_strategy == "mean_last":
+                tokens_embeddings = output_i.last_hidden_state
+                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+                tokens_embeddings = tokens_embeddings * mask
+                sum_tokons = torch.sum(tokens_embeddings, dim=1)
+                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
+                item_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
 
         # append cf to the end of the ch reps :
         if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
