@@ -161,7 +161,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 rep = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
             reps.extend(rep.tolist())
 
-        self.user_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps))
+        self.user_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
 
     def forward(self, batch):
         # batch -> chunks * batch_size * tokens
