@@ -22,10 +22,12 @@ from SBR.utils.data_loading import CollateUserItem
 
 class SupervisedTrainer:
     def __init__(self, config, model, device, logger, exp_dir, test_only=False, tuning=False, save_checkpoint=True,
-                     relevance_level=1, users=None, items=None, dataset_eval_neg_sampling=None, to_load_model_name=None):
+                     relevance_level=1, users=None, items=None, dataset_eval_neg_sampling=None, to_load_model_name=None,
+                 padding_token=None):
         self.model = model
         self.device = device
         self.logger = logger
+        self.padding_token = padding_token
         self.test_only = test_only  # todo used?
         self.tuning = tuning
         self.save_checkpoint = save_checkpoint
@@ -100,7 +102,7 @@ class SupervisedTrainer:
                 self.best_saved_valid_metric = checkpoint['best_valid_metric']
             print("last checkpoint restored")
         self.model.to(device)
-        
+
         if not test_only:
             if "bert_lr" in config:
                 bert_params = self.model.bert.parameters()
@@ -328,6 +330,9 @@ class SupervisedTrainer:
         self.model.to(self.device)
         self.best_epoch = checkpoint['epoch']
         print("best model loaded!")
+
+        if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
+            self.model.prec_representations_for_test(self.users, self.items, padding_token=self.padding_token)
 
         outputs, ground_truth, loss, internal_user_ids, internal_item_ids = self.predict(eval_dataloader)
         log_results(ground_truth, outputs, internal_user_ids, internal_item_ids,

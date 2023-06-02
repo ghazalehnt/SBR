@@ -280,7 +280,6 @@ class CollateRepresentationBuilder(object):
                 ret[col] = torch.tensor(batch_df[col])
         return ret
 
-
 def jaccard_index(X, Y):
     d = len(X.intersection(Y))/len(X.union(Y))
 
@@ -288,8 +287,8 @@ def jaccard_index(X, Y):
 
 
 class CollateUserItem(object):
-    def __init__(self):
-        self.padding_token = 0
+    def __init__(self, padding_token):
+        self.padding_token = padding_token
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)

@@ -126,7 +126,7 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
     temp = {ex: internal for ex, internal in zip(items['item_id'], items['internal_item_id'])}
     json.dump(temp, open(join(exp_dir, "item_internal_ids.json"), 'w'))
 
-    model = get_model(config['model'], users, items, device, config['dataset'], exp_dir)
+    model = get_model(config['model'], users, items, device, config['dataset'], exp_dir, test_only=test_only)
     print("Get model Done!")
 
     if config['trainer']['optimizer'] == "":
@@ -145,7 +145,8 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
                                     dataset_eval_neg_sampling=
                                     {"validation": config["dataset"]["validation_neg_sampling_strategy"],
                                     "test": config["dataset"]["test_neg_sampling_strategy"]},
-                                    to_load_model_name=given_eval_model)
+                                    to_load_model_name=given_eval_model,
+                                    padding_token=padding_token)
         if op == "train":
             trainer.fit(train_dataloader, valid_dataloader)
             trainer.evaluate(test_dataloader, valid_dataloader)

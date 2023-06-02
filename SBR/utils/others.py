@@ -13,7 +13,7 @@ from SBR.model.cf_ffn_dot import CFFFNDOT
 from SBR.model.bert_singleffn_prec_agg_chunk import BertSignleFFNPrecomputedRepsChunkAgg
 
 
-def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None):
+def get_model(config, user_info, item_info, device=None, dataset_config=None, exp_dir=None, test_only=False):
     if config['name'] == "MF":
         model = MatrixFactorizatoinDotProduct(config=config, n_users=user_info.shape[0], n_items=item_info.shape[0],
                                               use_item_bias=False, use_user_bias=False)
@@ -72,7 +72,8 @@ def get_model(config, user_info, item_info, device=None, dataset_config=None, ex
                                                               device=device,
                                                               dataset_config=dataset_config,
                                                               users=user_info,
-                                                              items=item_info)
+                                                              items=item_info,
+                                                              test_only=test_only)
     elif config['name'] == "VanillaBERT_1ffn_endtoend":
         model = BertSignleFFNUserTextProfileItemTextProfileEndToEnd(model_config=config,
                                                                     device=device,
