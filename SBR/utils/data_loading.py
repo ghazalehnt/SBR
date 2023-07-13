@@ -176,12 +176,14 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
         valid_collate_fn = None
         test_collate_fn = None
         start = time.time()
+        load_unique_user_item = config['load_unique_user_item'] if 'load_unique_user_item' in config else False
         if config['training_neg_sampling_strategy'] == "random":
             print("Start: train collate_fn initialize...")
             cur_used_items = user_used_items['train'].copy()
             train_collate_fn = CollateNegSamplesRandomOpt(config['training_neg_samples'],
                                                           cur_used_items, user_info,
-                                                          item_info, padding_token=padding_token, joint=joint)
+                                                          item_info, padding_token=padding_token, joint=joint,
+                                                          unique_u_i=load_unique_user_item)
             print(f"Finish: train collate_fn initialize {time.time() - start}")
         elif config['training_neg_sampling_strategy'].startswith("random_w_CF_dot_"):
             cur_used_items = user_used_items['train'].copy()
@@ -197,16 +199,19 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                                                  oldmax,
                                                                  oldmin,
                                                                  user_info,
-                                                                 item_info, padding_token=padding_token, joint=joint)
+                                                                 item_info, padding_token=padding_token, joint=joint,
+                                                                 unique_u_i=load_unique_user_item)
             print(f"Finish: train collate_fn initialize {time.time() - start}")
         elif config['training_neg_sampling_strategy'] == "":
-            train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token)
+            train_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token,
+                                                      unique_u_i=load_unique_user_item)
         elif config['training_neg_sampling_strategy'] == "genres":
             print("Start: train collate_fn initialize...")
             cur_used_items = user_used_items['train'].copy()
             train_collate_fn = CollateNegSamplesGenresOpt(config['training_neg_sampling_strategy'],
                                                           config['training_neg_samples'], cur_used_items, user_info,
-                                                          item_info, padding_token=padding_token, joint=joint)
+                                                          item_info, padding_token=padding_token, joint=joint,
+                                                          unique_u_i=load_unique_user_item)
             print(f"Finish: train collate_fn initialize {time.time() - start}")
 
         if config['validation_neg_sampling_strategy'] == "random":
@@ -216,12 +221,14 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
             for user_id, u_items in user_used_items['validation'].items():
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
             valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
-                                                          padding_token=padding_token, joint=joint)
+                                                          padding_token=padding_token, joint=joint,
+                                                          unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
         elif config['validation_neg_sampling_strategy'].startswith("f:"):
             start = time.time()
             print("Start: used_item copy and validation collate_fn initialize...")
-            valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token, joint=joint)
+            valid_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token, joint=joint,
+                                                      unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
 
         if config['test_neg_sampling_strategy'] == "random":
@@ -233,12 +240,14 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
             for user_id, u_items in user_used_items['test'].items():
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
             test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items,
-                                                         padding_token=padding_token, joint=joint)
+                                                         padding_token=padding_token, joint=joint,
+                                                         unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
         elif config['test_neg_sampling_strategy'].startswith("f:"):
             start = time.time()
             print("Start: used_item copy and test collate_fn initialize...")
-            test_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token, joint=joint)
+            test_collate_fn = CollateOriginalDataPad(user_info, item_info, padding_token=padding_token, joint=joint,
+                                                     unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
 
         train_dataloader = DataLoader(datasets['train'],
@@ -307,7 +316,8 @@ class CollateUserItem(object):
 
 
 class CollateNegSamplesRandomOpt(object):
-    def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None, joint=False):
+    def __init__(self, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None,
+                 joint=False, unique_u_i=None):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
         # pool of all items is created from both seen and unseen items:
@@ -316,6 +326,7 @@ class CollateNegSamplesRandomOpt(object):
         self.item_info = item_info.to_pandas()
         self.padding_token = padding_token
         self.joint = joint
+        self.unique_u_i = unique_u_i
 
     def sample(self, batch_df):
         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
@@ -337,8 +348,7 @@ class CollateNegSamplesRandomOpt(object):
                     break
                 current_samples = set(random.sample(self.all_items, num_user_neg_samples))
                 current_samples -= user_samples
-                cur_used_samples = self.used_items[user_id].intersection(current_samples)
-                current_samples = current_samples - cur_used_samples
+                current_samples = current_samples - self.used_items[user_id]
                 user_samples = user_samples.union(current_samples)
                 num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
                 if len(user_samples) < max_num_user_neg_samples:
@@ -353,6 +363,39 @@ class CollateNegSamplesRandomOpt(object):
             samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
                             for sampled_item_id in user_samples])
         return samples
+
+    def prepare_text_pad_unique(self, batch_df):
+        ret = {}
+        if "input_ids" in self.user_info:
+            # user:
+            temp_user = self.user_info.loc[batch_df[INTERNAL_USER_ID_FIELD].unique()][
+                ['input_ids', 'attention_mask']]
+            temp_user = temp_user.rename(columns={"input_ids": "user_input_ids",
+                                                  "attention_mask": "user_attention_mask"})
+            # item:
+            temp_item = self.item_info.loc[batch_df[INTERNAL_ITEM_ID_FIELD].unique()][
+                ['input_ids', 'attention_mask']]
+            temp_item = temp_item.rename(columns={"input_ids": "item_input_ids",
+                                                  "attention_mask": "item_attention_mask"})
+
+            if self.joint:
+                raise NotImplementedError("change these after only one chunk tokenizer:")
+            else:
+                for col in ["user_input_ids", "user_attention_mask"]:
+                    ret[col] = pad_sequence([torch.tensor(t) for t in temp_user[col]], batch_first=True,
+                                            padding_value=self.padding_token)
+                ret["user_index"] = temp_user.index
+                for col in ["item_input_ids", "item_attention_mask"]:
+                    ret[col] = pad_sequence([torch.tensor(t) for t in temp_item[col]], batch_first=True,
+                                            padding_value=self.padding_token)
+                ret["item_index"] = temp_item.index
+        elif "tokenized_text" in self.user_info:
+            raise NotImplementedError("is unique needed for such case?")
+        for col in batch_df.columns:
+            if col in ret:
+                continue
+            ret[col] = torch.tensor(batch_df[col]).unsqueeze(1)
+        return ret
 
     def prepare_text_pad(self, batch_df):
         ret = {}
@@ -425,7 +468,10 @@ class CollateNegSamplesRandomOpt(object):
         batch_df = pd.concat([batch_df, pd.DataFrame(samples)]).reset_index().drop(columns=['index'])
 
         if self.padding_token is not None:
-            ret = self.prepare_text_pad(batch_df)
+            if self.unique_u_i:
+                ret = self.prepare_text_pad_unique(batch_df)
+            else:
+                ret = self.prepare_text_pad(batch_df)
         else:
             ret = {}
             for col in batch_df.columns:
@@ -436,16 +482,20 @@ class CollateNegSamplesRandomOpt(object):
 
 
 class CollateOriginalDataPad(CollateNegSamplesRandomOpt):
-    def __init__(self, user_info, item_info, padding_token=None, joint=False):
+    def __init__(self, user_info, item_info, padding_token=None, joint=False, unique_u_i=None):
         self.user_info = user_info.to_pandas()
         self.item_info = item_info.to_pandas()
         self.padding_token = padding_token
         self.joint = joint
+        self.unique_u_i = unique_u_i
 
     def __call__(self, batch):
         batch_df = pd.DataFrame(batch)
         if self.padding_token is not None:
-            ret = self.prepare_text_pad(batch_df)
+            if self.unique_u_i:
+                ret = self.prepare_text_pad_unique(batch_df)
+            else:
+                ret = self.prepare_text_pad(batch_df)
         else:
             ret = {}
             for col in batch_df.columns:
@@ -458,7 +508,7 @@ class CollateOriginalDataPad(CollateNegSamplesRandomOpt):
 class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
     def __init__(self, num_neg_samples, used_items, user_training_items,
                  cf_checkpoint_file, cf_item_id_file, oldmax, oldmin,
-                 user_info=None, item_info=None, padding_token=None, joint=False):
+                 user_info=None, item_info=None, padding_token=None, joint=False, unique_u_i=None):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
         # pool of all items is created from both seen and unseen items:
@@ -475,6 +525,7 @@ class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
             self.user_info = user_info.to_pandas()
             self.item_info = item_info
         self.joint = joint
+        self.unique_u_i = unique_u_i
 
     def sample(self, batch_df):
         user_counter = Counter(batch_df[INTERNAL_USER_ID_FIELD])
@@ -496,8 +547,7 @@ class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
                     break
                 current_samples = set(random.sample(self.all_items, num_user_neg_samples))
                 current_samples -= user_samples
-                cur_used_samples = self.used_items[user_id].intersection(current_samples)
-                current_samples = current_samples - cur_used_samples
+                current_samples = current_samples - self.used_items[user_id]
                 user_samples = user_samples.union(current_samples)
                 num_user_neg_samples = max(max_num_user_neg_samples - len(user_samples), 0)
                 if len(user_samples) < max_num_user_neg_samples:
@@ -527,7 +577,8 @@ class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
 
 
 class CollateNegSamplesGenresOpt(CollateNegSamplesRandomOpt):
-    def __init__(self, strategy, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None, joint=False):
+    def __init__(self, strategy, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None,
+                 joint=False, unique_u_i=None):
         self.num_neg_samples = num_neg_samples
         self.used_items = used_items
         self.user_info = user_info.to_pandas()
@@ -544,6 +595,7 @@ class CollateNegSamplesGenresOpt(CollateNegSamplesRandomOpt):
             self.genre_items[g] = list(self.genre_items[g])
         print("finish parsing item genres")
         self.joint = joint
+        self.unique_u_i = unique_u_i
 
         # if strategy == "genres":
         #     print("start creating item candidates")

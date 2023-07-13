@@ -146,7 +146,8 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
                                     {"validation": config["dataset"]["validation_neg_sampling_strategy"],
                                     "test": config["dataset"]["test_neg_sampling_strategy"]},
                                     to_load_model_name=given_eval_model,
-                                    padding_token=padding_token)
+                                    padding_token=padding_token,
+                                    unique_user_item=config['dataset']['load_unique_user_item'] if 'load_unique_user_item' in config['dataset'] else False)
         if op == "train":
             trainer.fit(train_dataloader, valid_dataloader)
             trainer.evaluate(test_dataloader, valid_dataloader)

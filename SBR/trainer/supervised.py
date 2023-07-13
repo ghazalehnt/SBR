@@ -23,11 +23,12 @@ from SBR.utils.data_loading import CollateUserItem
 class SupervisedTrainer:
     def __init__(self, config, model, device, logger, exp_dir, test_only=False, tuning=False, save_checkpoint=True,
                      relevance_level=1, users=None, items=None, dataset_eval_neg_sampling=None, to_load_model_name=None,
-                 padding_token=None):
+                 padding_token=None, unique_user_item=None):
         self.model = model
         self.device = device
         self.logger = logger
         self.padding_token = padding_token
+        self.unique_u_i = unique_user_item
         self.test_only = test_only  # todo used?
         self.tuning = tuning
         self.save_checkpoint = save_checkpoint
@@ -176,6 +177,13 @@ class SupervisedTrainer:
             # log_user_texts = {}
             for batch_idx, batch in pbar:
                 # data preparation
+                user_index, item_index = None, None
+                if self.unique_u_i:
+                    temp = batch.pop('item_index')
+                    item_index = {temp[i]: i for i in range(len(temp))}
+                    temp = batch.pop('user_index')
+                    user_index = {temp[i]: i for i in range(len(temp))}
+
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 label = batch.pop("label").float()  # setting the type to torch.float32
                 # print(f"{min(label)} {max(label)}")
@@ -184,7 +192,7 @@ class SupervisedTrainer:
                 self.optimizer.zero_grad()
                 # Runs the forward pass with autocasting.
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
-                    output = self.model(batch)
+                    output = self.model(batch, user_index=user_index, item_index=item_index)
                     # # for debug:
                     # if len(output) == 2:
                     #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
@@ -365,12 +373,19 @@ class SupervisedTrainer:
         with torch.no_grad():
             for batch_idx, batch in pbar:
                 # data preparation
+                user_index, item_index = None, None
+                if self.unique_u_i:
+                    temp = batch.pop('item_index')
+                    item_index = {temp[i]: i for i in range(len(temp))}
+                    temp = batch.pop('user_index')
+                    user_index = {temp[i]: i for i in range(len(temp))}
+
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 label = batch.pop("label").float()  # setting the type to torch.float32
                 prepare_time = time.perf_counter() - start_time
 
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
-                    output = self.model(batch)
+                    output = self.model(batch, user_index=user_index, item_index=item_index)
                     # # for debug:
                     # if len(output) == 2:
                     #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
