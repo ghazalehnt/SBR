@@ -192,7 +192,10 @@ class SupervisedTrainer:
                 self.optimizer.zero_grad()
                 # Runs the forward pass with autocasting.
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
-                    output = self.model(batch, user_index=user_index, item_index=item_index)
+                    if self.unique_u_i:
+                        output = self.model(batch, user_index=user_index, item_index=item_index)
+                    else:
+                        output = self.model(batch)
                     # # for debug:
                     # if len(output) == 2:
                     #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
@@ -385,7 +388,10 @@ class SupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
-                    output = self.model(batch, user_index=user_index, item_index=item_index)
+                    if self.unique_u_i:
+                        output = self.model(batch, user_index=user_index, item_index=item_index)
+                    else:
+                        output = self.model(batch)
                     # # for debug:
                     # if len(output) == 2:
                     #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
