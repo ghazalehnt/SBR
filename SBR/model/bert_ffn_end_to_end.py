@@ -12,7 +12,7 @@ from SBR.utils.data_loading import CollateUserItem
 class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
     def __init__(self, model_config, device, dataset_config, users, items, test_only):
         super(BertFFNUserTextProfileItemTextProfileEndToEnd, self).__init__()
-        self.support_test_prec = False
+        self.support_test_prec = True
         self.test_only = test_only
 
         self.agg_strategy = model_config['agg_strategy']
