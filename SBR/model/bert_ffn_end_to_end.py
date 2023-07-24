@@ -245,7 +245,6 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             att_mask = batch['user_attention_mask']
 
             if user_index is not None:
-                # TODO ? sorted?
                 temp_user_ids = torch.Tensor([i for i, v in sorted(user_index.items(), key=lambda x: x[1])])
             else:
                 temp_user_ids = user_ids
