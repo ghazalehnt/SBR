@@ -148,6 +148,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []
         for batch_idx, batch in pbar:
+            user_ids = batch[INTERNAL_USER_ID_FIELD]
             input_ids = batch["input_ids"].to(self.device)
             att_mask = batch["attention_mask"].to(self.device)
             output = self.bert.forward(input_ids=input_ids,
@@ -161,6 +162,26 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 sum_tokons = torch.sum(tokens_embeddings, dim=1)
                 summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
                 rep = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
+
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:
+                rep = torch.cat([rep, self.user_embedding_CF(user_ids)], dim=1)
+            # id as single thing
+            if self.append_id_ffn:
+                rep = torch.cat([rep, self.user_ids_normalized(user_ids)], dim=1)
+            # id as embedding to be learned:
+            if self.append_embedding_ffn:
+                rep = torch.cat([rep, self.user_embedding(user_ids)], dim=1)
+
+            for k in range(len(self.user_linear_layers) - 1):
+                rep = torch.nn.functional.relu(self.user_linear_layers[k](rep))
+            rep = self.user_linear_layers[-1](rep)
+
+            if self.append_embedding_after_ffn:
+                rep = torch.cat([rep, self.user_embedding(user_ids)], dim=1)
+            if self.append_cf_after_ffn:
+                rep = torch.cat([rep, self.user_embedding_CF(user_ids)], dim=1)
+
             reps.extend(rep.tolist())
         self.user_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
 
@@ -169,6 +190,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []
         for batch_idx, batch in pbar:
+            item_ids = batch[INTERNAL_ITEM_ID_FIELD]
             input_ids = batch["input_ids"].to(self.device)
             att_mask = batch["attention_mask"].to(self.device)
             output = self.bert.forward(input_ids=input_ids,
@@ -182,6 +204,25 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 sum_tokons = torch.sum(tokens_embeddings, dim=1)
                 summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
                 rep = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
+                rep = torch.cat([rep, self.item_embedding_CF(item_ids)], dim=1)
+            # id as single thing
+            if self.append_id_ffn:
+                rep = torch.cat([rep, self.item_ids_normalized(item_ids)], dim=1)
+            # id as embedding to be learned:
+            if self.append_embedding_ffn:
+                rep = torch.cat([rep, self.item_embedding(item_ids)], dim=1)
+
+            for k in range(len(self.item_linear_layers) - 1):
+                rep = torch.nn.functional.relu(self.item_linear_layers[k](rep))
+            rep = self.item_linear_layers[-1](rep)
+
+            if self.append_embedding_after_ffn:
+                rep = torch.cat([rep, self.item_embedding(item_ids)], dim=1)
+            if self.append_cf_after_ffn:
+                rep = torch.cat([rep, self.item_embedding_CF(item_ids)], dim=1)
+
             reps.extend(rep.tolist())
         self.item_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
 
@@ -204,6 +245,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             att_mask = batch['user_attention_mask']
 
             if user_index is not None:
+                # TODO ? sorted?
                 temp_user_ids = torch.Tensor([i for i, v in sorted(user_index.items(), key=lambda x: x[1])])
             else:
                 temp_user_ids = user_ids
@@ -241,31 +283,31 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
                 user_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
 
-        # append cf to the end of the ch reps :
-        if self.append_cf_after:
-            user_rep = torch.cat([user_rep, self.user_embedding_CF(temp_user_ids)], dim=1)
-        # id as single thing
-        if self.append_id_ffn:
-            user_rep = torch.cat([user_rep, self.user_ids_normalized(temp_user_ids)], dim=1)
-        # id as embedding to be learned:
-        if self.append_embedding_ffn:
-            user_rep = torch.cat([user_rep, self.user_embedding(temp_user_ids)], dim=1)
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:
+                user_rep = torch.cat([user_rep, self.user_embedding_CF(temp_user_ids)], dim=1)
+            # id as single thing
+            if self.append_id_ffn:
+                user_rep = torch.cat([user_rep, self.user_ids_normalized(temp_user_ids)], dim=1)
+            # id as embedding to be learned:
+            if self.append_embedding_ffn:
+                user_rep = torch.cat([user_rep, self.user_embedding(temp_user_ids)], dim=1)
 
-        for k in range(len(self.user_linear_layers) - 1):
-            user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
-        user_rep = self.user_linear_layers[-1](user_rep)
+            for k in range(len(self.user_linear_layers) - 1):
+                user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
+            user_rep = self.user_linear_layers[-1](user_rep)
 
-        if self.append_embedding_after_ffn:
-            user_rep = torch.cat([user_rep, self.user_embedding(temp_user_ids)], dim=1)
-        if self.append_cf_after_ffn:
-            user_rep = torch.cat([user_rep, self.user_embedding_CF(temp_user_ids)], dim=1)
+            if self.append_embedding_after_ffn:
+                user_rep = torch.cat([user_rep, self.user_embedding(temp_user_ids)], dim=1)
+            if self.append_cf_after_ffn:
+                user_rep = torch.cat([user_rep, self.user_embedding_CF(temp_user_ids)], dim=1)
 
-        # repeat the user-rep by the batch occurrence
-        if user_index is not None:
-            repeats = []
-            for id in user_ids:
-                repeats.append(user_index[id.item()])
-            user_rep = torch.cat([user_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
+            # repeat the user-rep by the batch occurrence
+            if user_index is not None:
+                repeats = []
+                for id in user_ids:
+                    repeats.append(user_index[id.item()])
+                user_rep = torch.cat([user_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
 
         if self.test_only and self.support_test_prec:
             item_rep = self.item_prec_reps(item_ids)
@@ -309,31 +351,31 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)  #-> I see the point, but it's better to leave it as is to find the errors as in our case there should be something
                 item_rep = (sum_tokons.T / summed_mask).T # divide by how many tokens (1s) are in the att_mask
 
-        # append cf to the end of the ch reps :
-        if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
-            item_rep = torch.cat([item_rep, self.item_embedding_CF(temp_item_ids)], dim=1)
-        # id as single thing
-        if self.append_id_ffn:
-            item_rep = torch.cat([item_rep, self.item_ids_normalized(temp_item_ids)], dim=1)
-        # id as embedding to be learned:
-        if self.append_embedding_ffn:
-            item_rep = torch.cat([item_rep, self.item_embedding(temp_item_ids)], dim=1)
+            # append cf to the end of the ch reps :
+            if self.append_cf_after:  # did for tr as well before, not changed it to only for cases for ffn ... maybe another name is needed
+                item_rep = torch.cat([item_rep, self.item_embedding_CF(temp_item_ids)], dim=1)
+            # id as single thing
+            if self.append_id_ffn:
+                item_rep = torch.cat([item_rep, self.item_ids_normalized(temp_item_ids)], dim=1)
+            # id as embedding to be learned:
+            if self.append_embedding_ffn:
+                item_rep = torch.cat([item_rep, self.item_embedding(temp_item_ids)], dim=1)
 
-        for k in range(len(self.item_linear_layers) - 1):
-            item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
-        item_rep = self.item_linear_layers[-1](item_rep)
+            for k in range(len(self.item_linear_layers) - 1):
+                item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
+            item_rep = self.item_linear_layers[-1](item_rep)
 
-        if self.append_embedding_after_ffn:
-            item_rep = torch.cat([item_rep, self.item_embedding(temp_item_ids)], dim=1)
-        if self.append_cf_after_ffn:
-            item_rep = torch.cat([item_rep, self.item_embedding_CF(temp_item_ids)], dim=1)
+            if self.append_embedding_after_ffn:
+                item_rep = torch.cat([item_rep, self.item_embedding(temp_item_ids)], dim=1)
+            if self.append_cf_after_ffn:
+                item_rep = torch.cat([item_rep, self.item_embedding_CF(temp_item_ids)], dim=1)
 
-         # repeat the item-rep by the batch occurrence
-        if item_index is not None:
-            repeats = []
-            for id in item_ids:
-                repeats.append(item_index[id.item()])
-            item_rep = torch.cat([item_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
+             # repeat the item-rep by the batch occurrence
+            if item_index is not None:
+                repeats = []
+                for id in item_ids:
+                    repeats.append(item_index[id.item()])
+                item_rep = torch.cat([item_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
