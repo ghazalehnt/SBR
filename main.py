@@ -156,10 +156,12 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
         elif op == "test":
             trainer.evaluate(test_dataloader, valid_dataloader)
         elif op == "log":
-            trainer.user_bert_out = join(exp_dir, "user_bert_out.json")
-            #trainer.user_ffn_out = join(exp_dir, "user_ffn_out.json")
-            trainer.item_bert_out = join(exp_dir, "item_bert_out.json")
-            #trainer.item_ffn_out = join(exp_dir, "item_ffn_out.json")
+            # trainer.user_bert_out = join(exp_dir, "user_bert_out.json")
+            # trainer.user_ffn_out = join(exp_dir, "user_ffn_out.json")
+            # trainer.item_bert_out = join(exp_dir, "item_bert_out.json")
+            # trainer.item_ffn_out = join(exp_dir, "item_ffn_out.json")
+            trainer.user_prec_file_out = join(exp_dir, "user_prec_output")
+            trainer.item_prec_file_out = join(exp_dir, "item_prec_output")
             trainer.log()
 
 

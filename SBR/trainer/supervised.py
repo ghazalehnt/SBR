@@ -444,32 +444,39 @@ class SupervisedTrainer:
         return outputs, ground_truth, eval_loss, user_ids, item_ids
 
     def log(self):
-        ret_bert_out = {}
-        #ret_ffn_out = {}
-        dataloader = DataLoader(self.users,
-                                batch_size=512,
-                                collate_fn=CollateUserItem())
-        for batch in dataloader:
-            ids = batch.pop("user_id")
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-            bert_out, ffn_out = self.model.log(batch, "user")
-            for i in range(len(ids)):
-                ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
-                #ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
-        json.dump(ret_bert_out, open(self.user_bert_out, 'w'))
-        #json.dump(ret_ffn_out, open(self.user_ffn_out, 'w'))
-
-        ret_bert_out = {}
-        #ret_ffn_out = {}
-        dataloader = DataLoader(self.items,
-                                batch_size=512,
-                                collate_fn=CollateUserItem())
-        for batch in dataloader:
-            ids = batch.pop("item_id")
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-            bert_out, ffn_out = self.model.log(batch, "item")
-            for i in range(len(ids)):
-                ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
-                #ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
-        json.dump(ret_bert_out, open(self.item_bert_out, 'w'))
-        #json.dump(ret_ffn_out, open(self.item_ffn_out, 'w'))
+        if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
+            self.model.prec_representations_for_test(self.users, self.items, padding_token=self.padding_token)
+            torch.save(self.model.user_prec_reps, self.user_prec_file_out)
+            torch.save(self.model.item_prec_reps, self.item_prec_file_out)
+        else:
+            print("model does not support prec!")
+            raise NotImplementedError()
+        # # ret_bert_out = {}
+        # ret_ffn_out = {}
+        # dataloader = DataLoader(self.users,
+        #                         batch_size=512,
+        #                         collate_fn=CollateUserItem())
+        # for batch in dataloader:
+        #     ids = batch.pop("user_id")
+        #     batch = {k: v.to(self.device) for k, v in batch.items()}
+        #     bert_out, ffn_out = self.model.log(batch, "user")
+        #     for i in range(len(ids)):
+        #         # ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
+        #         ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
+        # # json.dump(ret_bert_out, open(self.user_bert_out, 'w'))
+        # json.dump(ret_ffn_out, open(self.user_ffn_out, 'w'))
+        #
+        # # ret_bert_out = {}
+        # ret_ffn_out = {}
+        # dataloader = DataLoader(self.items,
+        #                         batch_size=512,
+        #                         collate_fn=CollateUserItem())
+        # for batch in dataloader:
+        #     ids = batch.pop("item_id")
+        #     batch = {k: v.to(self.device) for k, v in batch.items()}
+        #     bert_out, ffn_out = self.model.log(batch, "item")
+        #     for i in range(len(ids)):
+        #         # ret_bert_out[ids[i]] = bert_out[i].detach().tolist()
+        #         ret_ffn_out[ids[i]] = ffn_out[i].detach().tolist()
+        # # json.dump(ret_bert_out, open(self.item_bert_out, 'w'))
+        # json.dump(ret_ffn_out, open(self.item_ffn_out, 'w'))
