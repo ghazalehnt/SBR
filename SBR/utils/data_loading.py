@@ -220,9 +220,11 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
             cur_used_items = user_used_items['train'].copy()
             for user_id, u_items in user_used_items['validation'].items():
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-            valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'], cur_used_items,
-                                                          padding_token=padding_token, joint=joint,
-                                                          unique_u_i=load_unique_user_item)
+
+            valid_collate_fn = CollateNegSamplesRandomOpt(config['validation_neg_samples'],
+                                                         cur_used_items, user_info,
+                                                         item_info, padding_token=padding_token, joint=joint,
+                                                         unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and validation collate_fn initialize {time.time() - start}")
         elif config['validation_neg_sampling_strategy'].startswith("f:"):
             start = time.time()
@@ -239,9 +241,24 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
             for user_id, u_items in user_used_items['test'].items():
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-            test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'], cur_used_items,
-                                                         padding_token=padding_token, joint=joint,
-                                                         unique_u_i=load_unique_user_item)
+            test_collate_fn = CollateNegSamplesRandomOpt(config['test_neg_samples'],
+                                                          cur_used_items, user_info,
+                                                          item_info, padding_token=padding_token, joint=joint,
+                                                          unique_u_i=load_unique_user_item)
+
+            print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
+        elif config['test_neg_sampling_strategy'] == "all":
+            start = time.time()
+            print("Start: used_item copy and test collate_fn initialize...")
+            cur_used_items = user_used_items['train'].copy()
+            for user_id, u_items in user_used_items['validation'].items():
+                cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+            for user_id, u_items in user_used_items['test'].items():
+                cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
+            test_collate_fn = CollateNegSamplesAllOpt(len(item_info),
+                                                      cur_used_items, user_info,
+                                                      item_info, padding_token=padding_token, joint=joint,
+                                                      unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
         elif config['test_neg_sampling_strategy'].startswith("f:"):
             start = time.time()
@@ -481,6 +498,27 @@ class CollateNegSamplesRandomOpt(object):
         return ret
 
 
+class CollateNegSamplesAllOpt(CollateNegSamplesRandomOpt):
+    def __init__(self, used_items, user_info=None, item_info=None, padding_token=None,
+                 joint=False, unique_u_i=None):
+        self.used_items = used_items
+        # pool of all items is created from both seen and unseen items:
+        self.all_items = list(set(item_info[INTERNAL_ITEM_ID_FIELD]))
+        self.user_info = user_info.to_pandas()
+        self.item_info = item_info.to_pandas()
+        self.padding_token = padding_token
+        self.joint = joint
+        self.unique_u_i = unique_u_i
+
+    def sample(self, batch_df):
+        batch_users = set(batch_df[INTERNAL_USER_ID_FIELD])
+        samples = []
+        for user_id in batch_users:
+            samples.extend([{'label': 0, INTERNAL_USER_ID_FIELD: user_id, INTERNAL_ITEM_ID_FIELD: sampled_item_id}
+                            for sampled_item_id in list(set(self.all_items) - self.used_items[user_id])])
+        return samples
+
+
 class CollateOriginalDataPad(CollateNegSamplesRandomOpt):
     def __init__(self, user_info, item_info, padding_token=None, joint=False, unique_u_i=None):
         self.user_info = user_info.to_pandas()
@@ -575,7 +613,6 @@ class CollateNegSamplesRandomCFWeighted(CollateNegSamplesRandomOpt):
                                 INTERNAL_ITEM_ID_FIELD: sampled_item_id})
         return samples
 
-
 class CollateNegSamplesGenresOpt(CollateNegSamplesRandomOpt):
     def __init__(self, strategy, num_neg_samples, used_items, user_info=None, item_info=None, padding_token=None,
                  joint=False, unique_u_i=None):
@@ -609,6 +646,7 @@ class CollateNegSamplesGenresOpt(CollateNegSamplesRandomOpt):
         self.strategy = strategy
         self.padding_token = padding_token
 
+    # todo problem: not unique sampled user-item pairs in the batch - fix it
     def sample(self, batch_df):
         samples = []
         for user_id, item_id in zip(batch_df[INTERNAL_USER_ID_FIELD], batch_df[INTERNAL_ITEM_ID_FIELD]):
