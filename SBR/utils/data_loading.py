@@ -255,8 +255,7 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
             for user_id, u_items in user_used_items['test'].items():
                 cur_used_items[user_id] = cur_used_items[user_id].union(u_items)
-            test_collate_fn = CollateNegSamplesAllOpt(len(item_info),
-                                                      cur_used_items, user_info,
+            test_collate_fn = CollateNegSamplesAllOpt(cur_used_items, user_info,
                                                       item_info, padding_token=padding_token, joint=joint,
                                                       unique_u_i=load_unique_user_item)
             print(f"Finish: used_item copy and test collate_fn initialize {time.time() - start}")
