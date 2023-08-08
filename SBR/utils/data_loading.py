@@ -277,7 +277,7 @@ def load_data(config, pretrained_model=None, word_vector_model=None, for_precalc
                                            collate_fn=valid_collate_fn,
                                            num_workers=config['dataloader_num_workers'])
         test_dataloader = DataLoader(datasets['test'],
-                                     batch_size=config['eval_batch_size'],
+                                     batch_size=config['eval_batch_size'] if config['test_neg_sampling_strategy'] != "all" else 1,
                                      collate_fn=test_collate_fn,
                                      num_workers=config['dataloader_num_workers'])
     return train_dataloader, validation_dataloader, test_dataloader, user_info, item_info, \
@@ -700,8 +700,9 @@ def get_user_used_items(datasets, filtered_out_user_item_pairs_by_limit):
     used_items = {}
     for split in datasets.keys():
         used_items[split] = defaultdict(set)
-        for user_iid, item_iid in zip(datasets[split][INTERNAL_USER_ID_FIELD], datasets[split][INTERNAL_ITEM_ID_FIELD]):
-            used_items[split][user_iid].add(item_iid)
+        for user_iid, item_iid, label in zip(datasets[split][INTERNAL_USER_ID_FIELD], datasets[split][INTERNAL_ITEM_ID_FIELD], datasets[split]["label"]):
+            if label == 1:
+                used_items[split][user_iid].add(item_iid)
 
     for user, books in filtered_out_user_item_pairs_by_limit.items():
         used_items['train'][user] = used_items['train'][user].union(books)
@@ -778,10 +779,18 @@ def load_split_dataset(config, for_precalc=False):
         sp_files = {"train": join(config['dataset_path'], "train.csv"),
                     "validation": join(config['dataset_path'], f'{config["alternative_pos_validation_file"]}.csv' if ("alternative_pos_validation_file" in config and config["alternative_pos_validation_file"] != "") else "validation.csv"),
                     "test": join(config['dataset_path'], f'{config["alternative_pos_test_file"]}.csv' if ("alternative_pos_test_file" in config and config["alternative_pos_test_file"] != "") else "test.csv")}
+        
+        
+        # concat and move the user/item text fields to user and item info:
+        sort_reviews = "" # no need for this todo: remove parts of code 
+
         split_datasets = {}
         filtered_out_user_item_pairs_by_limit = defaultdict(set)
         for sp, file in sp_files.items():
-            df = pd.read_csv(file, usecols=["user_id", "item_id", "rating"], dtype=str)  # rating:float64   TODO label?
+            if sort_reviews != "":
+                df = pd.read_csv(file, usecols=["user_id", "item_id", "rating"], dtype=str)  # rating:float64   TODO label?
+            else:
+                df = pd.read_csv(file, usecols=["user_id", "item_id"], dtype=str)  # rating:float64   TODO label?
             # book limit:
             if sp == 'train' and config['limit_training_data'] != "":
                 if config['limit_training_data'].startswith("max_book"):
@@ -810,16 +819,17 @@ def load_split_dataset(config, for_precalc=False):
                 df = df.drop(columns=['user_item_ids'])
 
             # TODO if dataset is cleaned beforehand this could change slightly
-            df['rating'] = df['rating'].fillna(-1)
-            if config["name"] == "CGR":
-                for k, v in goodreads_rating_mapping.items():
-                    df['rating'] = df['rating'].replace(k, v)
-            elif config["name"] == "GR_UCSD":
-                df['rating'] = df['rating'].astype(int)
-            elif config["name"] == "Amazon":
-                df['rating'] = df['rating'].astype(float).astype(int)
-            else:
-                raise NotImplementedError(f"dataset {config['name']} not implemented!")
+            if sort_reviews.startswith("pos_rating_sorted_"):
+                df['rating'] = df['rating'].fillna(-1)
+                if config["name"] == "CGR":
+                    for k, v in goodreads_rating_mapping.items():
+                        df['rating'] = df['rating'].replace(k, v)
+                elif config["name"] == "GR_UCSD":
+                    df['rating'] = df['rating'].astype(int)
+                elif config["name"] == "Amazon":
+                    df['rating'] = df['rating'].astype(float).astype(int)
+                else:
+                    raise NotImplementedError(f"dataset {config['name']} not implemented!")
             if not for_precalc:
                 if config['binary_interactions']:
                     # if binary prediction (interaction): set label for all interactions to 1.
@@ -833,6 +843,9 @@ def load_split_dataset(config, for_precalc=False):
             df = df.merge(user_info[["user_id", INTERNAL_USER_ID_FIELD]], "left", on="user_id")
             df = df.merge(item_info[["item_id", INTERNAL_ITEM_ID_FIELD]], "left", on="item_id")
             df = df.drop(columns=["user_id", "item_id"])
+            # todo remove later maybe:
+            if 'rating' in df.columns:
+                df = df.drop(columns=["rating"])
             split_datasets[sp] = df
 
         if config["training_neg_sampling_strategy"] == "genres":  # TODO if we added genres_weighted...
