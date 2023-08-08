@@ -146,10 +146,17 @@ class SupervisedTrainer:
         #                                     num_workers=valid_dataloader.num_workers)
         #     outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
         # else:
-        #     outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
-        # results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
-        # results = {f"valid_{k}": v for k, v in results.items()}
-        # print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+        #start_time = time.perf_counter()
+        #if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
+        #    self.model.prec_representations_for_test(self.users, self.items,
+        #            padding_token=self.padding_token)
+        #outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
+        #self.model.user_prec_reps = None
+        #self.model.item_prec_reps = None
+        #results = calculate_metrics(ground_truth, outputs, users, items, self.relevance_level)
+        #results = {f"valid_{k}": v for k, v in results.items()}
+        #print(f"Valid loss before training: {valid_loss:.8f} - {self.valid_metric} = {results[self.valid_metric]:.6f}")
+        #print(f"time={(time.perf_counter() - start_time)/60}")
 
         random.seed(42)
         np.random.seed(42)
@@ -296,7 +303,13 @@ class SupervisedTrainer:
                                                     num_workers=valid_dataloader.num_workers)
                     outputs, ground_truth, valid_loss, users, items = self.predict(sampled_dataloader, low_mem=True)
                 else:
+                    start_time = time.perf_counter()
+                    if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
+                        self.model.prec_representations_for_test(self.users, self.items,
+                                                                 padding_token=self.padding_token)
                     outputs, ground_truth, valid_loss, users, items = self.predict(valid_dataloader, low_mem=True)
+                    self.model.user_prec_reps = None
+                    self.model.item_prec_reps = None
 
     #            with open(join(self.train_output_log, f"valid_output_{epoch}.log"), "w") as f:
     #                f.write("\n".join([f"label:{str(float(l))}, pred:{str(float(v))}" for v, l in zip(outputs, ground_truth)]))
@@ -305,7 +318,7 @@ class SupervisedTrainer:
                 results = {f"valid_{k}": v for k, v in results.items()}
                 for k, v in results.items():
                     self.logger.add_scalar(f'epoch_metrics/{k}', v, epoch)
-                print(f"Valid loss epoch {epoch}: {valid_loss} - {self.valid_metric} = {results[self.valid_metric]:.6f}\n")
+                print(f"Valid loss epoch {epoch}: {valid_loss} - {self.valid_metric} = {results[self.valid_metric]:.6f} done in {(time.perf_counter() - start_time)/60}\n")
 
                 if comparison_op(results[self.valid_metric], self.best_saved_valid_metric):
                     self.best_saved_valid_metric = results[self.valid_metric]
@@ -388,10 +401,16 @@ class SupervisedTrainer:
                 prepare_time = time.perf_counter() - start_time
 
                 with autocast(enabled=self.enable_autocast, device_type='cuda', dtype=torch.float16):
-                    if self.unique_u_i:
-                        output = self.model(batch, user_index=user_index, item_index=item_index)
+                    if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True and self.model.user_prec_reps is not None:
+                        if self.unique_u_i:
+                            output = self.model(batch, user_index=user_index, item_index=item_index, validate=True)
+                        else:
+                            output = self.model(batch, validate=True)
                     else:
-                        output = self.model(batch)
+                        if self.unique_u_i:
+                            output = self.model(batch, user_index=user_index, item_index=item_index)
+                        else:
+                            output = self.model(batch)
                     # # for debug:
                     # if len(output) == 2:
                     #     user_ex_ids = self.users[batch[INTERNAL_USER_ID_FIELD]]["user_id"]
