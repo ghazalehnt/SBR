@@ -11,8 +11,8 @@ def main(result_folder):
 
 	item_prec_reps = torch.load(join(result_folder, "item_prec_output"), map_location=device)
 	user_prec_reps = torch.load(join(result_folder, "user_prec_output"), map_location=device)
-	item_id_mapping = json.load(open(join(result_folder, "item_internal_ids.json")))
-	user_id_mapping = json.load(open(join(result_folder, "user_internal_ids.json")))
+	item_id_mapping = json.load(open(join(result_folder, "item_internal_ids.json"), 'r'))
+	user_id_mapping = json.load(open(join(result_folder, "user_internal_ids.json"), 'r'))
 
 	results = defaultdict(lambda: defaultdict())
 	for user_exid, user_inid in user_id_mapping.items():
