@@ -21,12 +21,12 @@ def main(result_folder):
 
 	cnt = 0
 	for user_exid, user_inid in user_id_mapping.items():
-		results = defaultdict()
+		#results = defaultdict()
 		user_rep = user_prec_reps(torch.LongTensor([user_inid]).to(device))
 		res = torch.sigmoid(torch.sum(torch.mul(user_rep, item_prec_reps.weight), dim=1)).tolist()
-		for item_inid in range(len(res)):
-			results[item_id_mapping_rev[item_inid]] = res[item_inid]
-		json.dump({user_exid: results}, open(join(result_folder, "per_user_all_items_scores_from_precalc", f"{user_exid}.json"), 'w'))
+		#for item_inid in range(len(res)):
+		#	results[item_id_mapping_rev[item_inid]] = res[item_inid]
+		json.dump({user_exid: res}, open(join(result_folder, "per_user_all_items_scores_from_precalc", f"{user_exid}.json"), 'w'))
 		cnt += 1
 		if cnt % 1000 == 0:
 			print(f"{cnt} users done.")
