@@ -13,6 +13,8 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
     def __init__(self, model_config, device, dataset_config, users, items, test_only):
         super(BertFFNUserTextProfileItemTextProfileEndToEnd, self).__init__()
         self.support_test_prec = True
+        self.item_prec_reps = None
+        self.user_prec_reps = None
         self.test_only = test_only
 
         self.agg_strategy = model_config['agg_strategy']
@@ -186,7 +188,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         self.user_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
 
         #item:
-        dataloader = DataLoader(items, batch_size=1024, collate_fn=collate_fn)
+        dataloader = DataLoader(items, batch_size=512, collate_fn=collate_fn)
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []
         for batch_idx, batch in pbar:
@@ -226,7 +228,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             reps.extend(rep.tolist())
         self.item_prec_reps = torch.nn.Embedding.from_pretrained(torch.tensor(reps)).to(self.device)
 
-    def forward(self, batch, user_index=None, item_index=None):
+    def forward(self, batch, user_index=None, item_index=None, validate=False):
         # batch -> chunks * batch_size * tokens
         user_ids = batch[INTERNAL_USER_ID_FIELD].squeeze(1)
         item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze(1)
@@ -238,7 +240,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         #     for uid, ui in zip(user_ids, input_ids):
         #         user_text.append(" ".join(self.tokenizer.convert_ids_to_tokens(ui)))
 
-        if self.test_only and self.support_test_prec:
+        if (self.test_only or validate) and self.support_test_prec:
             user_rep = self.user_prec_reps(user_ids)
         else:
             input_ids = batch['user_input_ids']
@@ -308,7 +310,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                     repeats.append(user_index[id.item()])
                 user_rep = torch.cat([user_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
 
-        if self.test_only and self.support_test_prec:
+        if (self.test_only or validate) and self.support_test_prec:
             item_rep = self.item_prec_reps(item_ids)
         else:
             input_ids = batch['item_input_ids']
