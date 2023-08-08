@@ -8,7 +8,6 @@ from SBR.utils.statics import INTERNAL_USER_ID_FIELD, INTERNAL_ITEM_ID_FIELD
 class MatrixFactorizatoinDotProduct(torch.nn.Module):
     def __init__(self, config, n_users, n_items, device, use_item_bias=False, use_user_bias=False):
         super(MatrixFactorizatoinDotProduct, self).__init__()
-        self.support_test_prec = True
         self.item_prec_reps = None
         self.user_prec_reps = None
         self.device = device

@@ -463,13 +463,15 @@ class SupervisedTrainer:
         return outputs, ground_truth, eval_loss, user_ids, item_ids
 
     def log(self):
-        if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
-            self.model.prec_representations_for_test(self.users, self.items, padding_token=self.padding_token)
-            torch.save(self.model.user_prec_reps, self.user_prec_file_out)
-            torch.save(self.model.item_prec_reps, self.item_prec_file_out)
-        else:
-            print("model does not support prec!")
-            raise NotImplementedError()
+#        if hasattr(self.model, 'support_test_prec') and self.model.support_test_prec is True:
+        
+        self.model.prec_representations_for_test(self.users, self.items, padding_token=self.padding_token)
+        torch.save(self.model.user_prec_reps, self.user_prec_file_out)
+        torch.save(self.model.item_prec_reps, self.item_prec_file_out)
+        #else:
+        #    print("model does not support prec!")
+        #    raise NotImplementedError()
+
         # # ret_bert_out = {}
         # ret_ffn_out = {}
         # dataloader = DataLoader(self.users,
