@@ -16,10 +16,10 @@ def main(result_folder):
 
 	results = defaultdict(lambda: defaultdict())
 	for user_exid, user_inid in user_id_mapping.items():
-		user_rep = user_prec_reps(torch.LongTensor([user_inid]))
+		user_rep = user_prec_reps(torch.LongTensor([user_inid]).to(device))
 		for item_exid, item_inid in item_id_mapping.items():
-			item_rep = item_prec_reps(torch.LongTensor([item_inid]))
-			results[user_exid][item_exid] = torch.sigmoid(torch.sum(torch.mul(user_rep, item_rep), dim=1)).to_list()[0]
+			item_rep = item_prec_reps(torch.LongTensor([item_inid]).to(device))
+			results[user_exid][item_exid] = torch.sigmoid(torch.sum(torch.mul(user_rep, item_rep), dim=1)).tolist()[0]
 	json.dump({"predicted": results}, open(join(result_folder, "all_items_scores_from_precalc.json"), 'w'))
 
 
