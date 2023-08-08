@@ -41,6 +41,7 @@ def main(result_folder):
 			idx = temp_idx.index(item_inid)
 			if idx > last_idx:
 				last_idx = idx
+		last_idx += 1 # to cover one more if all is pos
 		if topN > last_idx:
 			last_idx = topN
 		results[user_exid] = {item_id_mapping_rev[k]: v for k, v in temp[:last_idx]}
