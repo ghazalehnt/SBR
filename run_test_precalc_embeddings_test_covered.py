@@ -47,7 +47,7 @@ def main(result_folder):
 		if len(results.keys()) % 1000 == 0:
 			print(f"{len(results.keys())} users done.")
 
-	json.dump(results, open(join(result_folder, f"scores_sorted_of_all_items_per_user.json"), 'w'))
+	json.dump(results, open(join(result_folder, f"scores_sorted_of_all_items_per_user_cover_test.json"), 'w'))
 
 
 if __name__ == '__main__':
