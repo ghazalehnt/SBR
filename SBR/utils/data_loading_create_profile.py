@@ -1,6 +1,7 @@
 import json
 from builtins import NotImplementedError
 from os.path import join
+import re
 
 import pandas as pd
 from sentence_splitter import SentenceSplitter
@@ -115,6 +116,7 @@ def load_split_dataset(config):
         up = up.fillna('')
         up = up.rename(columns={"text": f"userprofile.{keep_fields}"})
         user_info = pd.merge(user_info, up, on="user_id")
+    print("read user file")
 
     keep_fields = ["item_id"]
     keep_fields.extend(
@@ -152,13 +154,11 @@ def load_split_dataset(config):
                  g in x.split(",")]))
     if config["name"] == "Amazon":
         if 'item.category' in item_info.columns:
-            item_info['item.category'] = item_info['item.category'].apply(
-                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
-                .replace("[", "").replace("]", "").strip())
+            item_info['item.category'] = item_info['item.category'].apply(lambda x: x.replace("'", "").replace('"', "").replace("  ", " ").replace("[", "").replace("]", "").strip())
+            item_info['item.category'] = item_info['item.category'].apply(lambda x: ", ".join(list(set([g.strip() for g in x.split(",")]))))
         if 'item.description' in item_info.columns:
-            item_info['item.description'] = item_info['item.description'].apply(
-                lambda x: ", ".join(x[1:-1].split(",")).replace("'", "").replace('"', "").replace("  ", " ")
-                .replace("[", "").replace("]", "").strip())
+            item_info['item.description'] = item_info['item.description'].apply(lambda x: ", ".join(x.split(",")).replace("'", "").replace('"', "").replace("  ", " ").replace("[", "").replace("]", "").strip())
+    print("read item file")
 
     train_file = join(config['dataset_path'], "train.csv")
     train_df = pd.read_csv(train_file, dtype=str)  # rating:float64
@@ -183,16 +183,17 @@ def load_split_dataset(config):
         sort_reviews = config['user_item_text_choice']
 
     # TODO if dataset is cleaned beforehand this could change slightly
-    train_df['rating'] = train_df['rating'].fillna(-1)
-    if config["name"] == "CGR":
-        for k, v in goodreads_rating_mapping.items():
-            train_df['rating'] = train_df['rating'].replace(k, v)
-    elif config["name"] == "GR_UCSD":
-        train_df['rating'] = train_df['rating'].astype(int)
-    elif config["name"] == "Amazon":
-        train_df['rating'] = train_df['rating'].astype(float).astype(int)
-    else:
-        raise NotImplementedError(f"dataset {config['name']} not implemented!")
+    if sort_reviews.startswith("pos_rating_sorted_"):
+        train_df['rating'] = train_df['rating'].fillna(-1)
+        if config["name"] == "CGR":
+            for k, v in goodreads_rating_mapping.items():
+                train_df['rating'] = train_df['rating'].replace(k, v)
+        elif config["name"] == "GR_UCSD":
+            train_df['rating'] = train_df['rating'].astype(int)
+        elif config["name"] == "Amazon":
+            train_df['rating'] = train_df['rating'].astype(float).astype(int)
+        else:
+            raise NotImplementedError(f"dataset {config['name']} not implemented!")
 
     train_df = train_df.rename(
         columns={field[field.index("interaction.") + len("interaction."):]: field for field in user_text_fields if
@@ -200,9 +201,9 @@ def load_split_dataset(config):
     train_df = train_df.rename(
         columns={field[field.index("interaction.") + len("interaction."):]: field for field in item_text_fields if
                  field.startswith("interaction.")})
+    print("read train file")
 
     # text profile:
-
     train_df = train_df.fillna('')
     ## USER:
     # This code works for user text fields from interaction and item file
@@ -217,7 +218,9 @@ def load_split_dataset(config):
         if tie_breaker in ["avg_rating", "average_rating"]:
             user_item_merge_fields.append(tie_breaker)
 
-        user_inter_merge_fields = ["user_id", "item_id", 'rating']
+        user_inter_merge_fields = ["user_id", "item_id"]
+        if sort_reviews.startswith("pos_rating_sorted_") or sort_reviews == "rating_sorted":
+            user_inter_merge_fields.append('rating')
         user_inter_merge_fields.extend(user_inter_text_fields)
 
         temp = train_df[user_inter_merge_fields]. \
@@ -230,6 +233,7 @@ def load_split_dataset(config):
             temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1) + "<ENDOFITEM>"
         else:
             temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
+        temp['text'] = temp['text'].apply(lambda x: re.sub("(. )+", ". ", x))
 
         if config['user_text_filter'] in ["item_sentence_SBERT"]:
             # first we sort the items based on the ratings, tie-breaker
