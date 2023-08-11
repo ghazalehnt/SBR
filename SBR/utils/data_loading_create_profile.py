@@ -233,7 +233,8 @@ def load_split_dataset(config):
             temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1) + "<ENDOFITEM>"
         else:
             temp['text'] = temp[user_item_inter_text_fields].agg('. '.join, axis=1)
-        temp['text'] = temp['text'].apply(lambda x: re.sub("(. )+", ". ", x))
+        temp['text'] = temp['text'].apply(lambda x: re.sub("(\. )+", ". ", x))  # some datasets have empty so we sould have . . . .
+        temp['text'] = temp['text'].apply(lambda x: x.strip())
 
         if config['user_text_filter'] in ["item_sentence_SBERT"]:
             # first we sort the items based on the ratings, tie-breaker
