@@ -121,7 +121,7 @@ def tokens_tf_idf_weights(samples, idf_weights=None):
     return {f"sorted_text": ret}
 
 
-def filter_user_profile_idf_sentences(dataset_config, user_info):
+def filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=False):
     phrase_sizes = set([1])
     unique_phrases = False
     # unique_phrases = True  # todo this should be optional to weigh sentences based on their unique terms or repeated?
@@ -158,7 +158,7 @@ def filter_user_profile_idf_sentences(dataset_config, user_info):
         temp = {k: v for k, v in temp.items() if k in vocab[n]}
         idf_weights.update(temp)
 
-    user_info = user_info.map(sort_sentences, fn_kwargs={'idf_weights': idf_weights}, batched=True)
+    user_info = user_info.map(sort_sentences, fn_kwargs={'idf_weights': idf_weights, 'oovzero': oovzero}, batched=True)
     user_info = user_info.remove_columns(['text', 'tokenized_sentences_text', 'sentences_text'])
 
     user_info = user_info.to_pandas()
@@ -218,15 +218,18 @@ def sentencize_function_torchtext(text, sentencizer=None,
     return sents
 
 
-def sort_sentences(samples, idf_weights=None):
+def sort_sentences(samples, idf_weights=None, oovzero=False):
     ret = []
     for sentences, sentences_tokens in zip(samples['sentences_text'], samples['tokenized_sentences_text']):
         s_weights = {}
         for i in range(0, len(sentences)):
-            # todo consider 0 for out of ngram?
-            # w = [idf_weights[token] if token in idf_weights else 0 for token in sentences_tokens[i]]
             # we make sure we use lower case for idf calc
-            w = [idf_weights[token.lower()] for token in sentences_tokens[i] if token.lower() in idf_weights]
+            if oovzero:
+                # I am giving 0 to oov and consider them into length
+                w = [idf_weights[token.lower()] if token.lower() in idf_weights else 0 for token in sentences_tokens[i]]
+            else:
+                # I am NOT giving 0 to oov and ignore them: done for experiment until now:
+                w = [idf_weights[token.lower()] for token in sentences_tokens[i] if token.lower() in idf_weights]
             if len(w) > 0:
                 s_weights[i] = sum(w)/len(w)
             else:
