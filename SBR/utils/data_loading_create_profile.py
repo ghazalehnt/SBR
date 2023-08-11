@@ -6,7 +6,8 @@ import pandas as pd
 from sentence_splitter import SentenceSplitter
 from sentence_transformers import SentenceTransformer, util
 
-from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf, filter_user_profile_random_sentences
+from SBR.utils.filter_user_profile import filter_user_profile_idf_sentences, filter_user_profile_idf_tf, \
+    filter_user_profile_random_sentences
 
 goodreads_rating_mapping = {
     'did not like it': 1,
@@ -35,6 +36,9 @@ def filter_user_profile(dataset_config, user_info):
     # TODO I think more important than the uniqueness is the split of genres into sentences each not all together
     if dataset_config['user_text_filter'] == "idf_sentence":
         user_info = filter_user_profile_idf_sentences(dataset_config, user_info)
+    elif dataset_config['user_text_filter'] == "idf_sentence_oov0":
+        user_info = filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=True)
+
     # filter-type1 idf: we can have idf_1_all, idf_2_all, idf_3_all, idf_1-2_all, ..., idf_1-2-3_all, idf_1_unique, ...
     # filter-type2 tf-idf: tf-idf_1, ..., tf-idf_1-2-3
     elif dataset_config['user_text_filter'].startswith("idf_") or \
@@ -63,7 +67,7 @@ def load_split_dataset(config):
     # check:
     for field in user_text_fields:
         if not field.startswith("user.") and not field.startswith("item.") and not field.startswith("interaction.") \
-            and not field.startswith("userprofile."):
+                and not field.startswith("userprofile."):
             raise ValueError(f"{field} in user text field is wrong")
     for field in item_text_fields:
         if not field.startswith("user.") and not field.startswith("item.") and not field.startswith("interaction."):
@@ -74,10 +78,12 @@ def load_split_dataset(config):
         topkgenres = None
         if field.startswith("user.sorted_genres_"):
             keep_fields.append("sorted_genres")
-            topkgenres = int(field[field.rindex("_")+1:])
+            topkgenres = int(field[field.rindex("_") + 1:])
             break
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in user_text_fields if field.startswith("user.") and not field.startswith("user.sorted_genres_")])
-    keep_fields.extend([field[field.index("user.")+len("user."):] for field in item_text_fields if field.startswith("user.") and not field.startswith("user.sorted_genres_")])
+    keep_fields.extend([field[field.index("user.") + len("user."):] for field in user_text_fields if
+                        field.startswith("user.") and not field.startswith("user.sorted_genres_")])
+    keep_fields.extend([field[field.index("user.") + len("user."):] for field in item_text_fields if
+                        field.startswith("user.") and not field.startswith("user.sorted_genres_")])
     keep_fields = list(set(keep_fields))
     user_info = pd.read_csv(join(config['dataset_path'], "users.csv"), usecols=keep_fields, dtype=str)
     user_info = user_info.fillna('')
@@ -91,13 +97,16 @@ def load_split_dataset(config):
             user_info = user_info.drop(columns=["sorted_genres"])
         else:
             user_info['sorted_genres'] = user_info['sorted_genres'].apply(
-            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
-                                 g in x.split(",")]))
+                lambda x: ", ".join(
+                    [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip()
+                     for
+                     g in x.split(",")]))
     user_info = user_info.rename(
         columns={field[field.index("user.") + len("user."):]: field for field in user_text_fields if
                  field.startswith("user.")})
 
-    keep_fields = [field[field.index("userprofile.")+len("userprofile."):] for field in user_text_fields if field.startswith("userprofile.")]
+    keep_fields = [field[field.index("userprofile.") + len("userprofile."):] for field in user_text_fields if
+                   field.startswith("userprofile.")]
     if len(keep_fields) > 1:
         raise ValueError("more than 1 userprofile fields ?")
     elif len(keep_fields) == 1:
@@ -108,8 +117,10 @@ def load_split_dataset(config):
         user_info = pd.merge(user_info, up, on="user_id")
 
     keep_fields = ["item_id"]
-    keep_fields.extend([field[field.index("item.")+len("item."):] for field in item_text_fields if field.startswith("item.")])
-    keep_fields.extend([field[field.index("item.") + len("item."):] for field in user_text_fields if field.startswith("item.")])
+    keep_fields.extend(
+        [field[field.index("item.") + len("item."):] for field in item_text_fields if field.startswith("item.")])
+    keep_fields.extend(
+        [field[field.index("item.") + len("item."):] for field in user_text_fields if field.startswith("item.")])
     keep_fields = list(set(keep_fields))
     tie_breaker = None
     if len(user_text_fields) > 0 and config['user_item_text_tie_breaker'] != "":
@@ -136,8 +147,9 @@ def load_split_dataset(config):
                  field.startswith("item.")})
     if 'item.genres' in item_info.columns:
         item_info['item.genres'] = item_info['item.genres'].apply(
-            lambda x: ", ".join([g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
-                                 g in x.split(",")]))
+            lambda x: ", ".join(
+                [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
+                 g in x.split(",")]))
     if config["name"] == "Amazon":
         if 'item.category' in item_info.columns:
             item_info['item.category'] = item_info['item.category'].apply(
@@ -152,7 +164,8 @@ def load_split_dataset(config):
     train_df = pd.read_csv(train_file, dtype=str)  # rating:float64
     if config['limit_training_data'] != "":
         if config['limit_training_data'].startswith("max_book"):
-            limited_user_books = json.load(open(join(config['dataset_path'], f"{config['limit_training_data']}.json"), 'r'))
+            limited_user_books = json.load(
+                open(join(config['dataset_path'], f"{config['limit_training_data']}.json"), 'r'))
         else:
             raise NotImplementedError(f"limit_training_data={config['limit_training_data']} not implemented")
 
@@ -163,6 +176,11 @@ def load_split_dataset(config):
         train_df['user_item_ids'] = train_df['user_id'].map(str) + '-' + train_df['item_id'].map(str)
         train_df = train_df[train_df['user_item_ids'].isin(limited_user_item_ids)]
         train_df = train_df.drop(columns=['user_item_ids'])
+
+    # concat and move the user/item text fields to user and item info:
+    sort_reviews = ""
+    if len(user_text_fields) > 0:
+        sort_reviews = config['user_item_text_choice']
 
     # TODO if dataset is cleaned beforehand this could change slightly
     train_df['rating'] = train_df['rating'].fillna(-1)
@@ -184,10 +202,6 @@ def load_split_dataset(config):
                  field.startswith("interaction.")})
 
     # text profile:
-    # concat and move the user/item text fields to user and item info:
-    sort_reviews = ""
-    if len(user_text_fields) > 0:
-        sort_reviews = config['user_item_text_choice']
 
     train_df = train_df.fillna('')
     ## USER:
@@ -206,7 +220,7 @@ def load_split_dataset(config):
         user_inter_merge_fields = ["user_id", "item_id", 'rating']
         user_inter_merge_fields.extend(user_inter_text_fields)
 
-        temp = train_df[user_inter_merge_fields].\
+        temp = train_df[user_inter_merge_fields]. \
             merge(item_info[user_item_merge_fields], on="item_id")
         if sort_reviews.startswith("pos_rating_sorted_"):
             pos_threshold = int(sort_reviews[sort_reviews.rindex("_") + 1:])
@@ -230,7 +244,8 @@ def load_split_dataset(config):
                                                                        config['case_sensitive'],
                                                                        config['normalize_negation']), axis=1)
             temp = temp.drop(columns=['text'])
-            temp = temp.drop(columns=[field for field in user_text_fields if not field.startswith("user.") and not field.startswith("userprofile.")])
+            temp = temp.drop(columns=[field for field in user_text_fields if
+                                      not field.startswith("user.") and not field.startswith("userprofile.")])
 
             # load SBERT
             sbert = SentenceTransformer("all-mpnet-base-v2")  # TODO hard coded
@@ -325,7 +340,8 @@ def load_split_dataset(config):
 
     # text sorting for user is already applied, so next would just be on top:  TODO what if it is from a userprofile file ??? IDK check what we want
     # after moving text fields to user/item info, now concatenate them all and create a single 'text' field:
-    user_remaining_text_fields = [field for field in user_text_fields if (field.startswith("user.") or field.startswith("userprofile."))]
+    user_remaining_text_fields = [field for field in user_text_fields if
+                                  (field.startswith("user.") or field.startswith("userprofile."))]
     if 'text' in user_info.columns:
         user_remaining_text_fields.append('text')
     if len(user_remaining_text_fields) > 0:
