@@ -121,7 +121,7 @@ def tokens_tf_idf_weights(samples, idf_weights=None):
     return {f"sorted_text": ret}
 
 
-def filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=False):
+def filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=False, oo_w2v_v0=False):
     phrase_sizes = set([1])
     unique_phrases = False
     # unique_phrases = True  # todo this should be optional to weigh sentences based on their unique terms or repeated?
@@ -147,6 +147,16 @@ def filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=False):
                     vocab[len(token.split())].append(token.lower())
     vocab = {n: set(v) for n, v in vocab.items()}
 
+    # w2v vocab:
+    if oo_w2v_v0:
+        w2v_vocab = []
+        for line in open("/GW/PSR/nobackup/tigunova/wv.txt", 'r').readlines():
+            w2v_vocab.append(line.strip().lower())
+        w2v_vocab = set(w2v_vocab)
+
+        # filter the vocab to the w2v one: (note we only have 1gram here anyways)
+        vocab[1] = set([v for v in vocab[1] if v in w2v_vocab])
+
     # now load idf weights:
     # load from files
     idf_weights = {}
@@ -158,7 +168,8 @@ def filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=False):
         temp = {k: v for k, v in temp.items() if k in vocab[n]}
         idf_weights.update(temp)
 
-    user_info = user_info.map(sort_sentences, fn_kwargs={'idf_weights': idf_weights, 'oovzero': oovzero}, batched=True)
+    user_info = user_info.map(sort_sentences, fn_kwargs={'idf_weights': idf_weights, 'oovzero': oovzero or oo_w2v_v0},
+                              batched=True)
     user_info = user_info.remove_columns(['text', 'tokenized_sentences_text', 'sentences_text'])
 
     user_info = user_info.to_pandas()

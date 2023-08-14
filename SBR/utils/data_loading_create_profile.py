@@ -39,6 +39,8 @@ def filter_user_profile(dataset_config, user_info):
         user_info = filter_user_profile_idf_sentences(dataset_config, user_info)
     elif dataset_config['user_text_filter'] == "idf_sentence_oov0":
         user_info = filter_user_profile_idf_sentences(dataset_config, user_info, oovzero=True)
+    elif dataset_config['user_text_filter'] == "idf_sentence_oow2vv0":
+        user_info = filter_user_profile_idf_sentences(dataset_config, user_info, oo_w2v_v0=True)
 
     # filter-type1 idf: we can have idf_1_all, idf_2_all, idf_3_all, idf_1-2_all, ..., idf_1-2-3_all, idf_1_unique, ...
     # filter-type2 tf-idf: tf-idf_1, ..., tf-idf_1-2-3
@@ -58,7 +60,8 @@ def filter_user_profile(dataset_config, user_info):
 
 
 def load_split_dataset(config):
-    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
+    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence",
+                                                                       "idf_sentence_oov0", "idf_sentence_oow2vv0"]:
         temp_cs = config['case_sensitive']
         config['case_sensitive'] = True
 
@@ -369,7 +372,8 @@ def load_split_dataset(config):
             item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
     item_info = item_info.drop(columns=[field for field in item_text_fields if field.startswith("item.")])
 
-    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence"]:
+    if 'user_text_filter' in config and config['user_text_filter'] in ["idf_sentence", "random_sentence",
+                                                                       "idf_sentence_oov0", "idf_sentence_oow2vv0"]:
         config['case_sensitive'] = temp_cs
         # since cs was turned off while reading the dataset for user-text to remain intact. user text will change in the followup filder_user_profile function.
         # but item text should be change now latest.
