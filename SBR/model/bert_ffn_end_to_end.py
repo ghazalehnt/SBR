@@ -138,6 +138,41 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             raise ValueError("user or item?")
         return bert_rep, ffn_rep
 
+    def prec_representations_given_items(self, items, padding_token):
+        if self.append_cf_after or self.append_id_ffn or self.append_embedding_ffn or self.append_embedding_after_ffn or self.append_cf_after_ffn:
+            raise ValueError("this function is called to calc item reps for 'external' items as well, so the cf or id stuff cannot be appended.")
+
+        collate_fn = CollateUserItem(padding_token=padding_token)
+
+        dataloader = DataLoader(items, batch_size=512, collate_fn=collate_fn)
+        pbar = tqdm(enumerate(dataloader), total=len(dataloader))
+        reps = []
+        item_ids_list = []
+        for batch_idx, batch in pbar:
+            # item_ids = batch[INTERNAL_ITEM_ID_FIELD]
+            item_ids = batch["item_id"]
+            item_ids_list.extend(list(item_ids))
+            input_ids = batch["input_ids"].to(self.device)
+            att_mask = batch["attention_mask"].to(self.device)
+            output = self.bert.forward(input_ids=input_ids,
+                                       attention_mask=att_mask)
+            if self.agg_strategy == "CLS":
+                rep = output.pooler_output
+            elif self.agg_strategy == "mean_last":
+                tokens_embeddings = output.last_hidden_state
+                mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
+                tokens_embeddings = tokens_embeddings * mask
+                sum_tokons = torch.sum(tokens_embeddings, dim=1)
+                summed_mask = torch.clamp(att_mask.sum(1).type(torch.float), min=1e-9)
+                rep = (sum_tokons.T / summed_mask).T  # divide by how many tokens (1s) are in the att_mask
+
+            for k in range(len(self.item_linear_layers) - 1):
+                rep = torch.nn.functional.relu(self.item_linear_layers[k](rep))
+            rep = self.item_linear_layers[-1](rep)
+
+            reps.extend(rep.tolist())
+        return reps, item_ids_list
+
     # only works for the non-rl pipeline
     def prec_representations_for_test(self, users, items, padding_token):
         if self.use_cf or self.append_embedding_to_text:
