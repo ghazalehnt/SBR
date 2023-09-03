@@ -41,7 +41,7 @@ def main(exp_path, item_file):
     print("items tokenized")
 
     model = get_model(config['model'], None, None, device, config['dataset'], test_only=True)
-    checkpoint = torch.load(join(checkpoint_path, "best_model.pth"), map_location=device)
+    checkpoint = torch.load(join(exp_path, "best_model.pth"), map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     reps, ex_item_ids = model.prec_representations_given_items(items, padding_token=padding_token)
