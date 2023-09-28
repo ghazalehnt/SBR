@@ -282,7 +282,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             att_mask = batch['user_attention_mask']
 
             if user_index is not None:
-                temp_user_ids = torch.Tensor([i for i, v in sorted(user_index.items(), key=lambda x: x[1])])
+                temp_user_ids = torch.LongTensor([i for i, v in sorted(user_index.items(), key=lambda x: x[1])]).to(self.device)
             else:
                 temp_user_ids = user_ids
 
@@ -352,7 +352,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             att_mask = batch['item_attention_mask']
 
             if item_index is not None:
-                temp_item_ids = torch.Tensor([i for i, v in sorted(item_index.items(), key=lambda x: x[1])])
+                temp_item_ids = torch.LongTensor([i for i, v in sorted(item_index.items(), key=lambda x: x[1])]).to(self.device)
             else:
                 temp_item_ids = item_ids
 
