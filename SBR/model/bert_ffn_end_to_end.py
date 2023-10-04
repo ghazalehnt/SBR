@@ -185,7 +185,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []
         for batch_idx, batch in pbar:
-            user_ids = batch[INTERNAL_USER_ID_FIELD]
+            user_ids = batch[INTERNAL_USER_ID_FIELD].squeeze().to(self.device)
             input_ids = batch["input_ids"].to(self.device)
             att_mask = batch["attention_mask"].to(self.device)
             output = self.bert.forward(input_ids=input_ids,
@@ -227,7 +227,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
         pbar = tqdm(enumerate(dataloader), total=len(dataloader))
         reps = []
         for batch_idx, batch in pbar:
-            item_ids = batch[INTERNAL_ITEM_ID_FIELD]
+            item_ids = batch[INTERNAL_ITEM_ID_FIELD].squeeze().to(self.device)
             input_ids = batch["input_ids"].to(self.device)
             att_mask = batch["attention_mask"].to(self.device)
             output = self.bert.forward(input_ids=input_ids,
