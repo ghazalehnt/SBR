@@ -95,15 +95,19 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
                 else:
                     raise NotImplementedError("embed init not implemented")
 
-        user_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
-        for k in range(1, len(model_config["user_k"])):
-            user_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k], device=self.device))
-        self.user_linear_layers = torch.nn.ModuleList(user_layers)
+        self.user_linear_layers = None
+        if "user_k" in model_config and len(model_config["user_k"]) > 0:
+            user_layers = [torch.nn.Linear(dim1user, model_config["user_k"][0], device=self.device)]
+            for k in range(1, len(model_config["user_k"])):
+                user_layers.append(torch.nn.Linear(model_config["user_k"][k-1], model_config["user_k"][k], device=self.device))
+            self.user_linear_layers = torch.nn.ModuleList(user_layers)
 
-        item_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0], device=self.device)]
-        for k in range(1, len(model_config["item_k"])):
-            item_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k], device=self.device))
-        self.item_linear_layers = torch.nn.ModuleList(item_layers)
+        self.item_linear_layers = None
+        if "item_k" in model_config and len(model_config["item_k"]) > 0:
+            item_layers = [torch.nn.Linear(dim1item, model_config["item_k"][0], device=self.device)]
+            for k in range(1, len(model_config["item_k"])):
+                item_layers.append(torch.nn.Linear(model_config["item_k"][k - 1], model_config["item_k"][k], device=self.device))
+            self.item_linear_layers = torch.nn.ModuleList(item_layers)
 
         # # for debug:
         # if DEBUG:
@@ -126,14 +130,16 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
 
         if which == "user":
             ffn_rep = bert_rep.copy()
-            for k in range(len(self.user_linear_layers)-1):
-                ffn_rep = torch.nn.functional.relu(self.user_linear_layers[k](ffn_rep))
-            ffn_rep = self.user_linear_layers[-1](ffn_rep)
+            if self.user_linear_layers is not None:
+                for k in range(len(self.user_linear_layers)-1):
+                    ffn_rep = torch.nn.functional.relu(self.user_linear_layers[k](ffn_rep))
+                ffn_rep = self.user_linear_layers[-1](ffn_rep)
         elif which == "item":
             ffn_rep = bert_rep.copy()
-            for k in range(len(self.item_linear_layers) - 1):
-                ffn_rep = torch.nn.functional.relu(self.item_linear_layers[k](ffn_rep))
-            ffn_rep = self.item_linear_layers[-1](ffn_rep)
+            if self.item_linear_layers is not None:
+                for k in range(len(self.item_linear_layers) - 1):
+                    ffn_rep = torch.nn.functional.relu(self.item_linear_layers[k](ffn_rep))
+                ffn_rep = self.item_linear_layers[-1](ffn_rep)
         else:
             raise ValueError("user or item?")
         return bert_rep, ffn_rep
@@ -210,9 +216,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             if self.append_embedding_ffn:
                 rep = torch.cat([rep, self.user_embedding(user_ids)], dim=1)
 
-            for k in range(len(self.user_linear_layers) - 1):
-                rep = torch.nn.functional.relu(self.user_linear_layers[k](rep))
-            rep = self.user_linear_layers[-1](rep)
+            if self.user_linear_layers is not None:
+                for k in range(len(self.user_linear_layers) - 1):
+                    rep = torch.nn.functional.relu(self.user_linear_layers[k](rep))
+                rep = self.user_linear_layers[-1](rep)
 
             if self.append_embedding_after_ffn:
                 rep = torch.cat([rep, self.user_embedding(user_ids)], dim=1)
@@ -251,9 +258,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             if self.append_embedding_ffn:
                 rep = torch.cat([rep, self.item_embedding(item_ids)], dim=1)
 
-            for k in range(len(self.item_linear_layers) - 1):
-                rep = torch.nn.functional.relu(self.item_linear_layers[k](rep))
-            rep = self.item_linear_layers[-1](rep)
+            if self.item_linear_layers is not None:
+                for k in range(len(self.item_linear_layers) - 1):
+                    rep = torch.nn.functional.relu(self.item_linear_layers[k](rep))
+                rep = self.item_linear_layers[-1](rep)
 
             if self.append_embedding_after_ffn:
                 rep = torch.cat([rep, self.item_embedding(item_ids)], dim=1)
@@ -282,7 +290,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             att_mask = batch['user_attention_mask']
 
             if user_index is not None:
-                temp_user_ids = torch.Tensor([i for i, v in sorted(user_index.items(), key=lambda x: x[1])])
+                temp_user_ids = torch.LongTensor([i for i, v in sorted(user_index.items(), key=lambda x: x[1])]).to(self.device)
             else:
                 temp_user_ids = user_ids
 
@@ -311,7 +319,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
 
             if self.agg_strategy == "CLS":
                 user_rep = output_u.pooler_output
-            elif self.agg_strategy == "mean_last":
+            elif self.agg_strategy == "mean_last":  # TODO have a look at https://huggingface.co/sentence-transformers/msmarco-bert-base-dot-v5 and replace this part?
                 tokens_embeddings = output_u.last_hidden_state
                 mask = att_mask.unsqueeze(-1).expand(tokens_embeddings.size()).float()
                 tokens_embeddings = tokens_embeddings * mask
@@ -329,9 +337,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             if self.append_embedding_ffn:
                 user_rep = torch.cat([user_rep, self.user_embedding(temp_user_ids)], dim=1)
 
-            for k in range(len(self.user_linear_layers) - 1):
-                user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
-            user_rep = self.user_linear_layers[-1](user_rep)
+            if self.user_linear_layers is not None:
+                for k in range(len(self.user_linear_layers) - 1):
+                    user_rep = torch.nn.functional.relu(self.user_linear_layers[k](user_rep))
+                user_rep = self.user_linear_layers[-1](user_rep)
 
             if self.append_embedding_after_ffn:
                 user_rep = torch.cat([user_rep, self.user_embedding(temp_user_ids)], dim=1)
@@ -341,9 +350,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             # repeat the user-rep by the batch occurrence
             if user_index is not None:
                 repeats = []
-                for id in user_ids:
-                    repeats.append(user_index[id.item()])
-                user_rep = torch.cat([user_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
+                for idx in user_ids:
+                    repeats.append(user_index[idx.item()])
+                user_rep = torch.cat([user_rep[idx, :].unsqueeze(0) for idx in repeats], dim=0).to(self.device)
 
         if (self.test_only or validate) and self.support_test_prec:
             item_rep = self.item_prec_reps(item_ids)
@@ -352,7 +361,7 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             att_mask = batch['item_attention_mask']
 
             if item_index is not None:
-                temp_item_ids = torch.Tensor([i for i, v in sorted(item_index.items(), key=lambda x: x[1])])
+                temp_item_ids = torch.LongTensor([i for i, v in sorted(item_index.items(), key=lambda x: x[1])]).to(self.device)
             else:
                 temp_item_ids = item_ids
 
@@ -397,9 +406,10 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
             if self.append_embedding_ffn:
                 item_rep = torch.cat([item_rep, self.item_embedding(temp_item_ids)], dim=1)
 
-            for k in range(len(self.item_linear_layers) - 1):
-                item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
-            item_rep = self.item_linear_layers[-1](item_rep)
+            if self.item_linear_layers is not None:
+                for k in range(len(self.item_linear_layers) - 1):
+                    item_rep = torch.nn.functional.relu(self.item_linear_layers[k](item_rep))
+                item_rep = self.item_linear_layers[-1](item_rep)
 
             if self.append_embedding_after_ffn:
                 item_rep = torch.cat([item_rep, self.item_embedding(temp_item_ids)], dim=1)
@@ -409,9 +419,9 @@ class BertFFNUserTextProfileItemTextProfileEndToEnd(torch.nn.Module):
              # repeat the item-rep by the batch occurrence
             if item_index is not None:
                 repeats = []
-                for id in item_ids:
-                    repeats.append(item_index[id.item()])
-                item_rep = torch.cat([item_rep[id, :].unsqueeze(0) for id in repeats], dim=0).to(self.device)
+                for idx in item_ids:
+                    repeats.append(item_index[idx.item()])
+                item_rep = torch.cat([item_rep[idx, :].unsqueeze(0) for idx in repeats], dim=0).to(self.device)
 
         result = torch.sum(torch.mul(user_rep, item_rep), dim=1)
         result = result.unsqueeze(1)
