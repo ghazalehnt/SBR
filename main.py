@@ -125,7 +125,9 @@ def main(op, config_file=None, result_folder=None, given_limit_training_data=Non
     # needed for item-item relatedness
     temp = {ex: internal for ex, internal in zip(items['item_id'], items['internal_item_id'])}
     json.dump(temp, open(join(exp_dir, "item_internal_ids.json"), 'w'))
-
+    temp = {ex: internal for ex, internal in zip(users['user_id'], users['internal_user_id'])}
+    json.dump(temp, open(join(exp_dir, "user_internal_ids.json"), 'w'))
+    
     model = get_model(config['model'], users, items, device, config['dataset'], exp_dir, test_only=test_only)
     print("Get model Done!")
 
