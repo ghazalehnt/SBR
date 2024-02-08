@@ -20,6 +20,9 @@ def main(config_file=None, given_user_text_filter=None, given_limit_training_dat
     config = json.load(open(config_file, 'r'))
     if given_user_text_filter is not None:
         config['dataset']['user_text_filter'] = given_user_text_filter
+        # TODO to avoid commands/files
+        if given_user_text_filter.startswith("tf-idf"):
+            given_cs = False
     if given_limit_training_data is not None:
         config['dataset']['limit_training_data'] = given_limit_training_data
     if given_user_text is not None:
