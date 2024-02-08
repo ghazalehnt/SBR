@@ -383,8 +383,8 @@ def load_split_dataset(config):
     return user_info, item_info
 
 
-def create_item_profile_from_file(name, item_file, item_fields, case_sensitive, normalize_negation, output_path):
-    keep_fields = ["item_id"]
+def create_item_profile_from_file(name, item_file, item_id_field, item_fields, case_sensitive, normalize_negation, output_path):
+    keep_fields = [item_id_field]
     keep_fields.extend(item_fields)
     item_info = pd.read_csv(item_file, usecols=keep_fields, low_memory=False, dtype=str)
     item_info = item_info.fillna('')
@@ -393,22 +393,25 @@ def create_item_profile_from_file(name, item_file, item_fields, case_sensitive, 
             lambda x: ", ".join(
                 [g.replace("'", "").replace('"', "").replace("[", "").replace("]", "").replace("  ", " ").strip() for
                  g in x.split(",")]))
-    if "amazon" in name:
+    if "amazon" in name.lower():
         if 'category' in item_info.columns:
             item_info['category'] = item_info['category'].apply(lambda x: x.replace("'", "").replace('"', "").replace("  ", " ").replace("[", "").replace("]", "").strip())
             item_info['category'] = item_info['category'].apply(lambda x: ", ".join(list(set([g.strip() for g in x.split(",")]))))
         if 'description' in item_info.columns:
             item_info['description'] = item_info['description'].apply(lambda x: ", ".join(x.split(",")).replace("'", "").replace('"', "").replace("  ", " ").replace("[", "").replace("]", "").strip())
+    # TODO rename item_id_field to item_id
+    item_info = item_info.rename(columns={item_id_field: "item_id"})
     print("read item file")
 
     ## ITEM:
     if len(item_fields) > 0:
         item_info['text'] = item_info[item_fields].agg('. '.join, axis=1)
+        print(item_info)
         if not case_sensitive:
             item_info['text'] = item_info['text'].apply(str.lower)
         if normalize_negation:
             item_info['text'] = item_info['text'].replace("n\'t", " not", regex=True)
-    item_info = item_info["item_id", "text"]
+    item_info = item_info[["item_id", "text"]]
 
     item_info.to_csv(output_path, index=False)
     print(f"{output_path} created")
